@@ -1,0 +1,58 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}{{ exam.title }} tafsilotlari{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto p-4 md:p-8">
+    <div class="bg-white rounded-lg shadow-md p-6">
+        <div class="flex justify-between items-center mb-6">
+            <a href="{% url 'my_exams' %}" class="text-blue-500 hover:underline">← Orqaga</a>
+            <h2 class="text-3xl font-bold text-gray-800 text-center flex-grow">{{ exam.title }}</h2>
+            <div class="flex space-x-4">
+                <a href="{% url 'edit_exam' exam_id=exam.id %}" class="bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-2 px-4 rounded-md">Tahrirlash</a>
+                <a href="{% url 'delete_exam' exam_id=exam.id %}" class="bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded-md" onclick="return confirm('Bu imtihonni o\'chirishni xohlaysizmi?')">O'chirish</a>
+            </div>
+        </div>
+
+        <p class="text-gray-600 mb-4">{{ exam.description|default:"Tavsif yo'q" }}</p>
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm text-gray-700 mb-6 border-t pt-4">
+            <div><strong>Turi:</strong> {{ exam.get_exam_type_display }}</div>
+            <div><strong>Narxi:</strong> {% if exam.is_premium %}Pullik{% else %}Bepul{% endif %}</div>
+            <div><strong>Holati:</strong> {% if exam.is_active %}Aktiv{% else %}Noaktiv{% endif %}</div>
+            <div><strong>Yaratilgan vaqti:</strong> {{ exam.created_at|date:"d M Y, H:i" }}</div>
+        </div>
+
+        <hr class="my-6">
+        
+        <h3 class="text-xl font-bold text-gray-800 mb-4">Imtihon bo'limlari</h3>
+        {% if sections_with_question_count %}
+        <div class="space-y-4">
+            {% for item in sections_with_question_count %}
+            <div class="p-4 border rounded-lg bg-gray-50 flex justify-between items-center">
+                <div>
+                    <h4 class="font-semibold text-gray-800">Bo'lim {{ forloop.counter }}: {{ item.section.get_section_type_display }} (Modul {{ item.section.module_number }})</h4>
+                    <p class="text-sm text-gray-600">
+                        Davomiyligi: {{ item.section.duration_minutes }} daqiqa | 
+                        Savollar soni: {{ item.question_count }} ta
+                    </p>
+                </div>
+                <div class="flex space-x-4">
+                    <a href="{% url 'edit_section' section_id=item.section.id %}" class="text-blue-500 hover:underline">Tahrirlash</a>
+                    <a href="{% url 'delete_section' section_id=item.section.id %}" class="text-red-500 hover:underline" onclick="return confirm('Bu bo\'limni o\'chirishni xohlaysizmi?')">O'chirish</a>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <p class="text-gray-500">Bu imtihonda hali bo'limlar yaratilmagan.</p>
+        {% endif %}
+
+        <div class="mt-8 text-center">
+            <a href="{% url 'create_static_exam_step2' exam_id=exam.id %}" class="bg-indigo-500 hover:bg-indigo-600 text-white font-bold py-2 px-4 rounded-md">
+                Bo'limlarni boshqarish
+            </a>
+        </div>
+    </div>
+</div>
+{% endblock %}

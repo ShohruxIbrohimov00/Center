@@ -1,0 +1,66 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Yangi Flashcard yaratish{% endblock %}
+
+{% block content %}
+<div class="container mx-auto p-4 md:p-8">
+    <div class="bg-white rounded-lg shadow-md p-6 max-w-3xl mx-auto">
+        <h2 class="text-3xl font-bold text-gray-800 mb-6 text-center">Yangi Flashcard yaratish</h2>
+
+        {% if form.non_field_errors %}
+            <div class="p-4 mb-4 text-sm text-red-700 bg-red-100 rounded-lg" role="alert">
+                {{ form.non_field_errors }}
+            </div>
+        {% endif %}
+
+        <form method="POST" enctype="multipart/form-data">
+            {% csrf_token %}
+            
+            <div class="mb-6">
+                <label for="{{ form.content_type.id_for_label }}" class="block text-gray-700 font-medium mb-2">{{ form.content_type.label }}</label>
+                {{ form.content_type }}
+                {% for error in form.content_type.errors %}
+                    <p class="text-red-500 text-sm mt-1">{{ error }}</p>
+                {% endfor %}
+            </div>
+
+            <div class="mb-6">
+                <label for="{{ form.english_content.id_for_label }}" class="block text-gray-700 font-medium mb-2">{{ form.english_content.label }}</label>
+                {{ form.english_content }}
+                {% for error in form.english_content.errors %}
+                    <p class="text-red-500 text-sm mt-1">{{ error }}</p>
+                {% endfor %}
+            </div>
+
+            <div class="mb-6">
+                <label for="{{ form.uzbek_meaning.id_for_label }}" class="block text-gray-700 font-medium mb-2">{{ form.uzbek_meaning.label }}</label>
+                {{ form.uzbek_meaning }}
+                {% for error in form.uzbek_meaning.errors %}
+                    <p class="text-red-500 text-sm mt-1">{{ error }}</p>
+                {% endfor %}
+            </div>
+
+            <div class="mb-6">
+                <label for="{{ form.context_sentence.id_for_label }}" class="block text-gray-700 font-medium mb-2">{{ form.context_sentence.label }}</label>
+                {{ form.context_sentence }}
+                {% for error in form.context_sentence.errors %}
+                    <p class="text-red-500 text-sm mt-1">{{ error }}</p>
+                {% endfor %}
+            </div>
+
+            <div class="flex justify-end items-center mt-8">
+                <a href="{% url 'list_flashcards' %}" class="bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-2 px-6 rounded-md mr-4">
+                    Bekor qilish
+                </a>
+                <button type="submit" id="save-button" class="bg-blue-600 hover:bg-blue-800 text-white font-bold py-2 px-6 rounded-md transition duration-300">
+                    Saqlash
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_body %}
+{% endblock %}

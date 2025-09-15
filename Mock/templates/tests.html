@@ -1,0 +1,41 @@
+{% extends 'base.html' %}
+
+{% block title %}Barcha testlar{% endblock %}
+
+{% block content %}
+<div class="bg-white p-6 rounded-lg shadow-md">
+    <h2 class="text-3xl font-bold text-gray-800 mb-6 text-center">Mavjud imtihonlar ro'yxati</h2>
+    
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {% for exam in exams %}
+        <div class="bg-gray-100 rounded-lg shadow-sm hover:shadow-lg transition-shadow duration-300 overflow-hidden">
+            <div class="p-6">
+                <h3 class="text-xl font-bold text-gray-700 mb-2">{{ exam.title }}</h3>
+                <p class="text-gray-500 text-sm mb-4">
+                    <i class="fas fa-clock mr-2"></i>Imtihon vaqti: <b>{{ exam.duration_minutes }} daqiqa</b>
+                </p>
+                <p class="text-gray-500 text-sm mb-4">
+                    <i class="fas fa-question-circle mr-2"></i>Savollar soni: <b>{{ exam.questions.count }} ta</b>
+                </p>
+                <p class="text-gray-500 text-sm">
+                    <i class="fas fa-chalkboard-teacher mr-2"></i>Ustoz: <b>{{ exam.teacher.username|default:"-Noma'lum-" }}</b>
+                </p>
+            </div>
+            <div class="p-4 bg-gray-100 flex justify-end">
+                {% if user.is_authenticated %}
+                <a href="{% url 'start_exam' exam.id %}" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-md transition duration-300">
+                    Testni boshlash
+                </a>
+                {% else %}
+                <a href="/signin?next={% url 'start_exam' exam.id %}" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-md transition duration-300">
+                    Kirish
+                </a>
+                {% endif %}
+            </div>
+        </div>
+        {% empty %}
+        <p class="text-center text-gray-500 col-span-full">Hozircha testlar mavjud emas.</p>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}

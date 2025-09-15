@@ -1,0 +1,31 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Mavzulanmagan savollar{% endblock %}
+
+{% block content %}
+<div class="bg-white p-6 rounded-lg shadow-md max-w-7xl mx-auto">
+    <div class="breadcrumb mb-6 text-sm text-gray-500">
+        <a href="{% url 'my_questions' %}" class="hover:text-gray-700 transition-colors">Bosh sahifa</a>
+        <span>></span>
+        <span class="text-gray-700 font-medium">Mavzulanmagan savollar</span>
+    </div>
+
+    <div class="flex flex-col sm:flex-row justify-between items-center mb-6 space-y-4 sm:space-y-0">
+        <h2 class="text-3xl font-bold text-gray-800">Mavzulanmagan savollar</h2>
+        <a href="{% url 'add_question' %}?uncategorized=true" class="btn btn-primary">
+            <i class="fas fa-plus mr-2"></i>Savol qo'shish
+        </a>
+    </div>
+    
+    {% if questions %}
+    <div class="space-y-4">
+        {% for question in questions %}
+        <div class="bg-gray-50 rounded-lg p-6 border border-gray-200 shadow-sm transition-shadow duration-200 hover:shadow-md">
+            </div>
+        {% endfor %}
+    </div>
+    {% else %}
+        {% endif %}
+</div>
+{% endblock %}

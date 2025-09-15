@@ -1,0 +1,119 @@
+{% extends 'base.html' %}
+{% block title %}Tariflar{% endblock %}
+
+{% block content %}
+<div class="container mx-auto p-4 md:p-8">
+    <h2 class="text-4xl font-extrabold text-center text-gray-800 mb-6">Tarif rejalarimiz</h2>
+    <p class="text-center text-gray-600 mb-10 max-w-2xl mx-auto">Sizga mos bo'lgan tarifni tanlab, testlar va imtihonlar dunyosiga sho'ng'ing.</p>
+    
+    {% if messages %}
+        <div class="mb-6">
+            {% for message in messages %}
+                <div class="p-4 rounded-md {% if message.tags == 'success' %}bg-green-100 text-green-700{% elif message.tags == 'error' %}bg-red-100 text-red-700{% endif %}">
+                    {{ message }}
+                </div>
+            {% endfor %}
+        </div>
+    {% endif %}
+
+    <div class="mb-12">
+        <h3 class="text-3xl font-bold text-center text-gray-800 mb-6">Imtihon paketlari</h3>
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+            {% for package in exam_packages %}
+            <div class="bg-white rounded-lg shadow-lg overflow-hidden transition-transform transform hover:scale-105">
+                <div class="p-8 text-center border-b border-gray-200">
+                    <h4 class="text-2xl font-bold text-gray-800">{{ package.name }}</h4>
+                    <p class="mt-2 text-gray-600">{{ package.description|default:"" }}</p>
+                    <div class="mt-4 text-4xl font-extrabold text-blue-600">
+                        {{ package.price|floatformat:"0" }} so'm
+                    </div>
+                </div>
+                <div class="p-8">
+                    <ul class="text-gray-600 space-y-3">
+                        <li class="flex items-center">
+                            <i class="fas fa-check-circle text-green-500 mr-2"></i>
+                            {{ package.exam_credits }} ta imtihon krediti
+                        </li>
+                        <li class="flex items-center">
+                            <i class="fas fa-check-circle text-green-500 mr-2"></i>
+                            {{ package.solution_view_credits_on_purchase }} ta yechim krediti
+                        </li>
+                        {% if package.exams.exists %}
+                        <li class="flex items-center">
+                            <i class="fas fa-list text-gray-500 mr-2"></i>
+                            <span class="font-semibold">O'z ichiga olgan imtihonlar:</span>
+                            <ul class="ml-4 list-disc list-inside">
+                                {% for exam in package.exams.all %}
+                                <li>{{ exam.title }}</li>
+                                {% endfor %}
+                            </ul>
+                        </li>
+                        {% endif %}
+                    </ul>
+                    <form action="{% url 'process_purchase' 'package' package.id %}" method="post" class="mt-8">
+                        {% csrf_token %}
+                        <div class="mb-4">
+                            {{ form.promo_code }}
+                        </div>
+                        <button type="submit" class="w-full bg-blue-600 text-white font-bold py-3 px-6 rounded-md hover:bg-blue-700 transition duration-300">
+                            Sotib olish
+                        </button>
+                    </form>
+                </div>
+            </div>
+            {% empty %}
+            <p class="text-center text-gray-500 col-span-full">Hozirda paketlar mavjud emas.</p>
+            {% endfor %}
+        </div>
+    </div>
+
+    <div>
+        <h3 class="text-3xl font-bold text-center text-gray-800 mb-6">Obuna rejalari</h3>
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+            {% for plan in subscription_plans %}
+            <div class="bg-white rounded-lg shadow-lg overflow-hidden transition-transform transform hover:scale-105">
+                <div class="p-8 text-center border-b border-gray-200">
+                    <h4 class="text-2xl font-bold text-gray-800">{{ plan.name }}</h4>
+                    <p class="mt-2 text-gray-600">{{ plan.description|default:"" }}</p>
+                    <div class="mt-4 text-4xl font-extrabold text-purple-600">
+                        {{ plan.price|floatformat:"0" }} so'm
+                    </div>
+                </div>
+                <div class="p-8">
+                    <ul class="text-gray-600 space-y-3">
+                        <li class="flex items-center">
+                            <i class="fas fa-check-circle text-green-500 mr-2"></i>
+                            Cheklanmagan savollar bazasi
+                        </li>
+                        <li class="flex items-center">
+                            <i class="fas fa-check-circle text-green-500 mr-2"></i>
+                            Davomiyligi: {{ plan.duration_days }} kun
+                        </li>
+                        <li class="flex items-center">
+                            {% if plan.includes_solution_access %}
+                            <i class="fas fa-check-circle text-green-500 mr-2"></i>
+                            <span class="font-semibold">Yechimlar bazasiga kirish</span>
+                            {% else %}
+                            <i class="fas fa-times-circle text-red-500 mr-2"></i>
+                            <span class="font-semibold text-gray-400">Yechimlar bazasiga kirish</span>
+                            {% endif %}
+                        </li>
+                    </ul>
+                    <form action="{% url 'process_purchase' 'subscription' plan.id %}" method="post" class="mt-8">
+                        {% csrf_token %}
+                        <div class="mb-4">
+                            {{ form.promo_code }}
+                        </div>
+                        <button type="submit" class="w-full bg-purple-600 text-white font-bold py-3 px-6 rounded-md hover:bg-purple-700 transition duration-300">
+                            Obuna bo'lish
+                        </button>
+                    </form>
+                </div>
+            </div>
+            {% empty %}
+            <p class="text-center text-gray-500 col-span-full">Hozirda obuna rejalari mavjud emas.</p>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,32 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto p-4 md:p-8">
+    <div class="card-section">
+        <h1 class="card-title">Mavzular ro'yxati</h1>
+        
+        <a href="{% url 'exam_uncategorized_questions' exam_id=exam_id %}?section_index={{ section_index }}" class="block">
+            <div class="card-section mb-4 transition-transform transform hover:scale-105 duration-300">
+                <div class="flex justify-between items-center">
+                    <span class="font-semibold text-lg text-gray-800">Mavzulanmagan savollar</span>
+                    <span class="text-sm text-gray-500">{{ uncategorized_questions_count }} ta savol</span>
+                </div>
+            </div>
+        </a>
+
+        {% for topic in topics %}
+            <a href="{% url 'exam_subtopic_list' exam_id=exam_id topic_id=topic.id %}?section_index={{ section_index }}" class="block">
+                <div class="card-section mb-2 transition-transform transform hover:scale-105 duration-300">
+                    <div class="flex justify-between items-center">
+                        <span class="font-semibold text-gray-800">{{ topic.name }}</span>
+                        <span class="text-sm text-gray-500">{{ topic.subtopic_count }} ta ichki mavzu</span>
+                    </div>
+                </div>
+            </a>
+        {% empty %}
+            <p class="text-gray-600">Hali mavzular yaratilmagan.</p>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}

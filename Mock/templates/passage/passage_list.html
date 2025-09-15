@@ -1,0 +1,104 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Mening Matnlarim{% endblock %}
+
+{% block content %}
+<div class="container mx-auto p-4 md:p-8">
+    <div class="flex justify-between items-center mb-6">
+        <h2 class="text-3xl font-bold text-gray-800">Mening Matnlarim</h2>
+        <a href="{% url 'add_passage' %}" class="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-md">
+            + Yangi matn qo'shish
+        </a>
+    </div>
+
+    {% for message in messages %}
+        <div class="p-4 mb-4 text-sm rounded-lg {% if message.tags == 'success' %}bg-green-100 text-green-700{% elif message.tags == 'error' %}bg-red-100 text-red-700{% endif %}" role="alert">
+            {{ message }}
+        </div>
+    {% endfor %}
+
+    <div class="mb-4">
+        <input type="text" id="searchInput" onkeyup="searchPassages()" placeholder="Matnlarni qidirish..." class="w-full px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+    </div>
+
+    <div class="bg-white rounded-lg shadow-md overflow-x-auto">
+        <table class="min-w-full leading-normal" id="passageTable">
+            <thead>
+                <tr>
+                    <th class="px-5 py-3 border-b-2 border-gray-200 bg-gray-100 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                        Sarlavha
+                    </th>
+                    <th class="px-5 py-3 border-b-2 border-gray-200 bg-gray-100 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                        Matnning bir qismi
+                    </th>
+                    <th class="px-5 py-3 border-b-2 border-gray-200 bg-gray-100 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                        Yaratilgan
+                    </th>
+                    <th class="px-5 py-3 border-b-2 border-gray-200 bg-gray-100 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                        Amallar
+                    </th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for passage in passages %}
+                <tr class="hover:bg-gray-50">
+                    <td class="px-5 py-5 border-b border-gray-200 bg-white text-sm">
+                        <p class="text-gray-900 font-semibold">{{ passage.title }}</p>
+                    </td>
+                    <td class="px-5 py-5 border-b border-gray-200 bg-white text-sm">
+                        <p class="text-gray-900">{{ passage.content|striptags|truncatechars:100 }}</p>
+                    </td>
+                    <td class="px-5 py-5 border-b border-gray-200 bg-white text-sm">
+                        <p class="text-gray-900">{{ passage.created_at|date:"d M Y" }}</p>
+                    </td>
+                    <td class="px-5 py-5 border-b border-gray-200 bg-white text-sm text-center">
+                        <a href="{% url 'edit_passage' passage.pk %}" class="text-indigo-600 hover:text-indigo-900 mx-1" title="Tahrirlash">
+                            <i class="fas fa-edit"></i>
+                        </a>
+                        <form action="{% url 'delete_passage' passage.pk %}" method="POST" class="inline" onsubmit="return confirm('Haqiqatan ham bu matnni oʻchirmoqchimisiz?');">
+                            {% csrf_token %}
+                            <button type="submit" class="text-red-600 hover:text-red-900 mx-1" title="O'chirish">
+                                <i class="fas fa-trash-alt"></i>
+                            </button>
+                        </form>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="4" class="px-5 py-5 text-center text-gray-500">
+                        Hali hech qanday matn yaratilmagan.
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_body %}
+<script>
+function searchPassages() {
+    let input, filter, table, tr, td, i, txtValue;
+    input = document.getElementById("searchInput");
+    filter = input.value.toUpperCase();
+    table = document.getElementById("passageTable");
+    tr = table.getElementsByTagName("tr");
+
+    for (i = 1; i < tr.length; i++) { // 1 dan boshlanadi, chunki 0 - sarlavha
+        td1 = tr[i].getElementsByTagName("td")[0]; // Sarlavha
+        td2 = tr[i].getElementsByTagName("td")[1]; // Matnning bir qismi
+        if (td1 || td2) {
+            txtValue1 = td1.textContent || td1.innerText;
+            txtValue2 = td2.textContent || td2.innerText;
+            if (txtValue1.toUpperCase().indexOf(filter) > -1 || txtValue2.toUpperCase().indexOf(filter) > -1) {
+                tr[i].style.display = "";
+            } else {
+                tr[i].style.display = "none";
+            }
+        }       
+    }
+}
+</script>
+{% endblock %}

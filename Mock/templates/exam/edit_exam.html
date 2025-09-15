@@ -1,0 +1,197 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Imtihonni tahrirlash{% endblock %}
+
+{% block extra_body %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const csrftoken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+        const sectionContainer = document.getElementById('sections-container');
+        const addSectionBtn = document.getElementById('add-section-btn');
+
+        function addSection(sectionId = null, sectionData = null) {
+            const sectionDiv = document.createElement('div');
+            sectionDiv.className = 'section-item border p-4 rounded-md shadow-sm mb-4';
+            sectionDiv.dataset.sectionId = sectionId || '';
+            sectionDiv.innerHTML = `
+                <h4 class="text-lg font-bold text-gray-800 mb-4">Bo'lim ${sectionId ? sectionId : 'Yangi'}</h4>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                    <div>
+                        <label class="block text-gray-700 font-medium mb-2">Bo'lim turi</label>
+                        <select name="section_type_${sectionId || 'new'}" class="w-full border rounded-md p-2">
+                            <option value="reading" ${sectionData && sectionData.section_type === 'reading' ? 'selected' : ''}>Reading</option>
+                            <option value="writing" ${sectionData && sectionData.section_type === 'writing' ? 'selected' : ''}>Writing and Language</option>
+                            <option value="math_no_calc" ${sectionData && sectionData.section_type === 'math_no_calc' ? 'selected' : ''}>Math (No Calculator)</option>
+                            <option value="math_calc" ${sectionData && sectionData.section_type === 'math_calc' ? 'selected' : ''}>Math (Calculator)</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-gray-700 font-medium mb-2">Davomiyligi (minut)</label>
+                        <input type="number" name="duration_minutes_${sectionId || 'new'}" value="${sectionData ? sectionData.duration_minutes : ''}" class="w-full border rounded-md p-2" required>
+                    </div>
+                    <div>
+                        <label class="block text-gray-700 font-medium mb-2">Maksimal savollar soni</label>
+                        <input type="number" name="max_questions_${sectionId || 'new'}" value="${sectionData ? sectionData.max_questions : ''}" class="w-full border rounded-md p-2" required>
+                    </div>
+                    <div>
+                        <label class="block text-gray-700 font-medium mb-2">Modul raqami</label>
+                        <input type="number" name="module_number_${sectionId || 'new'}" value="${sectionData ? sectionData.module_number : '1'}" class="w-full border rounded-md p-2" required>
+                    </div>
+                    <div>
+                        <label class="block text-gray-700 font-medium mb-2">Tartib raqami</label>
+                        <input type="number" name="order_${sectionId || 'new'}" value="${sectionData ? sectionData.order : ''}" class="w-full border rounded-md p-2" required>
+                    </div>
+                    <div>
+                        <label class="block text-gray-700 font-medium mb-2">Minimal qiyinlik (Rasch)</label>
+                        <input type="number" step="0.1" name="min_difficulty_${sectionId || 'new'}" value="${sectionData && sectionData.min_difficulty ? sectionData.min_difficulty : ''}" class="w-full border rounded-md p-2">
+                    </div>
+                    <div>
+                        <label class="block text-gray-700 font-medium mb-2">Maksimal qiyinlik (Rasch)</label>
+                        <input type="number" step="0.1" name="max_difficulty_${sectionId || 'new'}" value="${sectionData && sectionData.max_difficulty ? sectionData.max_difficulty : ''}" class="w-full border rounded-md p-2">
+                    </div>
+                </div>
+                <button type="button" class="remove-section-btn bg-red-500 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-md">Bo'limni o'chirish</button>
+                <div class="mt-4">
+                    <h5 class="text-md font-bold text-gray-800 mb-2">Statik savollar</h5>
+                    <div class="selected-questions-list">
+                        ${sectionData && sectionData.static_questions ? sectionData.static_questions.map(q => `<div class="question-item">Savol ${q.question_number} (ID: ${q.question_id}) <button type="button" class="remove-question-btn" data-question-id="${q.question_id}">O'chirish</button></div>`).join('') : ''}
+                    </div>
+                    <a href="{% url 'questions_by_topic_for_exam' 0 %}?section_id=${sectionId || 'new'}" class="text-blue-500 hover:underline">Savollarni tanlash</a>
+                </div>
+                <div class="mt-4 topic-rules-container">
+                    <h5 class="text-md font-bold text-gray-800 mb-2">Mavzu qoidalari (Adaptiv)</h5>
+                    <button type="button" class="add-topic-rule-btn bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-md">Mavzu qoidasi qo'shish</button>
+                </div>
+            `;
+            sectionContainer.appendChild(sectionDiv);
+        }
+
+        // Mavjud bo'limlarni yuklash
+        {% for section in sections %}
+            addSection({{ section.id }}, {
+                section_type: '{{ section.section_type }}',
+                duration_minutes: '{{ section.duration_minutes }}',
+                max_questions: '{{ section.max_questions }}',
+                module_number: '{{ section.module_number }}',
+                order: '{{ section.order }}',
+                min_difficulty: '{{ section.min_difficulty|default_if_none:"" }}',
+                max_difficulty: '{{ section.max_difficulty|default_if_none:"" }}',
+                static_questions: [
+                    {% for q in section.static_questions.all %}
+                        { question_id: '{{ q.question.id }}', question_number: '{{ q.question_number }}' },
+                    {% endfor %}
+                ]
+            });
+        {% endfor %}
+
+        addSectionBtn.addEventListener('click', function() {
+            addSection();
+        });
+
+        sectionContainer.addEventListener('click', function(event) {
+            if (event.target.classList.contains('remove-section-btn')) {
+                if (confirm('Bu bo\'limni o\'chirishni xohlaysizmi?')) {
+                    const sectionId = event.target.closest('.section-item').dataset.sectionId;
+                    if (sectionId) {
+                        fetch(`/delete_section/${sectionId}/`, {
+                            method: 'POST',
+                            headers: {
+                                'X-CSRFToken': csrftoken
+                            }
+                        })
+                        .then(response => response.json())
+                        .then(data => {
+                            if (data.status === 'success') {
+                                event.target.closest('.section-item').remove();
+                            } else {
+                                alert(data.message);
+                            }
+                        });
+                    } else {
+                        event.target.closest('.section-item').remove();
+                    }
+                }
+            }
+            if (event.target.classList.contains('remove-question-btn')) {
+                const sectionId = event.target.closest('.section-item').dataset.sectionId;
+                const questionId = event.target.dataset.questionId;
+                fetch(`/remove_question_from_section/${sectionId}/${questionId}/`, {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': csrftoken
+                    }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        event.target.closest('.question-item').remove();
+                    } else {
+                        alert(data.message);
+                    }
+                });
+            }
+        });
+    });
+</script>
+
+<style>
+    .hidden { display: none; }
+    .section-item { position: relative; }
+    .question-item { margin-bottom: 8px; }
+    .remove-section-btn, .remove-question-btn { font-size: 0.9rem; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto p-4 md:p-8">
+    <div class="bg-white rounded-lg shadow-md p-6">
+        <h2 class="text-3xl font-bold text-gray-800 mb-6 text-center">Imtihonni tahrirlash: "{{ exam.title }}"</h2>
+
+        {% for message in messages %}
+            <div class="p-4 mb-4 text-sm rounded-lg {% if message.tags == 'success' %}bg-green-100 text-green-700{% elif message.tags == 'error' %}bg-red-100 text-red-700{% endif %}" role="alert">
+                {{ message }}
+            </div>
+        {% endfor %}
+
+        <form method="POST">
+            {% csrf_token %}
+            {{ exam_form.as_p }}
+            <div class="flex justify-between gap-4 mb-6">
+                <button type="submit" class="w-full bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-md transition duration-300">
+                    Imtihon ma'lumotlarini saqlash
+                </button>
+                <a href="{% url 'my_exams' %}" class="w-full text-center bg-gray-500 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-md transition duration-300">
+                    Orqaga qaytish
+                </a>
+            </div>
+        </form>
+
+        <hr class="my-6">
+
+        <h3 class="text-xl font-bold text-gray-800 mb-4">Bo'limlar</h3>
+        <div id="sections-container" class="space-y-4"></div>
+        <button type="button" id="add-section-btn" class="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-md mt-4">
+            Yangi bo'lim qo'shish
+        </button>
+
+        <h3 class="text-xl font-bold text-gray-800 mt-6 mb-4">Savollarni tanlash uchun mavzuga kiring</h3>
+        <div class="space-y-4">
+            {% for topic in topics %}
+            <a href="{% url 'questions_by_topic_for_exam' topic.id %}" class="block">
+                <div class="flex justify-between items-center p-4 bg-white hover:bg-gray-100 rounded-md shadow-sm transition duration-200">
+                    <span class="text-lg font-semibold text-gray-800">{{ topic.name }}</span>
+                    <span class="text-sm text-gray-500">{{ topic.questions_count }} ta savol</span>
+                </div>
+            </a>
+            {% endfor %}
+            <a href="{% url 'questions_by_topic_for_exam' 0 %}" class="block">
+                <div class="flex justify-between items-center p-4 bg-white hover:bg-gray-100 rounded-md shadow-sm transition duration-200">
+                    <span class="text-lg font-semibold text-gray-800">Mavzulanmagan savollar</span>
+                    <span class="text-sm text-gray-500">{{ uncategorized_count }} ta savol</span>
+                </div>
+            </a>
+        </div>
+    </div>
+</div>
+{% endblock %}

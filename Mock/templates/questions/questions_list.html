@@ -1,0 +1,443 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Savollarim{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+<style>
+    .modal {
+        display: none;
+        position: fixed;
+        z-index: 1000;
+        left: 0;
+        top: 0;
+        width: 100%;
+        height: 100%;
+        overflow: auto;
+        background-color: rgba(0,0,0,0.4);
+        padding-top: 60px;
+    }
+    .modal-content {
+        background-color: #fefefe;
+        margin: 5% auto;
+        padding: 20px;
+        border-radius: 8px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        width: 90%;
+        max-width: 500px;
+        position: relative;
+    }
+    .close {
+        color: #aaa;
+        float: right;
+        font-size: 28px;
+        font-weight: bold;
+    }
+    .close:hover,
+    .close:focus {
+        color: black;
+        text-decoration: none;
+        cursor: pointer;
+    }
+    .folder-item {
+        position: relative;
+    }
+    .folder-actions {
+        position: absolute;
+        top: 0.5rem;
+        right: 0.5rem;
+        display: none;
+        gap: 0.25rem;
+        background-color: rgba(255, 255, 255, 0.7);
+        padding: 0.25rem;
+        border-radius: 4px;
+    }
+    .folder-item:hover .folder-actions {
+        display: flex;
+    }
+    .btn {
+        display: inline-flex;
+        align-items: center;
+        padding: 0.5rem 1rem;
+        font-weight: 700;
+        border-radius: 0.375rem;
+        transition: all 0.3s;
+    }
+    .btn-primary { background-color: #3b82f6; color: white; }
+    .btn-primary:hover { background-color: #2563eb; }
+    .btn-info { background-color: #06b6d4; color: white; }
+    .btn-info:hover { background-color: #0891b2; }
+    .btn-danger { background-color: #ef4444; color: white; }
+    .btn-danger:hover { background-color: #dc2626; }
+    .btn-secondary { background-color: #6b7280; color: white; }
+    .btn-secondary:hover { background-color: #4b5563; }
+    .btn-icon {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 2rem;
+        height: 2rem;
+        border-radius: 50%;
+        transition: all 0.2s;
+    }
+    .btn-icon:hover {
+        background-color: rgba(0,0,0,0.1);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="bg-white p-6 rounded-lg shadow-md max-w-7xl mx-auto">
+    <div class="breadcrumb mb-6 text-sm text-gray-500">
+        <a href="{% url 'my_questions' %}" class="hover:text-gray-700 transition-colors">Bosh sahifa</a>
+        {% if topic %}
+            <span>></span>
+            <span class="text-gray-700 font-medium">{{ topic.name }}</span>
+        {% endif %}
+        {% if subtopic %}
+            <span>></span>
+            <a href="{% url 'my_questions' %}?topic={{ subtopic.topic.id }}" class="hover:text-gray-700 transition-colors">{{ subtopic.topic.name }}</a>
+            <span>></span>
+            <span class="text-gray-700 font-medium">{{ subtopic.name }}</span>
+        {% endif %}
+    </div>
+
+    <div class="flex flex-col sm:flex-row justify-between items-center mb-6 space-y-4 sm:space-y-0">
+        <h2 class="text-3xl font-bold text-gray-800">
+            {% if subtopic %}{{ subtopic.name }}{% elif topic %}{{ topic.name }}{% else %}Mening Savollarim{% endif %}
+        </h2>
+        <div class="flex items-center space-x-2">
+            {% if not subtopic and not topic %}
+            <a href="{% url 'create_topic' %}" class="btn btn-info">
+                <i class="fas fa-folder-plus mr-2"></i>Mavzu yaratish
+            </a>
+            {% endif %}
+            <a href="{% url 'add_question' %}{% if subtopic %}?subtopic={{ subtopic.id }}{% elif topic %}?topic={{ topic.id }}{% endif %}" class="btn btn-primary">
+                <i class="fas fa-plus mr-2"></i>Savol qo'shish
+            </a>
+        </div>
+    </div>
+    
+    <div class="mb-6">
+        <form method="get" action="{% url 'my_questions' %}" class="flex flex-col sm:flex-row items-center space-y-4 sm:space-y-0 sm:space-x-4">
+            <input type="hidden" name="topic" value="{{ topic.id|default:'' }}">
+            <input type="hidden" name="subtopic" value="{{ subtopic.id|default:'' }}">
+            <input type="hidden" name="uncategorized" value="{% if uncategorized %}true{% endif %}">
+            <div class="w-full sm:w-1/2 md:w-1/3 lg:w-1/4">
+                <label for="tag-select" class="block text-gray-700 font-medium mb-1">Teg bo'yicha filtrlash:</label>
+                <select name="tag" id="tag-select" class="w-full">
+                    <option value="">Barcha teglar</option>
+                    {% for tag in all_tags %}
+                    <option value="{{ tag.id }}" {% if selected_tag and selected_tag.id == tag.id %}selected{% endif %}>{{ tag.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="w-full sm:w-auto">
+                <button type="submit" class="btn btn-secondary w-full sm:w-auto">
+                    <i class="fas fa-filter mr-2"></i>Filtrlash
+                </button>
+            </div>
+        </form>
+    </div>
+
+    {% if subtopic %}
+    {% if questions %}
+    <div class="space-y-4">
+        {% for question in questions %}
+        <div class="bg-gray-50 rounded-lg p-6 border border-gray-200 shadow-sm transition-shadow duration-200 hover:shadow-md">
+            <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-4 space-y-2 md:space-y-0">
+                <div class="flex-grow">
+                    <p class="text-sm font-semibold text-gray-500 mb-1">Turi: {{ question.get_answer_format_display }}</p>
+                    <div class="prose max-w-none text-lg text-gray-800 font-medium">{{ forloop.counter }}. {{ question.text|safe }}</div>
+                    {% if question.image %}
+                    <div class="mt-4">
+                        <img src="{{ question.image.url }}" alt="Question Image" class="w-full h-auto rounded-md shadow-sm max-w-sm">
+                    </div>
+                    {% endif %}
+                </div>
+                <div class="flex space-x-2 flex-shrink-0 mt-4 md:mt-0">
+                    <a href="{% url 'edit_question' pk=question.pk %}" class="btn-icon text-yellow-600 hover:text-yellow-800" title="Tahrirlash">
+                        <i class="fas fa-edit"></i>
+                    </a>
+                    <form action="{% url 'delete_question' pk=question.pk %}" method="post" class="inline" onsubmit="return confirm('Bu savolni oʻchirishni xohlaysizmi?');">
+                        {% csrf_token %}
+                        <button type="submit" class="btn-icon text-red-600 hover:text-red-800" title="O'chirish">
+                            <i class="fas fa-trash-alt"></i>
+                        </button>
+                    </form>
+                </div>
+            </div>
+            
+            <div class="mt-4">
+                <h4 class="font-semibold text-gray-700 mb-2">Javob variantlari:</h4>
+                {% if question.answer_format == 'short_answer' %}
+                <div class="p-3 rounded-lg bg-green-100 text-green-800 font-semibold">
+                    To'g'ri javob: {{ question.short_solution }}
+                </div>
+                {% else %}
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {% for option in question.choices.all %}
+                    <div class="flex items-start space-x-2 p-3 rounded-lg {% if option.is_correct %}bg-green-100 text-green-800 font-semibold{% else %}bg-gray-100 text-gray-700{% endif %}">
+                        <span class="{% if option.is_correct %}text-green-600{% else %}text-gray-400{% endif %} flex-shrink-0 mt-1">
+                            <i class="fas {% if option.is_correct %}fa-check-circle{% else %}fa-circle{% endif %}"></i>
+                        </span>
+                        <div class="prose max-w-none">{{ option.text|safe }}</div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endif %}
+            </div>
+
+            {% if question.detailed_solution %}
+            <div class="mt-6 border-t border-gray-200 pt-4">
+                <h4 class="font-semibold text-gray-700 mb-2">Batafsil yechim:</h4>
+                <div class="prose max-w-none text-gray-800">{{ question.detailed_solution|safe }}</div>
+            </div>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="text-center py-12 bg-gray-50 rounded-lg">
+        <i class="fas fa-exclamation-triangle text-6xl text-gray-400 mb-4"></i>
+        <p class="text-gray-500 text-lg mb-4">Bu ichki mavzuda hali savollar mavjud emas.</p>
+        <a href="{% url 'add_question' %}?subtopic={{ subtopic.id }}" class="btn btn-primary">
+            Birinchi savolni qo'shing
+        </a>
+    </div>
+    {% endif %}
+    {% elif topic %}
+    {% if subtopics %}
+    <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+        {% for subtopic in subtopics %}
+        <div class="folder-item...">
+            <div class="folder-actions">
+                <a href="{% url 'delete_subtopic' subtopic_id=subtopic.id %}" class="btn-icon text-red-500 hover:text-red-700" title="O'chirish">
+                    <i class="fas fa-trash-alt"></i>
+                </a>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="text-center py-12 bg-gray-50 rounded-lg">
+        <i class="fas fa-exclamation-triangle text-6xl text-gray-400 mb-4"></i>
+        <p class="text-gray-500 text-lg mb-4">Bu mavzuda hali ichki mavzular mavjud emas.</p>
+        <a href="{% url 'create_subtopic_for_topic' topic_id=topic.id %}" class="btn btn-info">
+            Birinchi ichki mavzuni yarating
+        </a>
+    </div>
+    {% endif %}
+    {% else %}
+    {% if topics or uncategorized_questions_count > 0 %}
+    <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+        {% for topic in topics %}
+        <div class="folder-item...">
+            <div class="folder-actions">
+                <a href="{% url 'delete_topic' topic_id=topic.id %}" class="btn-icon text-red-500 hover:text-red-700" title="O'chirish">
+                    <i class="fas fa-trash-alt"></i>
+                </a>
+            </div>
+        </div>
+        {% endfor %}
+        
+        {% if uncategorized_questions_count > 0 %}
+        <a href="{% url 'my_questions' %}?uncategorized=true" class="folder-item bg-gray-100 hover:bg-gray-200 rounded-lg p-6 flex flex-col items-center justify-center text-center transition duration-300">
+            <i class="fas fa-question-circle text-5xl text-gray-400 mb-2"></i>
+            <h3 class="text-xl font-semibold text-gray-800 truncate w-full">Mavzulanmagan savollar</h3>
+            <p class="text-sm text-gray-500">{{ uncategorized_questions_count }} ta savol</p>
+        </a>
+        {% endif %}
+    </div>
+    {% else %}
+    <div class="text-center py-16 bg-gray-50 rounded-lg">
+        <i class="fas fa-exclamation-triangle text-6xl text-gray-400 mb-4"></i>
+        <h3 class="text-xl font-semibold text-gray-700 mb-2">Hali savollar yoki mavzular mavjud emas</h3>
+        <p class="text-gray-500 mb-6">Dastlabki mavzuingizni yoki savolingizni qo'shish orqali boshlang</p>
+        <div class="flex justify-center space-x-4">
+            <a href="{% url 'add_question' %}" class="btn btn-primary">
+                Savol qo'shish
+            </a>
+            <a href="{% url 'create_topic' %}" class="btn btn-info">
+                Mavzu yaratish
+            </a>
+        </div>
+    </div>
+    {% endif %}
+    {% endif %}
+</div>
+
+<div id="deleteTopicModal" class="modal">
+    <div class="modal-content">
+        <span class="close" onclick="closeModal('deleteTopicModal')">&times;</span>
+        <h3 class="text-xl font-bold text-gray-800 mb-4">Mavzuni o'chirish</h3>
+        <p class="text-gray-600 mb-4" id="deleteTopicInfo">...</p>
+        <form id="deleteTopicForm" method="post" action="">
+            {% csrf_token %}
+            <div class="mb-4">
+                <label class="block text-gray-700 mb-2">O'chirish usuli:</label>
+                <div class="space-y-2">
+                    <label class="flex items-center">
+                        <input type="radio" name="delete_type" value="with_questions" checked class="mr-2">
+                        <span>Mavzu va barcha savollarni o'chirish</span>
+                    </label>
+                    <label class="flex items-center">
+                        <input type="radio" name="delete_type" value="move" class="mr-2">
+                        <span>Savollarni boshqa mavzuga ko'chirib, mavzuni o'chirish</span>
+                    </label>
+                </div>
+            </div>
+            <div class="target-container mb-4" style="display: none;">
+                <label class="block text-gray-700 mb-2">Savollarni ko'chirish uchun mavzu:</label>
+                <select name="target_topic" id="target-topic-select" class="w-full px-3 py-2 border border-gray-300 rounded-md"></select>
+            </div>
+            <div class="flex justify-end space-x-3">
+                <button type="button" onclick="closeModal('deleteTopicModal')" class="btn btn-secondary">Bekor qilish</button>
+                <button type="submit" class="btn btn-danger">O'chirish</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div id="deleteSubtopicModal" class="modal">
+    <div class="modal-content">
+        <span class="close" onclick="closeModal('deleteSubtopicModal')">&times;</span>
+        <h3 class="text-xl font-bold text-gray-800 mb-4">Ichki mavzuni o'chirish</h3>
+        <p class="text-gray-600 mb-4" id="deleteSubtopicInfo">...</p>
+        <form id="deleteSubtopicForm" method="post" action="">
+            {% csrf_token %}
+            <div class="mb-4">
+                <label class="block text-gray-700 mb-2">O'chirish usuli:</label>
+                <div class="space-y-2">
+                    <label class="flex items-center">
+                        <input type="radio" name="delete_type" value="with_questions" checked class="mr-2">
+                        <span>Ichki mavzu va unga tegishli barcha savollarni o'chirish</span>
+                    </label>
+                    <label class="flex items-center">
+                        <input type="radio" name="delete_type" value="move" class="mr-2">
+                        <span>Savollarni boshqa ichki mavzuga ko'chirish</span>
+                    </label>
+                </div>
+            </div>
+            <div class="target-container mb-4" style="display: none;">
+                <label class="block text-gray-700 mb-2">Savollarni ko'chirish uchun ichki mavzu:</label>
+                <select name="target_subtopic" id="target-subtopic-select" class="w-full px-3 py-2 border border-gray-300 rounded-md"></select>
+            </div>
+            <div class="flex justify-end space-x-3">
+                <button type="button" onclick="closeModal('deleteSubtopicModal')" class="btn btn-secondary">Bekor qilish</button>
+                <button type="submit" class="btn btn-danger">O'chirish</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_body %}
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+<script>
+    function getCookie(name) {
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+            const cookies = document.cookie.split(';');
+            for (let i = 0; i < cookies.length; i++) {
+                const cookie = cookies[i].trim();
+                if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
+                }
+            }
+        }
+        return cookieValue;
+    }
+
+    function closeModal(modalId) {
+        document.getElementById(modalId).style.display = 'none';
+    }
+
+    function openDeleteTopicModal(topicId) {
+        const modal = document.getElementById('deleteTopicModal');
+        const form = document.getElementById('deleteTopicForm');
+        const info = document.getElementById('deleteTopicInfo');
+        const select = document.getElementById('target-topic-select');
+        
+        form.action = `/teacher/delete-topic/${topicId}/`;
+        
+        // Modal ma'lumotlarini yuklash
+        fetch(form.action + '?info=true', {
+            headers: { 'X-Requested-With': 'XMLHttpRequest' }
+        }).then(res => res.json()).then(data => {
+            info.innerHTML = `"${data.topic_name}" mavzusida ${data.subtopics_count} ta ichki mavzu va ${data.questions_count} ta savol mavjud. Haqiqatan ham o'chirmoqchimisiz?`;
+            
+            // Ko'chirish uchun mavzularni yuklash
+            select.innerHTML = '';
+            data.all_topics.forEach(t => {
+                if (t.id !== topicId) {
+                    const option = document.createElement('option');
+                    option.value = t.id;
+                    option.textContent = t.name;
+                    select.appendChild(option);
+                }
+            });
+
+            // Modalni ochish
+            modal.style.display = 'block';
+        }).catch(err => {
+            console.error('Error fetching topic info:', err);
+            info.innerHTML = "Ma'lumotlarni yuklashda xatolik yuz berdi.";
+        });
+    }
+
+    function openDeleteSubtopicModal(subtopicId) {
+        const modal = document.getElementById('deleteSubtopicModal');
+        const form = document.getElementById('deleteSubtopicForm');
+        const info = document.getElementById('deleteSubtopicInfo');
+        const select = document.getElementById('target-subtopic-select');
+
+        form.action = `/teacher/delete-subtopic/${subtopicId}/`;
+
+        // Modal ma'lumotlarini yuklash
+        fetch(form.action + '?info=true', {
+            headers: { 'X-Requested-With': 'XMLHttpRequest' }
+        }).then(res => res.json()).then(data => {
+            info.innerHTML = `"${data.subtopic_name}" ichki mavzusida ${data.questions_count} ta savol mavjud. Haqiqatan ham o'chirmoqchimisiz?`;
+            
+            // Ko'chirish uchun ichki mavzularni yuklash
+            select.innerHTML = '';
+            data.all_subtopics.forEach(st => {
+                if (st.id !== subtopicId) {
+                    const option = document.createElement('option');
+                    option.value = st.id;
+                    option.textContent = `${st.name} (${st.topic_name})`;
+                    select.appendChild(option);
+                }
+            });
+
+            // Modalni ochish
+            modal.style.display = 'block';
+        }).catch(err => {
+            console.error('Error fetching subtopic info:', err);
+            info.innerHTML = "Ma'lumotlarni yuklashda xatolik yuz berdi.";
+        });
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+        $('select[name="tag"]').select2({
+            placeholder: "Teg tanlang...",
+            allowClear: true,
+            theme: "classic"
+        });
+        
+        $('input[name="delete_type"]').on('change', function() {
+            const container = $(this).closest('.modal-content').find('.target-container');
+            if (this.value === 'move') {
+                container.show();
+            } else {
+                container.hide();
+            }
+        });
+    });
+</script>
+{% endblock %}

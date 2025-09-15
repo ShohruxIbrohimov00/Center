@@ -1,0 +1,24 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto p-4 md:p-8">
+    <div class="card-section">
+        <h1 class="card-title">"{{ topic.name }}" ichki mavzulari</h1>
+        <p class="text-gray-600 mb-6">Mavzu: {{ topic.name }}</p>
+        
+        {% for subtopic in subtopics %}
+            <a href="{% url 'exam_subtopic_questions' exam_id=exam_id subtopic_id=subtopic.id %}?section_index={{ section_index }}" class="block">
+                <div class="card-section mb-2 transition-transform transform hover:scale-105 duration-300">
+                    <div class="flex justify-between items-center">
+                        <span class="font-semibold text-gray-800">{{ subtopic.name }}</span>
+                        <span class="text-sm text-gray-500">{{ subtopic.question_count }} ta savol</span>
+                    </div>
+                </div>
+            </a>
+        {% empty %}
+            <p class="text-gray-600">Bu mavzuga oid ichki mavzular topilmadi.</p>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,49 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}{{ topic.name }}{% endblock %}
+
+{% block content %}
+<div class="bg-white p-6 rounded-lg shadow-md max-w-7xl mx-auto">
+    <div class="breadcrumb mb-6 text-sm text-gray-500">
+        <a href="{% url 'my_questions' %}" class="hover:text-gray-700 transition-colors">Bosh sahifa</a>
+        <span>></span>
+        <span class="text-gray-700 font-medium">{{ topic.name }}</span>
+    </div>
+
+    <div class="flex flex-col sm:flex-row justify-between items-center mb-6 space-y-4 sm:space-y-0">
+        <h2 class="text-3xl font-bold text-gray-800">{{ topic.name }}</h2>
+        <div class="flex items-center space-x-2">
+            <a href="{% url 'create_subtopic_for_topic' topic_id=topic.id %}" class="btn btn-info">
+                <i class="fas fa-folder-plus mr-2"></i>Ichki mavzu yaratish
+            </a>
+            <a href="{% url 'add_question' %}?topic={{ topic.id }}" class="btn btn-primary">
+                <i class="fas fa-plus mr-2"></i>Savol qo'shish
+            </a>
+        </div>
+    </div>
+    
+    {% if subtopics %}
+    <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+        {% for subtopic in subtopics %}
+        <div class="folder-item bg-gray-100 hover:bg-gray-200 rounded-lg p-6 flex flex-col items-center justify-center text-center transition duration-300">
+            <a href="{% url 'subtopic_questions' subtopic_id=subtopic.id %}" class="w-full">
+                <i class="fas fa-folder text-5xl text-blue-400 mb-2"></i>
+                <h3 class="text-xl font-semibold text-gray-800 truncate w-full">{{ subtopic.name }}</h3>
+                <p class="text-sm text-gray-500">{{ subtopic.question_count }} ta savol</p>
+            </a>
+            <div class="folder-actions">
+                <a href="{% url 'edit_subtopic' subtopic_id=subtopic.id %}" class="btn-icon text-yellow-500 hover:text-yellow-700" title="Tahrirlash">
+                    <i class="fas fa-edit"></i>
+                </a>
+                <a href="{% url 'delete_subtopic' subtopic_id=subtopic.id %}" class="btn-icon text-red-500 hover:text-red-700" title="O'chirish">
+                    <i class="fas fa-trash-alt"></i>
+                </a>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+        {% endif %}
+</div>
+{% endblock %}

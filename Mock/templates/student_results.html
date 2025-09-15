@@ -1,0 +1,44 @@
+{% extends 'base.html' %}
+
+{% block title %}Natijalar{% endblock %}
+
+{% block content %}
+<div class="bg-white p-6 rounded-lg shadow-md max-w-7xl mx-auto">
+    <h2 class="text-3xl font-bold text-gray-800 mb-6 text-center">Natijalar</h2>
+
+    {% if results %}
+    <div class="overflow-x-auto">
+        <table class="min-w-full divide-y divide-gray-200">
+            <thead class="bg-gray-200">
+                <tr>
+                    <th class="px-6 py-3 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">Imtihon nomi</th>
+                    <th class="px-6 py-3 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">To'g'ri</th>
+                    <th class="px-6 py-3 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">Noto'g'ri</th>
+                    <th class="px-6 py-3 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">Ball</th>
+                    <th class="px-6 py-3 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">Foiz</th>
+                    <th class="px-6 py-3 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">Sana</th>
+                    <th class="px-6 py-3 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">Amal</th>
+                </tr>
+            </thead>
+            <tbody class="bg-white divide-y divide-gray-200">
+                {% for result in results %}
+                <tr>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{{ result.exam.title }}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-green-500 font-bold">{{ result.correct_answers }}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-red-500 font-bold">{{ result.incorrect_answers }}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ result.final_total_score|floatformat:0 }}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ result.percentage|floatformat:0 }}%</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ result.completed_at|date:"Y-m-d H:i" }}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                        <a href="{% url 'view_result_detail' result.id %}" class="text-blue-600 hover:text-blue-900">Batafsil</a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <p class="text-center text-gray-500">Siz hali hech qanday imtihon ishlamagansiz.</p>
+    {% endif %}
+</div>
+{% endblock %}

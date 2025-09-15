@@ -1,0 +1,48 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="container mx-auto p-4 md:p-8">
+    <div class="bg-white rounded-lg shadow-md p-6 max-w-lg mx-auto">
+        <h2 class="text-3xl font-bold text-gray-800 mb-6 text-center">{{ title }}</h2>
+        
+        <!-- Orqaga qaytish tugmasi -->
+        <div class="mb-4">
+            <a href="{% url 'my_questions' %}" class="text-blue-500 hover:text-blue-700 flex items-center">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                </svg>
+                Orqaga
+            </a>
+        </div>
+        
+        <form action="" method="POST">
+            {% csrf_token %}
+            
+            <div class="mb-6">
+                <label for="{{ form.name.id_for_label }}" class="block text-gray-700 font-medium mb-2">{{ form.name.label }}</label>
+                {{ form.name }}
+                {% if form.name.errors %}
+                    <p class="text-red-500 text-sm mt-1">{{ form.name.errors }}</p>
+                {% endif %}
+            </div>
+            
+            <div class="mb-6">
+                <label for="{{ form.order.id_for_label }}" class="block text-gray-700 font-medium mb-2">{{ form.order.label }}</label>
+                {{ form.order }}
+                {% if form.order.errors %}
+                    <p class="text-red-500 text-sm mt-1">{{ form.order.errors }}</p>
+                {% endif %}
+            </div>
+            
+            <div class="flex justify-end">
+                <button type="submit" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded-md transition duration-300">
+                    Saqlash
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

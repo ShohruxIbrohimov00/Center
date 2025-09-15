@@ -1,0 +1,99 @@
+{% load static %}
+<header class="bg-white shadow-md">
+    <div class="container max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
+        <a href="{% url 'index' %}" class="text-2xl font-bold text-gray-800">SAT Makon</a>
+
+        <button id="mobileMenuButton" class="md:hidden text-gray-600 focus:outline-none">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path>
+            </svg>
+        </button>
+
+        <nav id="navMenu" class="hidden md:flex md:items-center md:space-x-4">
+            <a href="{% url 'index' %}" class="text-gray-600 hover:text-gray-900 mx-2 transition duration-300">Bosh sahifa</a>
+            <a href="{% url 'price' %}" class="text-gray-600 hover:text-gray-900 mx-2 transition duration-300">Tariflar</a>
+            {% if user.is_authenticated %}
+                {% if user.role == 'student' %}
+                    <a href="{% url 'tests' %}" class="text-gray-600 hover:text-gray-900 mx-2 transition duration-300">Testlar</a>
+                    <a href="{% url 'student_results' %}" class="text-gray-600 hover:text-gray-900 mx-2 transition duration-300">Natijalar</a>
+                {% elif user.role == 'teacher' %}
+                    <a href="{% url 'my_exams' %}" class="text-gray-600 hover:text-gray-900 mx-2 transition duration-300">Mening testlarim</a>
+                    <a href="{% url 'teacher_results' %}" class="text-gray-600 hover:text-gray-900 mx-2 transition duration-300">Talabalar natijasi</a>
+                    <a href="{% url 'my_questions' %}" class="text-gray-600 hover:text-gray-900 mx-2 transition duration-300">Savollar</a>
+                    <a href="{% url 'passage_list' %}" class="text-gray-600 hover:text-gray-900 mx-2 transition duration-300">Matnlar</a>
+                    <a href="{% url 'list_flashcards' %}" class="text-gray-600 hover:text-gray-900 mx-2 transition duration-300">Flashcardlar</a>
+                {% endif %}
+            {% endif %}
+        </nav>
+
+        <div class="relative">
+            {% if user.is_authenticated %}
+                <button id="dropdownButton" class="flex items-center space-x-2 focus:outline-none">
+                    <i class="fa-solid fa-user text-gray-600"></i>
+                    <span class="font-semibold text-gray-800">{{ user.get_full_name|default:user.username }}</span>
+                </button>
+                <div id="dropdownMenu" class="absolute right-0 mt-2 w-48 bg-white border border-gray-200 rounded-md shadow-lg py-1 z-10 hidden">
+                    <a href="{% url 'profile' %}" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">Profil</a>
+                    <a href="{% url 'logout' %}" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">Chiqish</a>
+                </div>
+            {% else %}
+                <a href="{% url 'telegram_login' %}" class="text-gray-600 hover:text-gray-900 mx-2 transition duration-300">
+                    <i class="fa-brands fa-telegram mr-1"></i> Telegram orqali kirish
+                </a>
+            {% endif %}
+        </div>
+    </div>
+
+    <div id="mobileMenu" class="md:hidden hidden bg-white border-t border-gray-200">
+        <div class="container max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex flex-col space-y-2">
+            <a href="{% url 'index' %}" class="text-gray-600 hover:text-gray-900 py-2">Bosh sahifa</a>
+            <a href="{% url 'price' %}" class="text-gray-600 hover:text-gray-900 py-2">Tariflar</a>
+            {% if user.is_authenticated %}
+                {% if user.role == 'student' %}
+                    <a href="{% url 'tests' %}" class="text-gray-600 hover:text-gray-900 py-2">Testlar</a>
+                    <a href="{% url 'student_results' %}" class="text-gray-600 hover:text-gray-900 py-2">Natijalar</a>
+                {% elif user.role == 'teacher' %}
+                    <a href="{% url 'my_exams' %}" class="text-gray-600 hover:text-gray-900 py-2">Mening testlarim</a>
+                    <a href="{% url 'teacher_results' %}" class="text-gray-600 hover:text-gray-900 py-2">Talabalar natijasi</a>
+                    <a href="{% url 'my_questions' %}" class="text-gray-600 hover:text-gray-900 py-2">Savollar</a>
+                    <a href="{% url 'passage_list' %}" class="text-gray-600 hover:text-gray-900 py-2">Matnlar</a>
+                    <a href="{% url 'list_flashcards' %}" class="text-gray-600 hover:text-gray-900 py-2">Flashcardlar</a>
+                {% endif %}
+                <a href="{% url 'profile' %}" class="text-gray-600 hover:text-gray-900 py-2">Profil</a>
+                <a href="{% url 'logout' %}" class="text-gray-600 hover:text-gray-900 py-2">Chiqish</a>
+            {% else %}
+                <a href="{% url 'telegram_login' %}" class="text-gray-600 hover:text-gray-900 py-2"><i class="fa-brands fa-telegram mr-1"></i> Telegram orqali kirish</a>
+            {% endif %}
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const dropdownButton = document.getElementById('dropdownButton');
+            const dropdownMenu = document.getElementById('dropdownMenu');
+            if (dropdownButton && dropdownMenu) {
+                dropdownButton.addEventListener('click', function(event) {
+                    event.preventDefault();
+                    dropdownMenu.classList.toggle('hidden');
+                });
+                document.addEventListener('click', function(event) {
+                    if (!dropdownButton.contains(event.target) && !dropdownMenu.contains(event.target)) {
+                        dropdownMenu.classList.add('hidden');
+                    }
+                });
+            }
+            const mobileMenuButton = document.getElementById('mobileMenuButton');
+            const mobileMenu = document.getElementById('mobileMenu');
+            if (mobileMenuButton && mobileMenu) {
+                mobileMenuButton.addEventListener('click', function() {
+                    mobileMenu.classList.toggle('hidden');
+                });
+                document.addEventListener('click', function(event) {
+                    if (!mobileMenuButton.contains(event.target) && !mobileMenu.contains(event.target)) {
+                        mobileMenu.classList.add('hidden');
+                    }
+                });
+            }
+        });
+    </script>
+</header>

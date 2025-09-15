@@ -1,0 +1,118 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Telegram orqali kirish</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+    <script src="https://telegram.org/js/telegram-widget.js?22" data-telegram-login="{{ TELEGRAM_BOT_USERNAME }}" data-size="large" data-auth-url="{% url 'telegram_login' %}" data-request-access="write"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Arial, sans-serif;
+            background-color: #f0f0f0;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+        }
+        .sat-wrapper {
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+            width: 100%;
+            margin: 0 auto;
+            background-color: #fff;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
+        }
+        .container {
+            width: 100%;
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 0 20px;
+            box-sizing: border-box;
+        }
+        .header {
+            width: 100%;
+            height: 80px;
+            background-color: #f8f9fa;
+            border-bottom: 2px solid #ddd;
+            box-sizing: border-box;
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+        }
+        .header-content {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            height: 100%;
+        }
+        .header-title {
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: #2c3e50;
+        }
+        .main-content {
+            flex-grow: 1;
+            padding: 30px 0;
+            text-align: center;
+        }
+        .main-content h2 {
+            font-size: 2rem;
+            color: #2c3e50;
+            margin-bottom: 20px;
+        }
+        .main-content p {
+            font-size: 1.1rem;
+            color: #555;
+            margin-bottom: 30px;
+        }
+    </style>
+</head>
+<body>
+    <div class="sat-wrapper">
+        <header class="header">
+            <div class="container header-content">
+                <div class="header-title">SAT Makon</div>
+            </div>
+        </header>
+        <div class="main-content">
+            <div class="container">
+                <h2>Telegram orqali kirish</h2>
+                <p>Tizimga kirish yoki ro‘yxatdan o‘tish uchun Telegram akkountingizdan foydalaning.</p>
+                <div id="telegram-login"></div>
+            </div>
+        </div>
+    </div>
+    <script>
+        // Telegram widget avtomatik ishlaydi, data-auth-url orqali backendga so'rov yuboriladi
+        window.onload = function() {
+            if (window.location.search.includes('hash=')) {
+                fetch('{% url "telegram_login" %}', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': '{{ csrf_token }}'
+                    },
+                    body: JSON.stringify(Object.fromEntries(new URLSearchParams(window.location.search)))
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        window.location.href = data.redirect_url;
+                    } else {
+                        alert(data.message);
+                    }
+                })
+                .catch(error => {
+                    console.error('Telegram login xatosi:', error);
+                    alert('Tizimga kirishda xato yuz berdi.');
+                });
+            }
+        };
+    </script>
+</body>
+</html>

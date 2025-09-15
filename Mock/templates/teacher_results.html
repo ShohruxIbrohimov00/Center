@@ -1,0 +1,64 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Talabalar natijalari{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto p-4 md:p-8">
+    <div class="bg-white rounded-lg shadow-md p-6">
+        <h2 class="text-3xl font-bold text-gray-800 mb-6 text-center">Talabalar natijalari</h2>
+
+        {% for message in messages %}
+            <div class="p-4 mb-4 text-sm rounded-lg {% if message.tags == 'success' %}bg-green-100 text-green-700{% elif message.tags == 'error' %}bg-red-100 text-red-700{% endif %}" role="alert">
+                {{ message }}
+            </div>
+        {% endfor %}
+
+        <div class="space-y-8">
+            {% for exam_result in results %}
+            <div>
+                <h3 class="text-xl font-semibold text-gray-800 mb-4">{{ exam_result.title }}</h3>
+                {% if exam_result.attempts %}
+                <table class="w-full table-auto border-collapse">
+                    <thead>
+                        <tr class="bg-gray-100">
+                            <th class="px-4 py-2 text-left text-gray-700">Foydalanuvchi</th>
+                            <th class="px-4 py-2 text-left text-gray-700">To'g'ri javoblar</th>
+                            <th class="px-4 py-2 text-left text-gray-700">Noto'g'ri javoblar</th>
+                            <th class="px-4 py-2 text-left text-gray-700">Ball</th>
+                            <th class="px-4 py-2 text-left text-gray-700">Foiz</th>
+                            <th class="px-4 py-2 text-left text-gray-700">Tugatilgan vaqti</th>
+                            <th class="px-4 py-2 text-left text-gray-700">Amal</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for attempt in exam_result.attempts %}
+                        <tr class="border-b">
+                            <td class="px-4 py-2">{{ attempt.user_username }}</td>
+                            <td class="px-4 py-2">{{ attempt.correct_answers }}</td>
+                            <td class="px-4 py-2">{{ attempt.incorrect_answers }}</td>
+                            <td class="px-4 py-2">{{ attempt.score|floatformat:0 }}</td>
+                            <td class="px-4 py-2">{{ attempt.percentage|floatformat:0 }}%</td>
+                            <td class="px-4 py-2">{{ attempt.completed_at|date:"Y-m-d H:i"|default:"Tugatilmagan" }}</td>
+                            <td class="px-4 py-2">
+                                <a href="{% url 'teacher_test_result_detail' attempt.attempt_id %}" class="text-blue-600 hover:text-blue-900">Batafsil</a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                {% else %}
+                <p class="text-gray-500">Bu imtihon uchun hali natijalar mavjud emas.</p>
+                {% endif %}
+            </div>
+            {% empty %}
+            <p class="text-gray-500 text-center">Hozircha natijalar mavjud emas.</p>
+            {% endfor %}
+        </div>
+
+        <div class="mt-6">
+            <a href="{% url 'my_exams' %}" class="text-blue-500 hover:underline">Orqaga qaytish</a>
+        </div>
+    </div>
+</div>
+{% endblock %}

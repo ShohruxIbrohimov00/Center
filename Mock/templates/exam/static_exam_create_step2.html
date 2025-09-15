@@ -1,0 +1,344 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Statik imtihon yaratish - 2-bosqich{% endblock %}
+
+{% block extra_body %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const csrftoken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+        const sectionContainer = document.getElementById('sections-container');
+        const addSectionBtn = document.getElementById('add-section-btn');
+        const finalizeExamBtn = document.getElementById('finalize-exam-btn');
+        const examUrl = "{% url 'create_static_exam_step2' exam_id=exam_id %}";
+
+        function showError(message) {
+            const errorDiv = document.createElement('div');
+            errorDiv.className = 'p-4 mb-4 text-sm rounded-lg bg-red-100 text-red-700';
+            errorDiv.textContent = message;
+            sectionContainer.prepend(errorDiv);
+            setTimeout(() => errorDiv.remove(), 5000);
+        }
+
+        function updateSectionNumbers() {
+            document.querySelectorAll('.section-item').forEach((section, index) => {
+                section.dataset.index = index;
+                const numberElement = section.querySelector('.section-number');
+                if (numberElement) {
+                    numberElement.textContent = `Bo'lim ${index + 1}`;
+                }
+                const addQuestionsLink = section.querySelector('.add-questions-link');
+                addQuestionsLink.href = `{% url 'exam_topics_list' exam_id=exam_id %}?section_index=${index}`;
+            });
+        }
+        
+        function updateQuestionCounts() {
+            fetch(examUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrftoken
+                },
+                body: JSON.stringify({ action: 'get_total_questions' })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    const totalQuestionsCount = document.getElementById('selected-questions-count');
+                    if (totalQuestionsCount) {
+                        totalQuestionsCount.textContent = data.count;
+                    }
+                    if (finalizeExamBtn) {
+                        if (data.count > 0) {
+                            finalizeExamBtn.classList.remove('hidden');
+                        } else {
+                            finalizeExamBtn.classList.add('hidden');
+                        }
+                    }
+                } else {
+                    showError(data.message || "Savollar sonini yangilashda xato yuz berdi.");
+                }
+            })
+            .catch(error => {
+                console.error('Savollar sonini yangilashda xato:', error);
+                showError("Server bilan bog'lanishda xato yuz berdi.");
+            });
+        }
+
+        function saveSections() {
+            const sections = Array.from(document.querySelectorAll('.section-item')).map((s, i) => {
+                let static_questions = {};
+                try {
+                    const questionsData = s.dataset.questions || '{}';
+                    static_questions = JSON.parse(questionsData);
+                } catch (e) {
+                    console.error("JSON ma'lumotini tahlil qilishda xato:", e);
+                    showError("Bo'lim ma'lumotlarini o'qishda xato.");
+                }
+                
+                return {
+                    section_type: s.querySelector('select[name="section_type"]').value,
+                    duration_minutes: parseInt(s.querySelector('input[name="duration_minutes"]').value, 10),
+                    max_questions: parseInt(s.querySelector('input[name="max_questions"]').value, 10),
+                    module_number: parseInt(s.querySelector('input[name="module_number"]').value, 10),
+                    order: i + 1,
+                    static_questions: static_questions
+                };
+            });
+            
+            return fetch(examUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrftoken
+                },
+                body: JSON.stringify({
+                    action: 'save_sections',
+                    sections: sections
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status !== 'success') {
+                    showError(data.message || "Bo'limlarni saqlashda xato yuz berdi.");
+                }
+                updateQuestionCounts();
+                return data;
+            })
+            .catch(error => {
+                console.error("Bo'limlarni saqlashda xato yuz berdi:", error);
+                showError("Server bilan bog'lanishda xato yuz berdi.");
+                return { status: 'error', message: 'Saqlashda kutilmagan xato.' };
+            });
+        }
+
+        addSectionBtn.addEventListener('click', function() {
+            const newIndex = sectionContainer.children.length;
+            const newSectionDiv = document.createElement('div');
+            newSectionDiv.className = 'section-item p-4 border rounded-lg bg-gray-50 flex items-start space-x-4 mb-4';
+            newSectionDiv.dataset.index = newIndex;
+            newSectionDiv.dataset.questions = '{}'; 
+
+            const addQuestionsUrl = `{% url 'exam_topics_list' exam_id=exam_id %}?section_index=${newIndex}`;
+            
+            newSectionDiv.innerHTML = `
+                <div class="flex-grow">
+                    <h4 class="text-xl font-semibold text-gray-800 mb-2">
+                        <span class="section-number">Bo'lim ${newIndex + 1}</span>
+                    </h4>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-gray-700">Bo'lim turi:</label>
+                            <select name="section_type" class="w-full mt-1 p-2 border rounded-md">
+                                <option value="reading">Reading</option>
+                                <option value="writing">Writing and Language</option>
+                                <option value="math_no_calc">Math (No Calculator)</option>
+                                <option value="math_calc">Math (Calculator)</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-gray-700">Davomiyligi (daqiqada):</label>
+                            <input type="number" name="duration_minutes" value="60" class="w-full mt-1 p-2 border rounded-md" min="1">
+                        </div>
+                        <div>
+                            <label class="block text-gray-700">Maksimal savollar soni:</label>
+                            <input type="number" name="max_questions" value="50" class="w-full mt-1 p-2 border rounded-md" min="1">
+                        </div>
+                    </div>
+                    <div class="mt-4">
+                        <label class="block text-gray-700">Bo'lim moduli:</label>
+                        <input type="number" name="module_number" value="1" class="w-full mt-1 p-2 border rounded-md" min="1">
+                    </div>
+                    <div class="mt-4">
+                        <h5 class="font-semibold text-gray-700">Tanlangan savollar: <span class="selected-questions-count">0</span></h5>
+                        <a href="${addQuestionsUrl}" class="add-questions-link text-blue-500 hover:underline mt-2 inline-block">
+                            Savollarni tanlash
+                        </a>
+                    </div>
+                </div>
+                <button type="button" class="remove-section-btn text-red-500 hover:text-red-700">
+                    <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm6 0a1 1 0 112 0v6a1 1 0 11-2 0V8z" clip-rule="evenodd"></path></svg>
+                </button>
+            `;
+            sectionContainer.appendChild(newSectionDiv);
+            saveSections();
+            updateSectionNumbers();
+        });
+
+        sectionContainer.addEventListener('click', function(event) {
+            const removeBtn = event.target.closest('.remove-section-btn');
+            if (removeBtn) {
+                const sectionItem = removeBtn.closest('.section-item');
+                const indexToRemove = parseInt(sectionItem.dataset.index, 10);
+
+                fetch(examUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': csrftoken
+                    },
+                    body: JSON.stringify({
+                        action: 'remove_section',
+                        index: indexToRemove
+                    })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        sectionItem.remove();
+                        updateSectionNumbers();
+                        updateQuestionCounts();
+                    } else {
+                        showError(data.message || "Bo'limni o'chirishda xato yuz berdi.");
+                    }
+                })
+                .catch(error => {
+                    console.error('Bo\'limni o\'chirishda xato:', error);
+                    showError("Server bilan bog'lanishda xato yuz berdi.");
+                });
+            } else {
+                const addQuestionsLink = event.target.closest('.add-questions-link');
+                if (addQuestionsLink) {
+                    event.preventDefault();
+                    window.location.href = addQuestionsLink.href;
+                }
+            }
+        });
+        
+        sectionContainer.addEventListener('change', function(event) {
+            if (event.target.matches('input') || event.target.matches('select')) {
+                saveSections();
+            }
+        });
+        
+        if (finalizeExamBtn) {
+            finalizeExamBtn.addEventListener('click', function() {
+                saveSections().then(data => {
+                    if (data.status === 'success') {
+                        fetch(examUrl, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'X-CSRFToken': csrftoken
+                            },
+                            body: JSON.stringify({ action: 'finalize_exam' })
+                        })
+                        .then(response => response.json())
+                        .then(data => {
+                            if (data.status === 'success') {
+                                window.location.href = data.redirect_url;
+                            } else {
+                                showError(data.message || "Imtihonni yakunlashda xato yuz berdi.");
+                            }
+                        })
+                        .catch(error => {
+                            console.error('Imtihonni yakunlashda xato yuz berdi:', error);
+                            showError("Server bilan bog'lanishda xato yuz berdi.");
+                        });
+                    } else {
+                        showError("Imtihonni yakunlashdan oldin bo'limlarni saqlashda xato yuz berdi.");
+                    }
+                });
+            });
+        }
+        
+        updateSectionNumbers();
+        updateQuestionCounts();
+    });
+</script>
+
+<style>
+    .hidden { display: none; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto p-4 md:p-8">
+    <div class="bg-white rounded-lg shadow-md p-6">
+        {% csrf_token %} 
+        <h2 class="text-3xl font-bold text-gray-800 mb-6 text-center">
+            "{{ exam_title }}" uchun bo'limlarni yaratish
+        </h2>
+
+        {% for message in messages %}
+            <div class="p-4 mb-4 text-sm rounded-lg {% if message.tags == 'success' %}bg-green-100 text-green-700{% elif message.tags == 'error' %}bg-red-100 text-red-700{% endif %}" role="alert">
+                {{ message }}
+            </div>
+        {% endfor %}
+
+        <h3 class="text-xl font-bold text-gray-800 mb-4">Bo'limlar</h3>
+        <div id="sections-container" class="space-y-4">
+            {% for section in sections_data %}
+            <div class="section-item p-4 border rounded-lg bg-gray-50 flex items-start space-x-4 mb-4" 
+                 data-index="{{ forloop.counter0 }}" 
+                 data-questions='{{ section.static_questions_json }}'>
+                <div class="flex-grow">
+                    <h4 class="text-xl font-semibold text-gray-800 mb-2">
+                        <span class="section-number">Bo'lim {{ forloop.counter }}</span>
+                    </h4>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-gray-700">Bo'lim turi:</label>
+                            <select name="section_type" class="w-full mt-1 p-2 border rounded-md">
+                                <option value="reading" {% if section.section_type == 'reading' %}selected{% endif %}>Reading</option>
+                                <option value="writing" {% if section.section_type == 'writing' %}selected{% endif %}>Writing and Language</option>
+                                <option value="math_no_calc" {% if section.section_type == 'math_no_calc' %}selected{% endif %}>Math (No Calculator)</option>
+                                <option value="math_calc" {% if section.section_type == 'math_calc' %}selected{% endif %}>Math (Calculator)</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-gray-700">Davomiyligi (daqiqada):</label>
+                            <input type="number" name="duration_minutes" value="{{ section.duration_minutes }}" class="w-full mt-1 p-2 border rounded-md" min="1">
+                        </div>
+                        <div>
+                            <label class="block text-gray-700">Maksimal savollar soni:</label>
+                            <input type="number" name="max_questions" value="{{ section.max_questions }}" class="w-full mt-1 p-2 border rounded-md" min="1">
+                        </div>
+                    </div>
+                    <div class="mt-4">
+                        <label class="block text-gray-700">Bo'lim moduli:</label>
+                        <input type="number" name="module_number" value="{{ section.module_number }}" class="w-full mt-1 p-2 border rounded-md" min="1">
+                    </div>
+                    <div class="mt-4">
+                        <h5 class="font-semibold text-gray-700">Tanlangan savollar: <span class="selected-questions-count">{{ section.static_questions|length }}</span></h5>
+                        <a href="{% url 'exam_topics_list' exam_id=exam_id %}?section_index={{ forloop.counter0 }}" class="add-questions-link text-blue-500 hover:underline mt-2 inline-block">
+                            Savollarni tanlash
+                        </a>
+                    </div>
+                </div>
+                <button type="button" class="remove-section-btn text-red-500 hover:text-red-700">
+                    <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm6 0a1 1 0 112 0v6a1 1 0 11-2 0V8z" clip-rule="evenodd"></path></svg>
+                </button>
+            </div>
+            {% endfor %}
+        </div>
+        <button type="button" id="add-section-btn" class="bg-indigo-500 hover:bg-indigo-600 text-white font-bold py-2 px-4 rounded-md mt-4">
+            + Bo'lim qo'shish
+        </button>
+
+        <h3 class="text-xl font-bold text-gray-800 mt-6 mb-4">Savollarni tanlash uchun mavzuga kiring</h3>
+        <div class="space-y-4">
+            <a href="{% url 'exam_topics_list' exam_id=exam_id %}?section_index=new" class="block">
+                <div class="flex justify-between items-center p-4 bg-white hover:bg-gray-100 rounded-md shadow-sm transition duration-200">
+                    <span class="text-lg font-semibold text-gray-800">Mavzular ro'yxatiga o'tish</span>
+                </div>
+            </a>
+        </div>
+        
+        <div class="mt-8 text-center">
+            <p class="text-gray-700 font-bold">
+                Jami tanlangan savollar:
+                <span id="selected-questions-count" class="text-xl text-blue-600">
+                    {{ total_questions }}
+                </span> ta
+            </p>
+        </div>
+
+        <div class="flex justify-center mt-8">
+            <button type="button" id="finalize-exam-btn" class="bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-8 rounded-md transition duration-300 shadow-lg {% if total_questions == 0 %}hidden{% endif %}">
+                Imtihonni yakunlash
+            </button>
+        </div>
+    </div>
+</div>
+{% endblock %}

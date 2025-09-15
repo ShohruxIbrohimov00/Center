@@ -1,0 +1,91 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Bo'limni o'chirishni tasdiqlash{% endblock %}
+
+{% block extra_body %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const csrftoken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+    const deleteForm = document.getElementById('delete-section-form');
+    const deleteUrl = "{% url 'delete_section' section_id=section.id %}";
+
+    function showError(message) {
+        const errorDiv = document.createElement('div');
+        errorDiv.className = 'p-4 mb-4 text-sm rounded-lg bg-red-100 text-red-700';
+        errorDiv.textContent = message;
+        document.querySelector('.max-w-md').prepend(errorDiv);
+        setTimeout(() => errorDiv.remove(), 5000);
+    }
+
+    deleteForm.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        if (!confirm("Siz rostdan ham bu bo'limni o'chirishni xohlaysizmi?")) return;
+
+        const submitButton = deleteForm.querySelector('button[type="submit"]');
+        submitButton.disabled = true;
+        submitButton.textContent = "Yuklanmoqda...";
+
+        try {
+            const response = await fetch(deleteUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrftoken
+                },
+                body: JSON.stringify({ action: 'delete_section' })
+            });
+
+            const data = await response.json();
+            if (data.status === 'success') {
+                window.location.href = data.redirect_url;
+            } else {
+                showError(data.message || "Bo'limni o'chirishda xato yuz berdi.");
+            }
+        } catch (error) {
+            console.error('Bo\'limni o\'chirishda xato:', error);
+            showError("Server bilan bog'lanishda xato yuz berdi: " + error.message);
+        } finally {
+            submitButton.disabled = false;
+            submitButton.textContent = "O'chirishni tasdiqlash";
+        }
+    });
+});
+</script>
+
+<style>
+.hidden { display: none; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-md mx-auto bg-white p-8 rounded-xl shadow-lg mt-20">
+    {% csrf_token %}
+    <h1 class="text-3xl font-bold text-gray-800 text-center mb-6">
+        Bo'limni o'chirishni tasdiqlash
+    </h1>
+    <p class="text-center text-gray-600 mb-8">
+        Siz haqiqatan ham "<strong>{{ section.get_section_type_display }}</strong>" bo'limini 
+        "<strong>{{ section.exam.title }}</strong>" imtihonidan o'chirib tashlamoqchimisiz?
+        <br>
+        <span class="font-semibold text-gray-600">Bu bo'limda {{ section.static_questions.count }} ta savol mavjud.</span>
+        <br>
+        <span class="font-semibold text-red-500">Bu amalni qaytarib bo'lmaydi.</span>
+    </p>
+
+    {% for message in messages %}
+        <div class="p-4 mb-4 text-sm rounded-lg {% if message.tags == 'success' %}bg-green-100 text-green-700{% elif message.tags == 'error' %}bg-red-100 text-red-700{% endif %}" role="alert">
+            {{ message }}
+        </div>
+    {% endfor %}
+
+    <form id="delete-section-form" class="flex justify-center gap-4">
+        <button type="submit" class="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-6 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 transition duration-150">
+            O'chirishni tasdiqlash
+        </button>
+        <a href="{% url 'exam_detail' section.exam.id %}" class="bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-2 px-6 rounded-lg transition duration-150">
+            Bekor qilish
+        </a>
+    </form>
+</div>
+{% endblock %}

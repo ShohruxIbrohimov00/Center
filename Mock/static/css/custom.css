@@ -1,0 +1,112 @@
+
+/* Umumiy ranglar va fon */
+body {
+    background-color: #f3f4f6; /* Kengaytirilgan kulrang fon */
+    color: #374151; /* Asosiy matn rangi */
+}
+
+/* Kartalar va bo'limlar uchun uslublar */
+.card-section {
+    background-color: #ffffff;
+    border: 1px solid #e5e7eb;
+    border-radius: 1rem; /* Katta yumaloq burchaklar */
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05); /* Yumshoq soyalar */
+    padding: 1.5rem;
+    margin-bottom: 2rem;
+}
+
+.card-title {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: #1f2937;
+    border-bottom: 2px solid #e5e7eb;
+    padding-bottom: 0.5rem;
+    margin-bottom: 1.5rem;
+}
+
+/* Kirish maydonlari va tanlash elementlari */
+.form-field {
+    width: 100%;
+    padding: 0.75rem 1rem;
+    border-radius: 0.5rem;
+    border: 1px solid #d1d5db;
+    background-color: #f9fafb;
+    transition: all 0.3s ease;
+}
+
+.form-field:focus {
+    outline: none;
+    border-color: #3b82f6; /* Ko'k rangga o'tish */
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.5);
+}
+
+/* Select2 uchun maxsus uslublar */
+.select2-container {
+    width: 100% !important;
+}
+
+.select2-container--default .select2-selection--single,
+.select2-container--default .select2-selection--multiple {
+    border: 1px solid #d1d5db !important;
+    border-radius: 0.5rem !important;
+    min-height: 48px;
+    background-color: #f9fafb !important;
+}
+
+.select2-container--default .select2-selection--single .select2-selection__rendered {
+    padding: 0.75rem 1rem;
+    line-height: normal;
+}
+
+.select2-container--default .select2-selection--single .select2-selection__arrow {
+    height: 100%;
+    top: 0;
+    right: 1rem;
+}
+
+/* Tugmalar uchun umumiy uslublar */
+.btn {
+    font-weight: 600;
+    padding: 0.75rem 1.5rem;
+    border-radius: 9999px; /* To'liq yumaloq burchaklar */
+    transition: all 0.3s ease;
+    text-align: center;
+}
+
+.btn-primary {
+    background-color: #3b82f6;
+    color: #ffffff;
+}
+
+.btn-primary:hover {
+    background-color: #2563eb;
+    transform: scale(1.05);
+}
+
+.btn-secondary {
+    background-color: #e5e7eb;
+    color: #4b5563;
+}
+
+.btn-secondary:hover {
+    background-color: #d1d5db;
+    transform: scale(1.05);
+}
+
+/* Boshqa komponentlar */
+.message-success {
+    background-color: #dcfce7;
+    color: #166534;
+}
+
+.message-error {
+    background-color: #fee2e2;
+    color: #991b1b;
+}
+
+.selected-item-tag {
+    background-color: #dbeafe;
+    color: #1e40af;
+    border-radius: 9999px;
+    padding: 0.25rem 0.75rem;
+}

@@ -1,0 +1,248 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bosh sahifa - SAT Makon</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+    <style>
+        body {
+            font-family: 'Segoe UI', Arial, sans-serif;
+            background-color: #f0f0f0;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+        }
+        .sat-wrapper {
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+            width: 100%;
+            margin: 0 auto;
+            background-color: #fff;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
+        }
+        .container {
+            width: 100%;
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 0 20px;
+            box-sizing: border-box;
+        }
+        .header {
+            width: 100%;
+            height: 80px;
+            background-color: #f8f9fa;
+            border-bottom: 2px solid #ddd;
+            box-sizing: border-box;
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+        }
+        .header-content {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            height: 100%;
+        }
+        .header-title {
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: #2c3e50;
+        }
+        .header-btn {
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 0.9rem;
+            color: #555;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            transition: color 0.3s;
+        }
+        .header-btn:hover {
+            color: #000;
+        }
+        .main-content {
+            flex-grow: 1;
+            padding: 30px 0;
+        }
+        .hero-section {
+            position: relative;
+            background-color: #fff;
+            overflow: hidden;
+        }
+        .hero-content {
+            max-width: 1400px;
+            margin: 0 auto;
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+        .hero-text {
+            flex: 1;
+            padding: 20px;
+            max-width: 600px;
+        }
+        .hero-text h1 {
+            font-size: 2.5rem;
+            font-weight: 800;
+            color: #2c3e50;
+            margin-bottom: 20px;
+        }
+        .hero-text p {
+            font-size: 1.2rem;
+            color: #555;
+            margin-bottom: 30px;
+        }
+        .hero-image {
+            flex: 1;
+            max-width: 600px;
+        }
+        .hero-image img {
+            width: 100%;
+            height: auto;
+            object-fit: cover;
+        }
+        .cta-btn {
+            padding: 12px 30px;
+            background-color: #007bff;
+            color: #fff;
+            border-radius: 25px;
+            font-size: 1.1rem;
+            font-weight: bold;
+            text-decoration: none;
+            transition: background-color 0.3s;
+        }
+        .cta-btn:hover {
+            background-color: #0056b3;
+        }
+        .features-section {
+            padding: 50px 0;
+            background-color: #f8f9fa;
+        }
+        .features-section h2 {
+            font-size: 2rem;
+            font-weight: 700;
+            color: #2c3e50;
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        .features-section p {
+            font-size: 1.1rem;
+            color: #555;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .feature-item {
+            display: flex;
+            align-items: flex-start;
+            margin-bottom: 20px;
+        }
+        .feature-icon {
+            width: 50px;
+            height: 50px;
+            background-color: #007bff;
+            color: #fff;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-right: 20px;
+        }
+        .feature-text h3 {
+            font-size: 1.3rem;
+            font-weight: 600;
+            color: #2c3e50;
+            margin-bottom: 10px;
+        }
+        .feature-text p {
+            font-size: 1rem;
+            color: #555;
+        }
+    </style>
+</head>
+<body>
+    <div class="sat-wrapper">
+        <header class="header">
+            <div class="container header-content">
+                <div class="header-title">SAT Makon</div>
+                <div>
+                    {% if user.is_authenticated %}
+                        <a href="{% url 'profile' %}" class="header-btn">
+                            <i class="fa-solid fa-user"></i> {{ user.get_full_name|default:user.username }}
+                        </a>
+                        <a href="{% url 'logout' %}" class="header-btn">
+                            <i class="fa-solid fa-sign-out-alt"></i> Chiqish
+                        </a>
+                    {% else %}
+                        <a href="{% url 'telegram_login' %}" class="header-btn">
+                            <i class="fa-brands fa-telegram"></i> Telegram orqali kirish
+                        </a>
+                    {% endif %}
+                </div>
+            </div>
+        </header>
+        <div class="main-content">
+            <div class="hero-section">
+                <div class="hero-content container">
+                    <div class="hero-text">
+                        <h1>
+                            <span class="block">Kelajak sirlari matematikada yashiringan</span>
+                            <span class="block text-blue-600">SAT Makon bilan ularni kashf eting</span>
+                        </h1>
+                        <p>
+                            SAT imtihonining Matematika bo'limida yuqori ball olishni xohlaysizmi? Unda interaktiv testlarimiz va chuqur tahlillarimiz yordamida ishonchli bilimga ega bo'ling.
+                        </p>
+                        <div class="flex flex-wrap gap-4">
+                            {% if user.is_authenticated %}
+                                {% if user.role == 'teacher' %}
+                                    <a href="{% url 'my_exams' %}" class="cta-btn">O'z testlaringizni ko‘rish</a>
+                                {% else %}
+                                    <a href="{% url 'tests' %}" class="cta-btn">Test ishlashni boshlash</a>
+                                {% endif %}
+                            {% else %}
+                                <a href="{% url 'telegram_login' %}" class="cta-btn">Telegram orqali kirish</a>
+                            {% endif %}
+                        </div>
+                    </div>
+                    <div class="hero-image">
+                        <img src="https://images.unsplash.com/photo-1517048676732-d65bc937f952?ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&ixlib=rb-1.2.1&auto=format&fit=crop&w=1350&q=80" alt="SAT imtihoniga tayyorgarlik">
+                    </div>
+                </div>
+            </div>
+            <div class="features-section">
+                <div class="container">
+                    <h2>Nima uchun aynan biz?</h2>
+                    <p>"SAT Makon" o'quvchilarga yanada samarali tayyorgarlik ko'rishlari uchun yaratilgan.</p>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                        <div class="feature-item">
+                            <div class="feature-icon">
+                                <i class="fas fa-check-circle text-2xl"></i>
+                            </div>
+                            <div class="feature-text">
+                                <h3>Batafsil tahlil</h3>
+                                <p>Har bir test yakunida to'g'ri va noto'g'ri javoblar bo'yicha mukammal hisobot. Bu sizning kamchiliklaringizni aniqlashga yordam beradi.</p>
+                            </div>
+                        </div>
+                        <div class="feature-item">
+                            <div class="feature-icon">
+                                <i class="fas fa-edit text-2xl"></i>
+                            </div>
+                            <div class="feature-text">
+                                <h3>Turli formatdagi savollar</h3>
+                                <p>Test bazamizdagi barcha savollar SAT'ning rasmiy talablariga mos keladi, har qanday savol turiga tayyor bo'lishingiz uchun.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

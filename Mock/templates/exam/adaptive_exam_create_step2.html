@@ -1,0 +1,238 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Adaptiv imtihon yaratish - 2-bosqich{% endblock %}
+
+{% block extra_body %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const csrftoken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+        const sectionsContainer = document.getElementById('sections-container');
+        const addSectionBtn = document.getElementById('add-section-btn');
+
+        let sectionsRules = JSON.parse('{{ sections_rules|safe }}');
+        let sectionCount = sectionsRules.length;
+
+        function renderSections() {
+            sectionsContainer.innerHTML = '';
+            sectionCount = sectionsRules.length;
+
+            sectionsRules.forEach((sectionData, index) => {
+                const sectionDiv = document.createElement('div');
+                sectionDiv.className = 'section-item border p-4 rounded-md shadow-sm mb-4';
+                sectionDiv.dataset.index = index;
+
+                let topicRulesHtml = '';
+                sectionData.topic_rules.forEach(topicRule => {
+                    let subtopicRulesHtml = '';
+                    topicRule.subtopic_rules.forEach(subtopicRule => {
+                        subtopicRulesHtml += `<div class="subtopic-rule-item flex items-center mb-2" data-subtopic-id="${subtopicRule.subtopic_id}">
+                            <span class="text-sm font-medium mr-2">${subtopicRule.subtopic_name}:</span>
+                            <input type="number" value="${subtopicRule.questions_count}" class="questions-count-input w-16 p-1 border rounded-md text-sm">
+                            <span class="ml-2">ta savol</span>
+                            <button type="button" class="remove-subtopic-rule-btn ml-auto text-red-500 hover:text-red-700 text-sm">O'chirish</button>
+                        </div>`;
+                    });
+
+                    topicRulesHtml += `<div class="topic-rule-item border-t pt-4 mt-4" data-topic-id="${topicRule.topic_id}">
+                        <h6 class="font-semibold text-gray-700">${topicRule.topic_name}: ${topicRule.questions_count} ta savol</h6>
+                        <div class="subtopic-rules-list pl-4">
+                            ${subtopicRulesHtml}
+                        </div>
+                        <a href="#" class="add-subtopic-rule-btn text-blue-500 hover:underline text-sm" data-topic-id="${topicRule.topic_id}">Ichki mavzu qo'shish</a>
+                    </div>`;
+                });
+                
+                sectionDiv.innerHTML = `
+                    <h4 class="text-lg font-bold text-gray-800 mb-4">Bo'lim ${index + 1}</h4>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                        <div>
+                            <label class="block text-gray-700 font-medium mb-2">Bo'lim turi</label>
+                            <select name="section_type_${index}" class="w-full border rounded-md p-2">
+                                <option value="reading" ${sectionData.section_type === 'reading' ? 'selected' : ''}>Reading</option>
+                                <option value="writing" ${sectionData.section_type === 'writing' ? 'selected' : ''}>Writing and Language</option>
+                                <option value="math_no_calc" ${sectionData.section_type === 'math_no_calc' ? 'selected' : ''}>Math (No Calculator)</option>
+                                <option value="math_calc" ${sectionData.section_type === 'math_calc' ? 'selected' : ''}>Math (Calculator)</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-gray-700 font-medium mb-2">Davomiyligi (minut)</label>
+                            <input type="number" name="duration_minutes_${index}" value="${sectionData.duration_minutes}" class="w-full border rounded-md p-2">
+                        </div>
+                        <div>
+                            <label class="block text-gray-700 font-medium mb-2">Maksimal savollar soni</label>
+                            <input type="number" name="max_questions_${index}" value="${sectionData.max_questions}" class="w-full border rounded-md p-2">
+                        </div>
+                        <div>
+                            <label class="block text-gray-700 font-medium mb-2">Modul raqami</label>
+                            <input type="number" name="module_number_${index}" value="${sectionData.module_number}" class="w-full border rounded-md p-2">
+                        </div>
+                        <div>
+                            <label class="block text-gray-700 font-medium mb-2">Tartib raqami</label>
+                            <input type="number" name="order_${index}" value="${sectionData.order}" class="w-full border rounded-md p-2">
+                        </div>
+                        <div>
+                            <label class="block text-gray-700 font-medium mb-2">Minimal qiyinlik (Rasch)</label>
+                            <input type="number" step="0.1" name="min_difficulty_${index}" value="${sectionData.min_difficulty !== null ? sectionData.min_difficulty : ''}" class="w-full border rounded-md p-2">
+                        </div>
+                        <div>
+                            <label class="block text-gray-700 font-medium mb-2">Maksimal qiyinlik (Rasch)</label>
+                            <input type="number" step="0.1" name="max_difficulty_${index}" value="${sectionData.max_difficulty !== null ? sectionData.max_difficulty : ''}" class="w-full border rounded-md p-2">
+                        </div>
+                    </div>
+                    <button type="button" class="remove-section-btn bg-red-500 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-md">Bo'limni o'chirish</button>
+
+                    <div class="mt-4 topic-rules-container">
+                        <h5 class="text-md font-bold text-gray-800 mb-2">Mavzu qoidalari</h5>
+                        ${topicRulesHtml}
+                        <button type="button" class="add-topic-rule-btn bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-md mt-4">Mavzu qoidasi qo'shish</button>
+                    </div>
+                `;
+                sectionsContainer.appendChild(sectionDiv);
+            });
+            updateTotalQuestions();
+        }
+
+        addSectionBtn.addEventListener('click', function() {
+            sectionsRules.push({
+                section_type: 'reading',
+                duration_minutes: 0,
+                max_questions: 0,
+                module_number: sectionCount + 1,
+                order: sectionCount + 1,
+                min_difficulty: null,
+                max_difficulty: null,
+                topic_rules: []
+            });
+            saveRules();
+        });
+
+        function saveRules() {
+            fetch('', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrftoken
+                },
+                body: JSON.stringify({
+                    action: 'save_rules',
+                    sections: sectionsRules
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    renderSections();
+                    messages.info("Qoidalar saqlandi.");
+                } else {
+                    alert(data.message);
+                }
+            });
+        }
+        
+        function updateTotalQuestions() {
+            let total = 0;
+            sectionsRules.forEach(section => {
+                total += section.max_questions;
+            });
+            document.getElementById('total-questions-count').textContent = total;
+            const finalizeForm = document.getElementById('finalizeExamForm');
+            if (total > 0) {
+                finalizeForm.classList.remove('hidden');
+            } else {
+                finalizeForm.classList.add('hidden');
+            }
+        }
+        
+        // ... boshqa event listenerlar
+        sectionsContainer.addEventListener('click', function(e) {
+            // Bo'lim o'chirish
+            if (e.target.classList.contains('remove-section-btn')) {
+                const sectionIndex = e.target.closest('.section-item').dataset.index;
+                sectionsRules.splice(sectionIndex, 1);
+                saveRules();
+            }
+            // Mavzu qoidasi qo'shish
+            if (e.target.classList.contains('add-topic-rule-btn')) {
+                const sectionIndex = e.target.closest('.section-item').dataset.index;
+                // Bu yerda mavzu tanlash logikasi bo'lishi kerak.
+                // Masalan, modal oyna orqali mavzular ro'yxatini ko'rsatish
+                alert('Mavzu qo\'shish logikasi keyinroq qo\'shiladi. Hozircha mavjudlari bilan ishlaymiz.');
+            }
+        });
+        
+        sectionsContainer.addEventListener('input', function(e) {
+            const sectionItem = e.target.closest('.section-item');
+            if (!sectionItem) return;
+            
+            const sectionIndex = sectionItem.dataset.index;
+            const sectionData = sectionsRules[sectionIndex];
+            const name = e.target.name;
+
+            if (name.startsWith('section_type')) {
+                sectionData.section_type = e.target.value;
+            } else if (name.startsWith('duration_minutes')) {
+                sectionData.duration_minutes = parseInt(e.target.value);
+            } else if (name.startsWith('max_questions')) {
+                sectionData.max_questions = parseInt(e.target.value);
+            } else if (name.startsWith('module_number')) {
+                sectionData.module_number = parseInt(e.target.value);
+            } else if (name.startsWith('order')) {
+                sectionData.order = parseInt(e.target.value);
+            } else if (name.startsWith('min_difficulty')) {
+                sectionData.min_difficulty = parseFloat(e.target.value) || null;
+            } else if (name.startsWith('max_difficulty')) {
+                sectionData.max_difficulty = parseFloat(e.target.value) || null;
+            }
+            saveRules();
+        });
+
+        if (sectionsRules.length > 0) {
+            renderSections();
+        }
+    });
+</script>
+
+<style>
+    .hidden { display: none; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto p-4 md:p-8">
+    <div class="bg-white rounded-lg shadow-md p-6">
+        <h2 class="text-3xl font-bold text-gray-800 mb-6 text-center">
+            "{{ exam_title }}" uchun bo'lim va qoidalar
+        </h2>
+
+        {% for message in messages %}
+            <div class="p-4 mb-4 text-sm rounded-lg {% if message.tags == 'success' %}bg-green-100 text-green-700{% elif message.tags == 'error' %}bg-red-100 text-red-700{% endif %}" role="alert">
+                {{ message }}
+            </div>
+        {% endfor %}
+
+        <h3 class="text-xl font-bold text-gray-800 mb-4">Bo'limlar</h3>
+        <div id="sections-container" class="space-y-4"></div>
+        <button type="button" id="add-section-btn" class="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-md mt-4">
+            Yangi bo'lim qo'shish
+        </button>
+        
+        <div class="mt-8 text-center">
+            <p class="text-gray-700 font-bold">
+                Jami savollar soni:
+                <span id="total-questions-count" class="text-xl text-blue-600">0</span> ta
+            </p>
+        </div>
+
+        <div class="flex justify-center mt-8">
+            <form id="finalizeExamForm" action="{% url 'create_adaptive_exam_step2' %}" method="POST" class="hidden">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="finalize_exam">
+                <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-8 rounded-md transition duration-300 shadow-lg">
+                    Imtihonni yakunlash
+                </button>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
