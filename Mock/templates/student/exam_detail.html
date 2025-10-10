@@ -1,0 +1,61 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}{{ exam.title }}{% endblock %}
+
+{% block content %}
+<div class="container mx-auto px-4 py-8">
+    <h1 class="text-3xl font-bold text-gray-800 mb-4">{{ exam.title }}</h1>
+    <p class="text-gray-600 mb-6">{{ exam.description|default:"Bu test SAT rasmiy formati asosida tuzilgan." }}</p>
+    
+    <div class="bg-white p-6 rounded-lg shadow-md">
+        <h2 class="text-xl font-semibold mb-4">Imtihon haqida</h2>
+        <ul class="space-y-2 text-gray-700">
+            <li><span class="font-semibold">Turi:</span> {% if exam.exam_type == 'static' %}Statik{% else %}Adaptiv{% endif %}</li>
+            <li><span class="font-semibold">Davomiyligi:</span> {{ total_duration }} daqiqa</li>
+            <li><span class="font-semibold">Savollar soni:</span> {{ total_questions }} ta</li>
+        </ul>
+        
+        {% if can_start_exam %}
+            <button class="start-exam-btn btn bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2.5 px-5 rounded-lg mt-6" data-exam-id="{{ exam.id }}">
+                Imtihonni boshlash
+            </button>
+        {% else %}
+            <a href="{% url 'price' %}" class="btn bg-green-500 hover:bg-green-600 text-white font-semibold py-2.5 px-5 rounded-lg mt-6">
+                <i class="fas fa-crown mr-1"></i> Paket sotib olish
+            </a>
+        {% endif %}
+    </div>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        const startButton = document.querySelector('.start-exam-btn');
+        if (startButton) {
+            startButton.addEventListener('click', async () => {
+                const examId = startButton.dataset.examId;
+                try {
+                    const response = await fetch(`/start-exam/${examId}/`, {
+                        method: 'GET',
+                        headers: {
+                            'X-CSRFToken': '{{ csrf_token }}',
+                            'Accept': 'application/json'
+                        }
+                    });
+                    const data = await response.json();
+                    console.log("Start Exam Response:", data);
+                    if (data.status === 'success' && data.exam_url) {
+                        window.location.href = data.exam_url;
+                    } else {
+                        console.error("Error:", data.message);
+                        alert(data.message || "Imtihonni boshlashda xatolik yuz berdi.");
+                    }
+                } catch (error) {
+                    console.error("Start Exam Error:", error);
+                    alert("Ulanishda xatolik yuz berdi.");
+                }
+            });
+        }
+    });
+</script>
+{% endblock %}

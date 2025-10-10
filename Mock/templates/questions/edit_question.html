@@ -1,130 +1,189 @@
 {% extends 'base.html' %}
-{% load static %}
+{% load static i18n %}
 
-{% block title %}Savolni tahrirlash{% endblock %}
+{% block title %}{% trans "Savolni tahrirlash" %}{% endblock %}
 
 {% block content %}
-<div class="container mx-auto p-4 md:p-8">
-    <div class="card-section">
-        <h2 class="text-3xl md:text-4xl font-extrabold text-center text-gray-800 mb-6">Savolni tahrirlash</h2>
+<div class="container mx-auto p-4 md:p-8 max-w-5xl">
+    <div class="bg-white shadow-xl rounded-lg p-6 md:p-8">
+        <h2 class="text-3xl md:text-4xl font-extrabold text-center text-gray-800 mb-6">{% trans "Savolni tahrirlash" %}</h2>
         <p class="text-center text-gray-600 mb-8 max-w-2xl mx-auto">
-            Savolning barcha ma'lumotlarini tahrirlang. To'g'ri formatni tanlab, unga mos javob variantlari yoki qisqa javobni kiriting.
+            {% trans "Savolning barcha ma'lumotlarini tahrirlang. To'g'ri formatni tanlab, unga mos javob variantlari yoki qisqa javobni kiriting." %}
         </p>
 
-        <div>
+        {% if messages %}
+        <div class="mb-6">
             {% for message in messages %}
-                <div class="p-4 mb-4 text-sm rounded-lg {% if message.tags == 'success' %}message-success{% elif message.tags == 'error' %}message-error{% endif %}" role="alert">
-                    {{ message }}
-                </div>
+            <div class="p-4 mb-4 text-sm rounded-lg {% if message.tags == 'success' %}bg-green-100 text-green-800{% elif message.tags == 'error' %}bg-red-100 text-red-800{% else %}bg-blue-100 text-blue-800{% endif %}" role="alert">
+                {{ message }}
+            </div>
             {% endfor %}
         </div>
+        {% endif %}
 
-        <form action="{% url 'edit_question' question.id %}" method="POST" enctype="multipart/form-data" id="question-form">
+        <form action="{% url 'edit_question' question.id %}" method="POST" enctype="multipart/form-data" id="question-form" class="space-y-8">
             {% csrf_token %}
 
-            <div class="main-question-section card-section mb-8">
-                <h3 class="card-title">
-                    <i class="fas fa-question-circle mr-2 text-indigo-500"></i>Savol va javob variantlari
+            <!-- Savol va javob variantlari -->
+            <div class="bg-gray-50 p-6 rounded-lg shadow-sm">
+                <h3 class="text-xl font-bold text-gray-800 mb-4 flex items-center">
+                    <i class="fas fa-question-circle mr-2 text-indigo-600"></i>{% trans "Savol va javob variantlari" %}
                 </h3>
                 
                 <div class="mb-6">
-                    <label for="{{ form.text.id_for_label }}" class="block text-gray-700 font-medium mb-2">{{ form.text.label }}</label>
+                    <label for="id_text" class="block text-gray-700 font-medium mb-2">{% trans "Savol matni" %}</label>
                     {{ form.text }}
-                    {% if form.text.errors %}<p class="text-red-500 text-sm mt-1">{{ form.text.errors }}</p>{% endif %}
+                    {% if form.text.errors %}
+                    <p class="text-red-500 text-sm mt-1">{{ form.text.errors }}</p>
+                    {% endif %}
                 </div>
 
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
                     <div>
-                        <label for="{{ form.subtopic.id_for_label }}" class="block text-gray-700 font-medium mb-2">{{ form.subtopic.label }}</label>
+                        <label for="id_subtopic" class="block text-gray-700 font-medium mb-2">{% trans "Ichki mavzu" %}</label>
                         {{ form.subtopic }}
-                        {% if form.subtopic.errors %}<p class="text-red-500 text-sm mt-1">{{ form.subtopic.errors }}</p>{% endif %}
+                        {% if form.subtopic.errors %}
+                        <p class="text-red-500 text-sm mt-1">{{ form.subtopic.errors }}</p>
+                        {% endif %}
                     </div>
                     <div>
-                        <label for="{{ form.answer_format.id_for_label }}" class="block text-gray-700 font-medium mb-2">{{ form.answer_format.label }}</label>
+                        <label for="id_answer_format" class="block text-gray-700 font-medium mb-2">{% trans "Javob formati" %}</label>
                         {{ form.answer_format }}
-                        {% if form.answer_format.errors %}<p class="text-red-500 text-sm mt-1">{{ form.answer_format.errors }}</p>{% endif %}
+                        {% if form.answer_format.errors %}
+                        <p class="text-red-500 text-sm mt-1">{{ form.answer_format.errors }}</p>
+                        {% endif %}
                     </div>
                 </div>
 
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
                     <div>
-                        <label for="{{ form.passage.id_for_label }}" class="block text-gray-700 font-medium mb-2">{{ form.passage.label }}</label>
+                        <label for="id_passage" class="block text-gray-700 font-medium mb-2">{% trans "Matn (Passage)" %}</label>
                         {{ form.passage }}
-                        {% if form.passage.errors %}<p class="text-red-500 text-sm mt-1">{{ form.passage.errors }}</p>{% endif %}
+                        {% if form.passage.errors %}
+                        <p class="text-red-500 text-sm mt-1">{{ form.passage.errors }}</p>
+                        {% endif %}
                     </div>
                     <div>
-                        <label for="{{ form.image.id_for_label }}" class="block text-gray-700 font-medium mb-2">{{ form.image.label }}</label>
+                        <label for="id_image" class="block text-gray-700 font-medium mb-2">{% trans "Rasm (agar mavjud bo'lsa)" %}</label>
                         {% if form.instance.image %}
                             <div class="mb-2">
                                 <img src="{{ form.instance.image.url }}" alt="Savol rasmi" class="max-w-xs h-auto rounded-lg shadow-md">
                             </div>
                         {% endif %}
                         {{ form.image }}
-                        {% if form.image.errors %}<p class="text-red-500 text-sm mt-1">{{ form.image.errors }}</p>{% endif %}
+                        {% if form.image.errors %}
+                        <p class="text-red-500 text-sm mt-1">{{ form.image.errors }}</p>
+                        {% endif %}
                     </div>
                 </div>
 
                 <div id="options-container" class="{% if question.answer_format == 'short_answer' %}hidden{% else %}block{% endif %}">
-                    <h4 class="text-lg font-bold text-gray-800 mb-4">Javob variantlari</h4>
-                    <div id="options-list" class="space-y-4">
-                    </div>
-                    <button type="button" id="add-option" class="btn btn-primary mt-4">
-                        <i class="fas fa-plus mr-2"></i>Yangi variant qo'shish
+                    <h4 class="text-lg font-semibold text-gray-800 mb-4">{% trans "Javob variantlari" %}</h4>
+                    <div id="options-list" class="space-y-4"></div>
+                    <button type="button" id="add-option" class="mt-4 inline-flex items-center px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition">
+                        <i class="fas fa-plus mr-2"></i>{% trans "Yangi variant qo'shish" %}
                     </button>
                 </div>
                 
                 <div id="short-answer-field-container" class="{% if question.answer_format == 'short_answer' %}block{% else %}hidden{% endif %}">
                     <div class="mb-4">
-                        <label for="id_correct_short_answer" class="block text-gray-700 font-medium mb-2">To'g'ri javob</label>
-                        <input type="text" name="correct_short_answer" id="id_correct_short_answer" class="w-full border rounded-md p-2 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors" value="{{ question.correct_short_answer|default:'' }}">
+                        <label for="id_correct_short_answer" class="block text-gray-700 font-medium mb-2">{% trans "To'g'ri javob" %}</label>
+                        <input type="text" name="correct_short_answer" id="id_correct_short_answer" class="w-full border rounded-md p-2 focus:outline-none focus:ring-2 focus:ring-indigo-600 transition" value="{{ question.correct_short_answer|default:'' }}">
+                        {% if form.correct_short_answer.errors %}
+                        <p class="text-red-500 text-sm mt-1">{{ form.correct_short_answer.errors }}</p>
+                        {% endif %}
                     </div>
                 </div>
             </div>
 
-            <div class="solution-section card-section mb-8">
-                <h3 class="card-title">
-                    <i class="fas fa-book-open mr-2 text-indigo-500"></i>Yechim
+            <!-- Yechim -->
+            <div class="bg-gray-50 p-6 rounded-lg shadow-sm">
+                <h3 class="text-xl font-bold text-gray-800 mb-4 flex items-center">
+                    <i class="fas fa-book-open mr-2 text-indigo-600"></i>{% trans "Yechim" %}
                 </h3>
                 <div class="mb-6">
-                    <label for="{{ form.hint.id_for_label }}" class="block text-gray-700 font-medium mb-2">{{ form.hint.label }}</label>
+                    <label for="id_hint" class="block text-gray-700 font-medium mb-2">{% trans "Yechim uchun maslahat" %}</label>
                     {{ form.hint }}
-                    {% if form.hint.errors %}<p class="text-red-500 text-sm mt-1">{{ form.hint.errors }}</p>{% endif %}
+                    {% if form.hint.errors %}
+                    <p class="text-red-500 text-sm mt-1">{{ form.hint.errors }}</p>
+                    {% endif %}
                 </div>
                 <div class="mb-6">
-                    <label for="{{ form.detailed_solution.id_for_label }}" class="block text-gray-700 font-medium mb-2">{{ form.detailed_solution.label }}</label>
+                    <label for="id_detailed_solution" class="block text-gray-700 font-medium mb-2">{% trans "Batafsil yechim" %}</label>
                     {{ form.detailed_solution }}
-                    {% if form.detailed_solution.errors %}<p class="text-red-500 text-sm mt-1">{{ form.detailed_solution.errors }}</p>{% endif %}
+                    {% if form.detailed_solution.errors %}
+                    <p class="text-red-500 text-sm mt-1">{{ form.detailed_solution.errors }}</p>
+                    {% endif %}
                 </div>
             </div>
-            
-            <div class="meta-section card-section mb-8">
-                <h3 class="card-title">
-                    <i class="fas fa-info-circle mr-2 text-indigo-500"></i>Qo'shimcha ma'lumotlar
+
+            <!-- IRT parametrlari -->
+            <div class="bg-gray-50 p-6 rounded-lg shadow-sm">
+                <h3 class="text-xl font-bold text-gray-800 mb-4 flex items-center">
+                    <i class="fas fa-chart-line mr-2 text-indigo-600"></i>{% trans "IRT parametrlari" %}
+                </h3>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+                    <div>
+                        <label for="id_difficulty" class="block text-gray-700 font-medium mb-2">{% trans "Qiyinlik (Difficulty)" %}</label>
+                        {{ form.difficulty }}
+                        {% if form.difficulty.errors %}
+                        <p class="text-red-500 text-sm mt-1">{{ form.difficulty.errors }}</p>
+                        {% endif %}
+                    </div>
+                    <div>
+                        <label for="id_discrimination" class="block text-gray-700 font-medium mb-2">{% trans "Diskriminatsiya (Discrimination)" %}</label>
+                        {{ form.discrimination }}
+                        {% if form.discrimination.errors %}
+                        <p class="text-red-500 text-sm mt-1">{{ form.discrimination.errors }}</p>
+                        {% endif %}
+                    </div>
+                    <div>
+                        <label for="id_guessing" class="block text-gray-700 font-medium mb-2">{% trans "Taxmin qilish (Guessing)" %}</label>
+                        {{ form.guessing }}
+                        {% if form.guessing.errors %}
+                        <p class="text-red-500 text-sm mt-1">{{ form.guessing.errors }}</p>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <!-- Qo'shimcha ma'lumotlar -->
+            <div class="bg-gray-50 p-6 rounded-lg shadow-sm">
+                <h3 class="text-xl font-bold text-gray-800 mb-4 flex items-center">
+                    <i class="fas fa-info-circle mr-2 text-indigo-600"></i>{% trans "Qo'shimcha ma'lumotlar" %}
                 </h3>
                 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-6">
                     <div>
-                        <label for="{{ form.difficulty_level.id_for_label }}" class="block text-gray-700 font-medium mb-2">{{ form.difficulty_level.label }}</label>
+                        <label for="id_difficulty_level" class="block text-gray-700 font-medium mb-2">{% trans "Qiyinlik darajasi" %}</label>
                         {{ form.difficulty_level }}
-                        {% if form.difficulty_level.errors %}<p class="text-red-500 text-sm mt-1">{{ form.difficulty_level.errors }}</p>{% endif %}
+                        {% if form.difficulty_level.errors %}
+                        <p class="text-red-500 text-sm mt-1">{{ form.difficulty_level.errors }}</p>
+                        {% endif %}
                     </div>
                     <div>
-                        <label for="{{ form.difficulty.id_for_label }}" class="block text-gray-700 font-medium mb-2">{{ form.difficulty.label }}</label>
-                        {{ form.difficulty }}
-                        {% if form.difficulty.errors %}<p class="text-red-500 text-sm mt-1">{{ form.difficulty.errors }}</p>{% endif %}
-                    </div>
-                    <div>
-                        <label for="{{ form.status.id_for_label }}" class="block text-gray-700 font-medium mb-2">{{ form.status.label }}</label>
+                        <label for="id_status" class="block text-gray-700 font-medium mb-2">{% trans "Status" %}</label>
                         {{ form.status }}
-                        {% if form.status.errors %}<p class="text-red-500 text-sm mt-1">{{ form.status.errors }}</p>{% endif %}
+                        {% if form.status.errors %}
+                        <p class="text-red-500 text-sm mt-1">{{ form.status.errors }}</p>
+                        {% endif %}
+                    </div>
+                    <div>
+                        <label for="id_is_solution_free" class="block text-gray-700 font-medium mb-2">{% trans "Yechim bepulmi?" %}</label>
+                        {{ form.is_solution_free }}
+                        {% if form.is_solution_free.errors %}
+                        <p class="text-red-500 text-sm mt-1">{{ form.is_solution_free.errors }}</p>
+                        {% endif %}
                     </div>
                 </div>
 
                 <div class="mb-6">
-                    <label for="{{ form.flashcards.id_for_label }}" class="block text-gray-700 font-medium mb-2">{{ form.flashcards.label }}</label>
+                    <label for="id_flashcards" class="block text-gray-700 font-medium mb-2">{% trans "Flashcardlar" %}</label>
                     {{ form.flashcards }}
-                    {% if form.flashcards.errors %}<p class="text-red-500 text-sm mt-1">{{ form.flashcards.errors }}</p>{% endif %}
+                    {% if form.flashcards.errors %}
+                    <p class="text-red-500 text-sm mt-1">{{ form.flashcards.errors }}</p>
+                    {% endif %}
                     <div id="selected-flashcards" class="mt-4 hidden">
-                        <h4 class="text-lg font-semibold text-gray-700 mb-2">Tanlangan Flashcardlar</h4>
+                        <h4 class="text-lg font-semibold text-gray-700 mb-2">{% trans "Tanlangan Flashcardlar" %}</h4>
                         <div class="bg-gray-100 p-4 rounded-md flex flex-wrap gap-2">
                             <div id="selected-flashcards-list" class="flex flex-wrap gap-2"></div>
                         </div>
@@ -132,24 +191,27 @@
                 </div>
 
                 <div class="mb-6">
-                    <label for="{{ form.tags.id_for_label }}" class="block text-gray-700 font-medium mb-2">{{ form.tags.label }}</label>
+                    <label for="id_tags" class="block text-gray-700 font-medium mb-2">{% trans "Teglar" %}</label>
                     {{ form.tags }}
-                    {% if form.tags.errors %}<p class="text-red-500 text-sm mt-1">{{ form.tags.errors }}</p>{% endif %}
+                    {% if form.tags.errors %}
+                    <p class="text-red-500 text-sm mt-1">{{ form.tags.errors }}</p>
+                    {% endif %}
                     <div id="selected-tags" class="mt-4 hidden">
-                        <h4 class="text-lg font-semibold text-gray-700 mb-2">Tanlangan Teglar</h4>
+                        <h4 class="text-lg font-semibold text-gray-700 mb-2">{% trans "Tanlangan Teglar" %}</h4>
                         <div class="bg-gray-100 p-4 rounded-md flex flex-wrap gap-2">
                             <div id="selected-tags-list" class="flex flex-wrap gap-2"></div>
                         </div>
                     </div>
                 </div>
             </div>
-            
+
+            <!-- Tugmalar -->
             <div class="flex flex-col sm:flex-row justify-end mt-8 space-y-4 sm:space-y-0 sm:space-x-4">
-                <a href="{% url 'my_questions' %}" class="btn btn-secondary">
-                    <i class="fas fa-times mr-2"></i>Bekor qilish
+                <a href="{% url 'my_questions' %}" class="inline-flex items-center px-4 py-2 bg-gray-300 text-gray-800 rounded-md hover:bg-gray-400 transition">
+                    <i class="fas fa-times mr-2"></i>{% trans "Bekor qilish" %}
                 </a>
-                <button type="submit" name="save" class="btn btn-primary">
-                    <i class="fas fa-save mr-2"></i>Saqlash
+                <button type="submit" name="save" class="inline-flex items-center px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition">
+                    <i class="fas fa-save mr-2"></i>{% trans "Saqlash" %}
                 </button>
             </div>
         </form>
@@ -158,215 +220,257 @@
 {% endblock %}
 
 {% block extra_body %}
-    <script>
-        const initialOptions = [
-            {% for option in question.options.all %}
-                { text: `{{ option.text|escapejs }}`, is_correct: {{ option.is_correct|yesno:"true,false" }} },
-            {% endfor %}
-        ];
-    </script>
-    <script>
-        $(document).ready(function() {
-            // CKEditor maydonlarini avtomatik ravishda initsializatsiya qilish
-            // Django-CKEditor buni o'zi amalga oshiradi, shuning uchun maxsus funksiyaga hojat yo'q
-            
-            const answerFormatSelect = $('#id_answer_format');
-            const optionsContainer = $('#options-container');
-            const shortAnswerFieldContainer = $('#short-answer-field-container');
-            const addOptionButton = $('#add-option');
-            const optionsList = $('#options-list');
-            let optionCount = 0;
+<script src="https://cdn.ckeditor.com/4.25.1-lts/standard/ckeditor.js"></script>
+<script>
+    // Initial options for edit page
+    const initialOptions = [
+        {% for option in question.options.all %}
+            { text: `{{ option.text|escapejs }}`, is_correct: {{ option.is_correct|yesno:"true,false" }} },
+        {% endfor %}
+    ];
 
-            function updateForm() {
-                const selectedFormat = answerFormatSelect.val();
-                if (selectedFormat === 'single' || selectedFormat === 'multiple') {
-                    optionsContainer.removeClass('hidden');
-                    shortAnswerFieldContainer.addClass('hidden');
-                    // Agar o'zgartirilgan bo'lsa, variantlarni tozalab, qayta yuklash
-                    optionsList.empty();
-                    optionCount = 0;
+    // MathJax konfiguratsiyasi
+    CKEDITOR.config.mathJaxLib = 'https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.7/MathJax.js?config=TeX-AMS-MML_HTMLorMML';
+    
+    // Umumiy CKEditor sozlamalari
+    const editorConfig = {
+        toolbar: [
+            { name: 'basicstyles', items: ['Bold', 'Italic', 'Underline', 'Strike', 'Subscript', 'Superscript'] },
+            { name: 'paragraph', items: ['NumberedList', 'BulletedList', 'Outdent', 'Indent', 'Blockquote'] },
+            { name: 'insert', items: ['Image2', 'Table', 'HorizontalRule', 'SpecialChar'] },
+            { name: 'styles', items: ['Styles', 'Format'] },
+            { name: 'tools', items: ['Maximize'] },
+            { name: 'editing', items: ['Undo', 'Redo'] },
+            { name: 'clipboard', items: ['Cut', 'Copy', 'Paste', 'PasteText', 'PasteFromWord'] },
+            { name: 'math', items: ['Mathjax'] }
+        ],
+        extraPlugins: 'codesnippet,image2,mathjax,autogrow',
+        removePlugins: 'image,exportpdf',
+        height: 150,
+        width: '100%',
+        autoGrow_onStartup: true
+    };
+
+    $(document).ready(function() {
+        const answerFormatSelect = $('#id_answer_format');
+        const optionsContainer = $('#options-container');
+        const shortAnswerFieldContainer = $('#short-answer-field-container');
+        const optionsList = $('#options-list');
+        let optionCount = 0;
+
+        function updateForm() {
+            const selectedFormat = answerFormatSelect.val();
+            optionsContainer.addClass('hidden');
+            shortAnswerFieldContainer.addClass('hidden');
+            if (selectedFormat === 'single' || selectedFormat === 'multiple') {
+                optionsContainer.removeClass('hidden');
+                updateOptionInputs(selectedFormat);
+                if (optionsList.children().length === 0) {
                     if (initialOptions.length > 0) {
                         initialOptions.forEach(option => addOption(option.text, option.is_correct));
                     } else {
                         addOption();
                         addOption();
                     }
-                } else if (selectedFormat === 'short_answer') {
-                    optionsContainer.addClass('hidden');
-                    shortAnswerFieldContainer.removeClass('hidden');
                 }
-            }
-
-            function addOption(text = '', is_correct = false) {
-                optionCount++;
-                const optionDiv = $(`
-                    <div class="option-item bg-gray-100 p-4 rounded-lg border border-gray-200 mb-4">
-                        <div class="flex items-center mb-2">
-                            <input type="${answerFormatSelect.val() === 'single' ? 'radio' : 'checkbox'}" name="is_correct" value="${optionCount}" class="form-checkbox h-5 w-5 text-green-600 mr-2" ${is_correct ? 'checked' : ''}>
-                            <label class="text-gray-700 font-medium">To'g'ri javob ${optionCount}</label>
-                            <button type="button" class="remove-option ml-auto text-red-500 hover:text-red-700 transition duration-200">
-                                <i class="fas fa-trash-alt"></i>
-                            </button>
-                        </div>
-                        <label class="block text-gray-700 font-medium mb-2">Javob varianti ${optionCount}</label>
-                        <textarea name="option_text" id="option_text_${optionCount}" class="editor w-full border border-gray-300 rounded-md p-2 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors" rows="4">${text}</textarea>
-                    </div>
-                `);
-                optionsList.append(optionDiv);
-                
-                // CKEditor'ni yangi textarea uchun ishga tushirish
-                CKEDITOR.replace(`option_text_${optionCount}`);
-            }
-
-            function removeOption(event) {
-                const optionItems = $('.option-item').length;
-                if (optionItems > 2) {
-                    const optionDiv = $(event.target).closest('.option-item');
-                    const editorId = optionDiv.find('textarea').attr('id');
-                    if (CKEDITOR.instances[editorId]) {
-                        CKEDITOR.instances[editorId].destroy();
-                    }
-                    optionDiv.remove();
-                } else {
-                    alert('Kamida 2 ta javob varianti bo‘lishi kerak!');
-                }
-            }
-            
-            // Sahifa yuklanganda mavjud variantlarni yuklash
-            if (initialOptions.length > 0 && (answerFormatSelect.val() === 'single' || answerFormatSelect.val() === 'multiple')) {
-                initialOptions.forEach(option => addOption(option.text, option.is_correct));
-            } else if (initialOptions.length === 0 && (answerFormatSelect.val() === 'single' || answerFormatSelect.val() === 'multiple')) {
-                addOption();
-                addOption();
-            }
-
-            // Voqea tinglovchilari
-            answerFormatSelect.on('change', function() {
-                const selectedFormat = $(this).val();
-                if (selectedFormat === 'single' || selectedFormat === 'multiple') {
-                    optionsContainer.removeClass('hidden');
-                    shortAnswerFieldContainer.addClass('hidden');
-                    // Format o'zgarganda variantlarni tozalab, yangilash
-                    optionsList.empty();
-                    optionCount = 0;
-                    if (initialOptions.length > 0) {
-                        initialOptions.forEach(option => addOption(option.text, option.is_correct));
-                    } else {
-                        addOption();
-                        addOption();
-                    }
-                } else {
-                    optionsContainer.addClass('hidden');
-                    shortAnswerFieldContainer.removeClass('hidden');
-                    // Variantlarni o'chirish
-                    for (const instance in CKEDITOR.instances) {
-                        CKEDITOR.instances[instance].destroy();
-                    }
-                }
-            });
-            addOptionButton.on('click', () => addOption());
-            optionsList.on('click', '.remove-option', removeOption);
-
-            $('#question-form').on('submit', function(e) {
-                // Forma yuborilishidan oldin barcha CKEditor ma'lumotlarini saqlash
+            } else if (selectedFormat === 'short_answer') {
+                shortAnswerFieldContainer.removeClass('hidden');
+                optionsList.empty();
                 for (const instance in CKEDITOR.instances) {
-                    CKEDITOR.instances[instance].updateElement();
-                }
-                const selectedFormat = answerFormatSelect.val();
-
-                if (selectedFormat === 'single' || selectedFormat === 'multiple') {
-                    const checked = $('input[name="is_correct"]:checked').length;
-                    const optionTexts = $('textarea[name="option_text"]').map(function() { return CKEDITOR.instances[this.id].getData().trim(); }).get();
-                    const validOptions = optionTexts.filter(text => text.length > 0).length;
-
-                    if (validOptions < 2) {
-                        alert('Kamida 2 ta javob varianti kiritilishi shart!');
-                        e.preventDefault();
-                        return;
-                    }
-
-                    if (selectedFormat === 'single' && checked !== 1) {
-                        alert('Yagona javob formatida faqat bitta to\'g\'ri javob tanlanishi kerak!');
-                        e.preventDefault();
-                        return;
-                    }
-                    if (selectedFormat === 'multiple' && checked === 0) {
-                        alert('Bir nechta javob formatida kamida bitta to\'g\'ri javob tanlanishi kerak!');
-                        e.preventDefault();
-                        return;
+                    if (instance.startsWith('option_text_')) {
+                        CKEDITOR.instances[instance].destroy(true);
                     }
                 }
-            });
+            }
+        }
 
-            // Select2 init
-            $('#id_subtopic, #id_passage, #id_difficulty_level, #id_status').select2({ theme: "classic" });
-            $('#id_tags').select2({ placeholder: "Teg izlash...", theme: "classic", tags: false, tokenSeparators: [',', ' '] });
-            $('#id_flashcards').select2({
-                placeholder: "Flashcard izlash...",
-                theme: "classic",
-                tags: false,
-                ajax: {
-                    url: '{% url "search_flashcards_api" %}',
-                    dataType: 'json',
-                    delay: 250,
-                    data: params => ({ q: params.term }),
-                    processResults: data => ({ results: data.results }),
-                    cache: true
-                },
-                templateResult: data => $('<span>').html(data.text),
-                templateSelection: data => $('<span>').text($('<div>').html(data.text).text())
+        function updateOptionInputs(format) {
+            const inputType = format === 'single' ? 'radio' : 'checkbox';
+            $('.option-item').each(function() {
+                const $input = $(this).find('input[name="is_correct"]');
+                const isChecked = $input.is(':checked');
+                const value = $input.val();
+                const newInput = $(`
+                    <input type="${inputType}" name="is_correct" value="${value}" class="form-checkbox h-5 w-5 text-indigo-600 mr-2" ${isChecked ? 'checked' : ''}>
+                `);
+                $input.replaceWith(newInput);
             });
+        }
 
-            // Tanlangan itemlarni ko'rsatish
-            const updateSelectedItems = (selector, listSelector, itemType) => {
-                const selectedItemsDiv = $(listSelector);
-                selectedItemsDiv.empty();
-                const selectedData = $(selector).select2('data');
-                const containerId = (itemType === 'flashcard') ? '#selected-flashcards' : '#selected-tags';
-                $(containerId).toggleClass('hidden', selectedData.length === 0);
-                
-                selectedData.forEach(item => {
-                    const text = $('<div>').html(item.text).text().replace(' (yangi)', '');
-                    let itemHtml;
-                    if (itemType === 'flashcard') {
-                        const parts = text.split(' - ');
-                        const english = parts[0];
-                        const uzbek = parts.length > 1 ? parts.slice(1).join(' - ') : '';
-                        itemHtml = `
-                            <div class="flashcard-item bg-white border border-gray-200 rounded-lg p-3 shadow-sm flex items-center justify-between min-w-[200px] gap-2">
-                                <div>
-                                    <span class="block text-sm font-bold text-gray-800">${english}</span>
-                                    <span class="block text-xs text-gray-600">${uzbek}</span>
-                                </div>
-                                <button type="button" class="remove-item text-red-500 hover:text-red-700 font-bold self-start transition duration-200" data-id="${item.id}" data-item-type="${itemType}">&times;</button>
-                            </div>
-                        `;
-                    } else if (itemType === 'tag') {
-                        itemHtml = `
-                            <div class="flex items-center selected-item-tag py-1 px-3">
-                                <span class="text-sm font-medium text-blue-800">${text}</span>
-                                <button type="button" class="remove-item text-blue-500 hover:text-blue-700 ml-2 font-bold transition duration-200" data-id="${item.id}" data-item-type="${itemType}">&times;</button>
-                            </div>
-                        `;
-                    }
-                    selectedItemsDiv.append(itemHtml);
-                });
-            };
+        function addOption(text = '', is_correct = false) {
+            optionCount++;
+            const inputType = answerFormatSelect.val() === 'single' ? 'radio' : 'checkbox';
+            const optionDiv = $(`
+                <div class="option-item bg-gray-100 p-4 rounded-lg border border-gray-200 mb-4">
+                    <div class="flex items-center mb-2">
+                        <input type="${inputType}" name="is_correct" value="${optionCount}" class="form-checkbox h-5 w-5 text-indigo-600 mr-2" ${is_correct ? 'checked' : ''}>
+                        <label class="text-gray-700 font-medium">{% trans "To'g'ri javob"|escapejs %} ${optionCount}</label>
+                        <button type="button" class="remove-option ml-auto text-red-500 hover:text-red-700 transition">
+                            <i class="fas fa-trash-alt"></i>
+                        </button>
+                    </div>
+                    <label class="block text-gray-700 font-medium mb-2">{% trans "Javob varianti"|escapejs %} ${optionCount}</label>
+                    <textarea name="option_text" id="option_text_${optionCount}" class="w-full border border-gray-300 rounded-md p-2 focus:outline-none focus:ring-2 focus:ring-indigo-600 transition" rows="4">${text}</textarea>
+                </div>
+            `);
+            optionsList.append(optionDiv);
+            CKEDITOR.replace(`option_text_${optionCount}`, editorConfig);
+        }
 
-            $('#id_flashcards').on('change', () => updateSelectedItems('#id_flashcards', '#selected-flashcards-list', 'flashcard'));
-            $('#id_tags').on('change', () => updateSelectedItems('#id_tags', '#selected-tags-list', 'tag'));
-            
-            $('.container').on('click', '.remove-item', function() {
-                const idToRemove = $(this).data('id').toString();
-                const itemType = $(this).data('item-type');
-                const selector = (itemType === 'flashcard') ? '#id_flashcards' : '#id_tags';
-                const selectedIds = $(selector).val();
-                const newIds = Array.isArray(selectedIds) ? selectedIds.filter(val => val.toString() !== idToRemove) : null;
-                $(selector).val(newIds).trigger('change');
-            });
-            
-            updateSelectedItems('#id_flashcards', '#selected-flashcards-list', 'flashcard');
-            updateSelectedItems('#id_tags', '#selected-tags-list', 'tag');
+        function removeOption(event) {
+            const optionItems = $('.option-item').length;
+            if (optionItems > 2) {
+                const $optionItem = $(event.target).closest('.option-item');
+                const editorInstance = CKEDITOR.instances[$optionItem.find('textarea').attr('id')];
+                if (editorInstance) {
+                    editorInstance.destroy(true);
+                }
+                $optionItem.remove();
+            } else {
+                alert('{% trans "Kamida 2 ta javob varianti bo‘lishi kerak!"|escapejs %}');
+            }
+        }
+
+        // Initialize CKEditor for main fields
+        CKEDITOR.replace('id_text', Object.assign({}, editorConfig, { height: 300 }));
+        CKEDITOR.replace('id_hint', Object.assign({}, editorConfig, { height: 200 }));
+        CKEDITOR.replace('id_detailed_solution', Object.assign({}, editorConfig, { height: 300 }));
+
+        // Add event listeners
+        $(document).on('click', '#add-option', function() {
+            addOption();
         });
-    </script>
+
+        $(document).on('click', '.remove-option', function(event) {
+            removeOption(event);
+        });
+
+        // Form validation and submission
+        $('#question-form').on('submit', function(e) {
+            for (const instance in CKEDITOR.instances) {
+                CKEDITOR.instances[instance].updateElement();
+            }
+            const selectedFormat = answerFormatSelect.val();
+
+            if (selectedFormat === 'single' || selectedFormat === 'multiple') {
+                const checked = $('input[name="is_correct"]:checked').length;
+                const optionTexts = $('textarea[name="option_text"]').map(function() {
+                    return CKEDITOR.instances[this.id].getData().trim();
+                }).get();
+                const validOptions = optionTexts.filter(text => text.length > 0).length;
+
+                if (validOptions < 2) {
+                    alert('{% trans "Kamida 2 ta javob varianti kiritilishi shart!"|escapejs %}');
+                    e.preventDefault();
+                    return;
+                }
+
+                if (selectedFormat === 'single' && checked !== 1) {
+                    alert('{% trans "Yagona javob formatida faqat bitta to\'g\'ri javob tanlanishi kerak!"|escapejs %}');
+                    e.preventDefault();
+                    return;
+                }
+                if (selectedFormat === 'multiple' && checked === 0) {
+                    alert('{% trans "Bir nechta javob formatida kamida bitta to\'g\'ri javob tanlanishi kerak!"|escapejs %}');
+                    e.preventDefault();
+                    return;
+                }
+            }
+        });
+
+        // Initialize Select2
+        $('#id_subtopic').select2({ placeholder: "{% trans 'Mavzu izlash...'|escapejs %}", theme: "classic" });
+        $('#id_passage').select2({ placeholder: "{% trans 'Matn izlash...'|escapejs %}", theme: "classic" });
+        $('#id_difficulty_level').select2({ placeholder: "{% trans 'Qiyinlik darajasi...'|escapejs %}", theme: "classic" });
+        $('#id_status').select2({ placeholder: "{% trans 'Status...'|escapejs %}", theme: "classic" });
+        $('#id_is_solution_free').select2({ placeholder: "{% trans 'Yechim bepulmi?'|escapejs %}", theme: "classic" });
+
+        $('#id_tags').select2({
+            placeholder: "{% trans 'Teg izlash...'|escapejs %}",
+            theme: "classic",
+            tags: true,
+            tokenSeparators: [',', ' ']
+        });
+
+        $('#id_flashcards').select2({
+            placeholder: "{% trans 'Flashcard izlash...'|escapejs %}",
+            theme: "classic",
+            ajax: {
+                url: '{% url "search_flashcards_api" %}',
+                dataType: 'json',
+                delay: 250,
+                data: function(params) {
+                    return { q: params.term };
+                },
+                processResults: function(data) {
+                    return { results: data.results };
+                },
+                cache: true
+            },
+            templateResult: function(data) {
+                if (data.loading) return data.text;
+                return $('<span>').html(data.text);
+            },
+            templateSelection: function(data) {
+                return $('<span>').text($('<div>').html(data.text).text());
+            }
+        });
+
+        // Handle selected items display
+        const updateSelectedItems = (selector, listSelector, itemType) => {
+            const selectedItemsDiv = $(listSelector);
+            selectedItemsDiv.empty();
+            const selectedData = $(selector).select2('data');
+            const containerId = (itemType === 'flashcard') ? '#selected-flashcards' : '#selected-tags';
+            $(containerId).toggleClass('hidden', selectedData.length === 0);
+
+            selectedData.forEach(item => {
+                const text = $('<div>').html(item.text).text().replace(' (yangi)', '');
+                let itemHtml;
+                if (itemType === 'flashcard') {
+                    const parts = text.split(' - ');
+                    const english = parts[0];
+                    const uzbek = parts.length > 1 ? parts.slice(1).join(' - ') : '';
+                    itemHtml = `
+                        <div class="flashcard-item bg-white border border-gray-200 rounded-lg p-3 shadow-sm flex items-center justify-between min-w-[200px] gap-2">
+                            <div>
+                                <span class="block text-sm font-bold text-gray-800">${english}</span>
+                                <span class="block text-xs text-gray-600">${uzbek}</span>
+                            </div>
+                            <button type="button" class="remove-item text-red-500 hover:text-red-700 font-bold self-start transition" data-id="${item.id}" data-item-type="${itemType}">&times;</button>
+                        </div>
+                    `;
+                } else if (itemType === 'tag') {
+                    itemHtml = `
+                        <div class="flex items-center selected-item-tag py-1 px-3 bg-indigo-100 rounded-md">
+                            <span class="text-sm font-medium text-indigo-800">${text}</span>
+                            <button type="button" class="remove-item text-indigo-500 hover:text-indigo-700 ml-2 font-bold transition" data-id="${item.id}" data-item-type="${itemType}">&times;</button>
+                        </div>
+                    `;
+                }
+                selectedItemsDiv.append(itemHtml);
+            });
+        };
+
+        $('#id_flashcards').on('change', function() { updateSelectedItems('#id_flashcards', '#selected-flashcards-list', 'flashcard'); });
+        $('#id_tags').on('change', function() { updateSelectedItems('#id_tags', '#selected-tags-list', 'tag'); });
+
+        $(document).on('click', '.remove-item', function() {
+            const idToRemove = $(this).data('id').toString();
+            const itemType = $(this).data('item-type');
+            const selector = (itemType === 'flashcard') ? '#id_flashcards' : '#id_tags';
+            const selectedIds = $(selector).val();
+            const newIds = Array.isArray(selectedIds) ? selectedIds.filter(val => val !== idToRemove) : null;
+            $(selector).val(newIds).trigger('change');
+        });
+
+        // Initialize form state
+        updateForm();
+        updateSelectedItems('#id_flashcards', '#selected-flashcards-list', 'flashcard');
+        updateSelectedItems('#id_tags', '#selected-tags-list', 'tag');
+
+        // Trigger initial change to ensure correct state
+        answerFormatSelect.on('change', updateForm).trigger('change');
+    });
+</script>
 {% endblock %}

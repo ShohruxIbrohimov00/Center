@@ -1,0 +1,125 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block head %}
+    <title>{{ attempt.exam.title }} natijasi</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <script>
+        MathJax = {
+            tex: { inlineMath: [['$', '$']] },
+            options: { processHtmlClass: 'tex2jax_process' }
+        };
+    </script>
+    <script type="text/javascript" id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+{% endblock %}
+
+{% block content %}
+<div class="container mx-auto px-4 py-8 md:py-12">
+
+    <div class="bg-white rounded-2xl shadow-xl p-6 sm:p-8 mb-8">
+        <div class="text-center mb-8">
+            <h1 class="text-3xl sm:text-4xl font-extrabold text-slate-800">{{ attempt.exam.title }}</h1>
+            <p class="text-lg text-slate-500 mt-2">Natijalar Tahlili</p>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-center">
+            <div class="bg-indigo-50 border-2 border-indigo-200 p-4 rounded-xl">
+                <p class="text-sm font-bold text-indigo-800">UMUMIY BALL</p>
+                <p class="text-5xl font-extrabold text-indigo-600 my-1">{{ total_sat_score|default:"-" }}</p>
+                <p class="text-sm font-semibold text-slate-500">/ 1600</p>
+            </div>
+            <div class="bg-sky-50 border-2 border-sky-200 p-4 rounded-xl">
+                <p class="text-sm font-bold text-sky-800">ENGLISH</p>
+                <p class="text-4xl font-extrabold text-sky-600 my-1">{{ ebrw_score|default:"-" }}</p>
+                <p class="text-sm font-semibold text-slate-500">/ 800</p>
+            </div>
+            <div class="bg-rose-50 border-2 border-rose-200 p-4 rounded-xl">
+                <p class="text-sm font-bold text-rose-800">MATH</p>
+                <p class="text-4xl font-extrabold text-rose-600 my-1">{{ math_score|default:"-" }}</p>
+                <p class="text-sm font-semibold text-slate-500">/ 800</p>
+            </div>
+        </div>
+    </div>
+    
+    <div>
+        <h2 class="text-2xl font-bold text-slate-800 mb-4">Javoblar Tahlili</h2>
+        
+        {% for section_analysis in section_analysis_list %}
+        <div class="mb-8">
+            <h3 class="text-xl font-extrabold text-slate-700 mt-8 mb-4 p-3 border-l-4 border-indigo-500 bg-indigo-50 rounded-r-lg">
+                {{ section_analysis.section_name }}
+            </h3>
+
+            <div class="p-4 bg-slate-100 rounded-lg mb-6">
+                <p class="text-sm font-semibold text-slate-600 mb-2">Savolni ko'rish:</p>
+                <div class="flex flex-wrap gap-2">
+                    {% for ua in section_analysis.user_answers_nav %}
+                        <button data-user-answer-id="{{ ua.id }}" 
+                           class="question-nav-btn w-8 h-8 flex items-center justify-center rounded-md font-bold text-xs transition
+                                {% if ua.is_correct %} bg-green-200 text-green-800 hover:bg-green-300
+                                {% elif ua.is_correct is None %} bg-yellow-200 text-yellow-800 hover:bg-yellow-300
+                                {% else %} bg-red-200 text-red-800 hover:bg-red-300 {% endif %}">
+                            {{ forloop.counter }}
+                        </button>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <div id="answer-detail-container-{{ forloop.counter }}" class="mt-6">
+                 <div class="text-center p-4 text-slate-500">Tahlilni ko'rish uchun yuqoridan savol raqamini tanlang.</div>
+            </div>
+
+        </div>
+        {% endfor %}
+
+        <div class="flex justify-end mt-10">
+            <a href="{% url 'exam_attempts' attempt.exam.id %}" class="btn btn-slate">
+                <i class="fas fa-list-alt mr-2"></i> Barcha urinishlarga qaytish
+            </a>
+        </div>
+    </div>
+</div>
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    const navButtons = document.querySelectorAll('.question-nav-btn');
+    let currentActiveButton = null;
+
+    navButtons.forEach(button => {
+        button.addEventListener('click', async () => {
+            const userAnswerId = button.dataset.userAnswerId;
+            const sectionContainerId = button.closest('.mb-8').querySelector('[id^="answer-detail-container-"]').id;
+            const container = document.getElementById(sectionContainerId);
+
+            // Eski aktiv tugmani stilini olib tashlash
+            if(currentActiveButton) {
+                currentActiveButton.classList.remove('ring-2', 'ring-indigo-500');
+            }
+            // Yangi tugmani aktiv qilish
+            button.classList.add('ring-2', 'ring-indigo-500');
+            currentActiveButton = button;
+
+            container.innerHTML = `<div class="text-center p-4 text-slate-500"><i class="fas fa-spinner fa-spin mr-2"></i>Yuklanmoqda...</div>`;
+
+            try {
+                const response = await fetch(`{% url 'get_answer_detail_ajax' %}?user_answer_id=${userAnswerId}`);
+                const data = await response.json();
+
+                if (response.ok) {
+                    container.innerHTML = data.html;
+                    // Yangi kontent kelgandan keyin MathJax'ni ishga tushirish
+                    if (window.MathJax) {
+                        MathJax.typesetPromise([container]);
+                    }
+                } else {
+                    container.innerHTML = `<div class="text-center p-4 text-red-500">Xatolik: ${data.error}</div>`;
+                }
+            } catch (error) {
+                container.innerHTML = `<div class="text-center p-4 text-red-500">Server bilan bog'lanishda xatolik.</div>`;
+            }
+        });
+    });
+});
+</script>
+{% endblock %}
+{% endblock %}

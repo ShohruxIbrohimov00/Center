@@ -1,0 +1,111 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Mening Yutuqlarim{% endblock %}
+
+{% block content %}
+<div class="bg-slate-50">
+<div class="container mx-auto px-4 py-12 md:py-16">
+    <div class="text-center mb-12 md:mb-16">
+        <h1 class="text-4xl sm:text-5xl lg:text-6xl font-extrabold text-slate-800 tracking-tight">Mening Yutuqlarim 🏆</h1>
+        <p class="mt-4 text-lg text-slate-600 max-w-2xl mx-auto">
+            Maqsadlar qo'ying, ularga erishing va bilimingizni nishonlang!
+        </p>
+    </div>
+
+    {% if next_badge_to_earn %}
+    <div class="max-w-4xl mx-auto mb-12">
+        <h2 class="text-2xl font-bold text-slate-800 mb-4">Keyingi Maqsad</h2>
+        <div class="bg-white p-6 rounded-2xl shadow-xl border-2 border-indigo-200 flex flex-col sm:flex-row items-center gap-6">
+            <img src="{{ next_badge_to_earn.icon.url }}" alt="{{ next_badge_to_earn.title }}" class="h-24 w-24 flex-shrink-0">
+            <div class="text-center sm:text-left">
+                <h3 class="text-xl font-bold text-slate-800">{{ next_badge_to_earn.title }}</h3>
+                <p class="text-slate-500 mt-1">{{ next_badge_to_earn.description }}</p>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <div class="max-w-4xl mx-auto mb-12">
+        <h2 class="text-2xl font-bold text-slate-800 mb-4">Joriy Missiyalar</h2>
+        <div class="bg-white p-6 rounded-2xl shadow-lg space-y-6">
+            {% if mission_progress %}
+            <div>
+                <div class="flex justify-between items-center mb-2">
+                    <span class="font-semibold text-slate-700 flex items-center"><i class="fas fa-pen-alt text-indigo-500 mr-2"></i> 5 ta Imtihon Topshirish</span>
+                    <span class="text-sm font-bold text-indigo-600">{{ mission_progress.exam_attempts_completed }}/5</span>
+                </div>
+                <div class="w-full bg-slate-200 rounded-full h-3">
+                    <div class="bg-indigo-600 h-3 rounded-full transition-all duration-500" style="width: {% widthratio mission_progress.exam_attempts_completed 5 100%}%"></div>
+                </div>
+            </div>
+            <div>
+                <div class="flex justify-between items-center mb-2">
+                    <span class="font-semibold text-slate-700 flex items-center"><i class="fas fa-trophy text-green-500 mr-2"></i> Eng Yuqori Ball: 700+</span>
+                    <span class="text-sm font-bold text-green-600">{{ mission_progress.highest_score }}/700</span>
+                </div>
+                <div class="w-full bg-slate-200 rounded-full h-3">
+                    <div class="bg-green-600 h-3 rounded-full transition-all duration-500" style="width: {% widthratio mission_progress.highest_score 700 100 %}%"></div>
+                </div>
+            </div>
+            {% else %}
+                <p class="text-slate-500 text-center py-4">Hozircha faol missiyalar yo'q.</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="max-w-6xl mx-auto mb-12">
+        <h2 class="text-2xl font-bold text-slate-800 mb-4">Qo'lga Kiritilgan Nishonlar</h2>
+        <div class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-7 gap-4 md:gap-6">
+            {% for badge in all_badges %}
+            <div class="group relative bg-white p-4 rounded-xl shadow-lg text-center transform transition-transform hover:-translate-y-2
+                {% if badge.id not in earned_badge_ids %}grayscale opacity-70{% endif %}">
+                <img src="{{ badge.icon.url }}" alt="{{ badge.title }}" class="h-20 w-20 mx-auto transition-transform duration-300 group-hover:scale-110">
+                <h4 class="mt-3 font-bold text-sm text-slate-800">{{ badge.title }}</h4>
+                <div class="absolute bottom-full mb-2 w-48 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-xs rounded-lg p-2 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
+                    {{ badge.description }}
+                    <div class="absolute top-full left-1/2 -translate-x-1/2 w-0 h-0 border-x-4 border-x-transparent border-t-4 border-t-slate-800"></div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    
+    <div class="max-w-6xl mx-auto">
+        <h2 class="text-3xl font-bold text-gray-800 mb-6 text-center">Haftalik Liderlar Doskasi</h2>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <div class="bg-white p-6 rounded-2xl shadow-lg">
+                <h3 class="text-xl font-bold text-gray-800 mb-4 text-center">📈 Eng Yuqori Natijalar</h3>
+                <ol class="space-y-3">
+                    {% for entry in performance_leaderboard %}
+                    <li class="flex items-center gap-4 p-2 rounded-lg {% if entry.user.id == user.id %} bg-indigo-100 ring-2 ring-indigo-200 {% endif %}">
+                        <span class="font-bold text-lg text-slate-400 w-6 text-center">{{ forloop.counter }}</span>
+                        <img src="{{ entry.user.profile_picture.url|default:'/static/images/default-avatar.png' }}" alt="{{ entry.user.username }}" class="w-10 h-10 rounded-full object-cover">
+                        <span class="font-semibold text-slate-700 truncate flex-grow">{{ entry.user.get_full_name|default:entry.user.username }}</span>
+                        <span class="font-extrabold text-indigo-600">{{ entry.score }}</span>
+                    </li>
+                    {% empty %}
+                    <p class="text-sm text-slate-500 text-center py-4">Bu hafta hali natijalar yo'q.</p>
+                    {% endfor %}
+                </ol>
+            </div>
+            <div class="bg-white p-6 rounded-2xl shadow-lg">
+                <h3 class="text-xl font-bold text-gray-800 mb-4 text-center">💪 Eng Faol Foydalanuvchilar</h3>
+                <ol class="space-y-3">
+                    {% for entry in effort_leaderboard %}
+                    <li class="flex items-center gap-4 p-2 rounded-lg {% if entry.user.id == user.id %} bg-green-100 ring-2 ring-green-200 {% endif %}">
+                        <span class="font-bold text-lg text-slate-400 w-6 text-center">{{ forloop.counter }}</span>
+                        <img src="{{ entry.user.profile_picture.url|default:'/static/images/default-avatar.png' }}" alt="{{ entry.user.username }}" class="w-10 h-10 rounded-full object-cover">
+                        <span class="font-semibold text-slate-700 truncate flex-grow">{{ entry.user.get_full_name|default:entry.user.username }}</span>
+                        <span class="font-extrabold text-green-600">{{ entry.score }} ta</span>
+                    </li>
+                    {% empty %}
+                    <p class="text-sm text-slate-500 text-center py-4">Bu hafta hali faol foydalanuvchilar yo'q.</p>
+                    {% endfor %}
+                </ol>
+            </div>
+        </div>
+    </div>
+</div>
+</div>
+{% endblock %}

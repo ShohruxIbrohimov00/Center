@@ -1,0 +1,978 @@
+/*==========================================================
+ Global Sozlamalar
+==========================================================*/
+body {
+    font-family: 'Segoe UI', Arial, sans-serif;
+    background-color: #f0f0f0;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+    overflow-x: hidden;
+    -webkit-text-size-adjust: 100%;
+}
+
+.sat-wrapper {
+    flex-grow: 1;
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    margin: 0 auto;
+    background-color: #fff;
+    box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
+}
+
+/* Container asosiy qadoqlash */
+.container {
+    width: 100%;
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 0 20px;
+    box-sizing: border-box;
+}
+
+/*==========================================================
+ Header qismi
+==========================================================*/
+header.sat-header {
+    width: 100%;
+    height: 80px;
+    background-color: #f8f9fa;
+    border-bottom: none; /* Standart dashed chegara o'chiriladi */
+    background-image: linear-gradient(to right, #272626 15px, transparent 3px); /* 6px chiziq, 4px bo'shliq */
+    background-size: 18px 2px; /* Umumiy tsikl 10px (6px chiziq + 4px bo'shliq), qalinligi 2px */
+    background-position: bottom left; /* Faqat pastki chegara */
+    background-repeat: repeat-x; /* Gorizontal takrorlash */
+    box-sizing: border-box;
+    position: sticky !important;
+    top: 0;
+    z-index: 1000;
+    position: relative;
+}
+
+.header-content {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    height: 100%;
+    gap: 10px;
+}
+
+.header-left {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    flex-grow: 1;
+    gap: 5px;
+    min-width: 0;
+}
+
+.question-number-header {
+    font-size: 1.1rem;
+    font-weight: 500;
+    color: #444;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.directions-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 0.9rem;
+    color: #282828;
+    padding: 0;
+    transition: color 0.3s;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    white-space: nowrap;
+}
+
+.section-tabs {
+    display: flex;
+    gap: 10px;
+    overflow-x: auto;
+    white-space: nowrap;
+}
+
+.section-tab {
+    padding: 5px 12px;
+    background-color: #eee;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 0.85rem;
+    transition: background-color 0.3s;
+    flex-shrink: 0;
+}
+
+.section-tab.active {
+    background-color: #007bff;
+    color: #fff;
+}
+
+.section-tab:hover {
+    background-color: #dcdcdc;
+}
+
+.timer-container {
+    font-size: 1.6rem;
+    font-weight: 700;
+    color: black;
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 5px;
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    flex-shrink: 0;
+}
+
+.header-right {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 15px;
+    flex-shrink: 0;
+}
+
+.header-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 0.9rem;
+    color: #555;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+    transition: color 0.3s;
+}
+
+.header-btn:hover {
+    color: #000;
+}
+
+.header-btn i {
+    font-size: 1.5rem;
+}
+
+/*==========================================================
+ Asosiy kontent
+==========================================================*/
+.sat-main-content {
+    flex-grow: 1;
+    padding: 30px 0;
+    overflow-y: auto;
+}
+
+.question-container {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 0 20px 80px 20px;
+    box-sizing: border-box;
+}
+
+.question-header {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    margin-bottom: 25px;
+    background-color: #dbd9d9;
+    color: #232222;
+    border-bottom: none; /* Standart chegara o'chiriladi */
+    background-image: linear-gradient(to right, #272626 15px, transparent 3px); /* 6px chiziq, 4px bo'shliq */
+    background-size: 18px 2px; /* Tsikl 10px (6px chiziq + 4px bo'shliq), qalinlik 2px */
+    background-position: bottom left; /* Faqat pastki chegara */
+    background-repeat: repeat-x; /* Gorizontal takrorlash */
+}
+
+.question-number-progress {
+    font-size: 1.2rem;
+    font-weight: 600;
+    color: #fff;
+    margin-right: 10px;
+}
+
+.mark-btn {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    background: none;
+    border-radius: 5px;
+    padding: 8px 12px;
+    font-size: 0.9rem;
+    color: rgb(47, 47, 47);
+    cursor: pointer;
+    transition: background-color 0.3s, border-color 0.3s, color 0.3s;
+}
+
+.mark-btn:hover {
+    color: black;
+}
+
+.mark-btn.marked {
+    background-color: #ffeb3b;
+    color: #333;
+}
+
+.question-content {
+    font-size: 1.1rem;
+    line-height: 1.6;
+    color: #444;
+    padding: 0 10px;
+}
+
+#question-image {
+    max-width: 100%;
+    height: auto;
+    margin-top: 15px;
+}
+
+/* Javob variantlari */
+.space-y-2 {
+    margin: 20px 0;
+}
+
+.option-item {
+    position: relative;
+    display: flex;
+    align-items: center;
+    margin-bottom: 15px;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    padding: 15px;
+    cursor: pointer;
+    transition: background-color 0.2s, border-color 0.2s;
+    width: 100%;
+}
+
+.option-item:hover {
+    background-color: #f9f9f9;
+    border-color: #1a1919;
+}
+
+.option-item.selected {
+    background-color: #232323; /* Qora fon */
+    border-color: #000000; /* Qora chegara */
+}
+
+.option-item.selected .option-text {
+    color: #ffffff; /* Oq matn */
+}
+
+.option-item input[type="radio"],
+.option-item input[type="checkbox"] {
+    position: absolute;
+    opacity: 0;
+    cursor: pointer;
+    height: 0;
+    width: 0;
+}
+
+.option-indicator {
+    width: 36px;
+    height: 36px;
+    border: 2px solid #1d1e1e;
+    border-radius: 50%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-weight: bold;
+    color: #121213;
+    flex-shrink: 0;
+    margin-right: 15px;
+    user-select: none;
+    font-size: 1.2rem;
+}
+
+/* Checkbox uchun avvalgi kabi to'rtburchak */
+.option-item:has(.option-input-checkbox) .option-indicator {
+    border-radius: 5px;
+}
+
+/* Tanlanganda aylana stil: qora ichi, oq chegara, oq harf, ptichka olib tashlandi */
+.option-item.selected .option-indicator {
+    background-color: #232323; /* Qora ichi */
+    border-color: #ffffff; /* Oq chegara */
+    color: #ffffff; /* Oq harf */
+}
+
+/* Tanlanganda harf qoladi, ptichka olib tashlandi */
+.option-item.selected .option-indicator:before {
+    /* content: none; olib tashlandi, harf qoladi */
+}
+
+.option-text {
+    flex-grow: 1;
+    font-size: 1rem;
+    max-width: calc(100% - 51px);
+    word-break: break-word;
+    overflow-wrap: break-word;
+    line-height: 1.5;
+}
+
+/*==========================================================
+ Footer qismi
+==========================================================*/
+footer.sat-footer {
+    width: 100%;
+    height: 80px;
+    background-color: #f8f9fa;
+    box-sizing: border-box;
+    border-top: none; /* Standart chegara o'chiriladi */
+    background-image: linear-gradient(to right, #272626 15px, transparent 4px); /* 15px chiziq, 4px bo'shliq */
+    background-size: 19px 2px; /* Tsikl 19px (15px chiziq + 4px bo'shliq), qalinlik 2px */
+    background-position: top left; /* Faqat yuqori chegara */
+    background-repeat: repeat-x; /* Gorizontal takrorlash */
+    position: fixed; /* Ekran pastiga yopishish */
+    bottom: 0; /* Pastki qismga joylashadi */
+    left: 0; /* Chapdan boshlanadi */
+    z-index: 1000; /* Boshqa elementlar ustida */
+}
+
+.footer-content {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    height: 100%;
+    gap: 10px;
+}
+
+.footer-left {
+    font-size: 1rem;
+    color: #2c3e50;
+    flex-shrink: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.footer-center {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    flex-grow: 1;
+    justify-content: center;
+}
+
+.question-info {
+    background-color: #333;
+    color: #fff;
+    padding: 10px 20px;
+    border: none;
+    border-radius: 25px;
+    cursor: pointer;
+    font-size: 1rem;
+    font-weight: bold;
+    transition: background-color 0.3s;
+    white-space: nowrap;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.question-info:hover {
+    background-color: #555;
+}
+
+.question-info i {
+    font-size: 1rem;
+}
+
+.footer-right {
+    display: flex;
+    gap: 15px;
+    flex-shrink: 0;
+}
+
+.nav-btn {
+    padding: 10px 20px;
+    border-radius: 5px;
+    font-size: 1rem;
+    font-weight: 500;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.nav-btn:disabled {
+    background-color: #ccc !important;
+    border-color: #ccc !important;
+    cursor: not-allowed;
+    color: #666 !important;
+    box-shadow: none;
+}
+
+/*==========================================================
+ NAVIGATSIYA GRIDI (NAV MODAL ICHIDAGI)
+==========================================================*/
+#question-nav-grid {
+    grid-template-columns: repeat(auto-fill, minmax(40px, 1fr));
+    gap: 8px;
+}
+
+.nav-button {
+    width: 100%;
+    height: 45px;
+    background-color: #eee;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 1rem;
+    font-weight: 600;
+    transition: background-color 0.2s, transform 0.1s;
+}
+
+.nav-button:hover:not(.active) {
+    background-color: #dcdcdc;
+}
+
+.nav-button.bg-green-500 {
+    background-color: #4CAF50 !important;
+    color: #fff;
+    border-color: #4CAF50;
+}
+
+.nav-button.bg-yellow-500 {
+    background-color: #FFC107 !important;
+    color: #333;
+    border-color: #FFC107;
+}
+
+.nav-button.bg-blue-600 {
+    background-color: #2563EB !important;
+    color: #fff;
+    border-color: #2563EB;
+}
+
+/*==========================================================
+ MODALLAR - YON PANEL TURI (.modal)
+==========================================================*/
+.modal {
+    position: fixed;
+    top: 80px;
+    right: 0;
+    height: calc(100vh - 80px);
+    width: 0;
+    z-index: 5000;
+    background-color: #fff;
+    box-shadow: -5px 0 15px rgba(0, 0, 0, 0.2);
+    overflow-x: hidden;
+    transition: width 0.3s ease-in-out;
+    display: flex;
+    flex-direction: column;
+}
+
+.modal.hidden {
+    display: none;
+    opacity: 0;
+}
+
+.modal.open {
+    width: 450px;
+    display: flex;
+    opacity: 1;
+}
+
+#calculator-modal.open {
+    width: 600px;
+}
+
+.modal-header {
+    flex-shrink: 0;
+    padding: 15px 20px;
+    background-color: #fff;
+    border-bottom: 1px solid #eee;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.modal-content {
+    flex-grow: 1;
+    overflow-y: auto;
+    padding: 20px;
+}
+
+#calculator-modal .modal-content {
+    padding: 0;
+}
+
+#desmos-calculator {
+    width: 100%;
+    height: 100%;
+}
+
+/*==========================================================
+ MODALLAR - MARKAZ TURI (.center-modal)
+==========================================================*/
+.center-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.6);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 6000;
+    opacity: 0;
+    transition: opacity 0.3s ease-in-out;
+}
+
+.center-modal.hidden {
+    display: none;
+}
+
+.center-modal.open {
+    display: flex;
+    opacity: 1;
+}
+
+.center-modal .modal-content-wrapper {
+    background: white;
+    border-radius: 8px;
+    max-width: 450px;
+    width: 90%;
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+    overflow: hidden;
+    transform: scale(0.9);
+    transition: transform 0.3s ease-in-out;
+}
+
+.center-modal.open .modal-content-wrapper {
+    transform: scale(1);
+}
+
+.center-modal .modal-header {
+    border-bottom: 1px solid #eee;
+}
+
+.center-modal .modal-content {
+    padding: 20px;
+    max-height: 80vh;
+}
+
+/*==========================================================
+ NAVIGATSIYA MODALI (.nav-modal)
+==========================================================*/
+.nav-modal {
+    position: absolute;
+    bottom: 100px;
+    left: 50%;
+    transform: translateX(-50%);
+    background-color: #fff;
+    box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.2);
+    border-radius: 8px;
+    z-index: 5000;
+    opacity: 0;
+    transition: opacity 0.3s ease-in-out;
+    width: 90%;
+    max-width: 600px;
+    
+    /* BU YERDAN GRID STILLARI OLIB TASHALANDI! */
+    /* Padding ham olib tashlandi, chunki u endi #question-nav-grid'da bo'ladi */
+}
+
+.nav-modal.open {
+    /* Bu yer o'zgarishsiz qoladi */
+    display: block; 
+    opacity: 1;
+}
+
+/* sat_formulas.js dagi ma'lumotlarni qo'llab-quvvatlash */
+.formula-panel h3 {
+    border-bottom: 2px solid #ddd;
+    padding-bottom: 5px;
+    margin-top: 20px;
+    font-size: 1.3rem;
+    color: #007bff;
+}
+
+.formula-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 16px;
+    padding: 12px;
+    background-color: #f8f9fa;
+    border-radius: 8px;
+    margin-bottom: 8px;
+}
+.formula-svg {
+    flex-shrink: 0;
+    width: 80px;
+    height: 80px;
+}
+.formula-svg svg {
+    width: 100%;
+    height: 100%;
+}
+
+.formula-item strong {
+    display: block;
+    margin-bottom: 8px;
+    font-size: 1.1rem;
+    color: #333;
+}
+
+.formula-item .text-sm {
+    font-size: 0.9rem;
+    color: #6c757d;
+    margin-top: 5px;
+}
+
+.squared::after {
+    content: "²";
+    font-size: 0.6em;
+    position: relative;
+    top: -0.5em;
+    left: 1px;
+}
+
+#hide-timer-btn {
+    font-size: 0.7rem;
+    border: 1px solid black;
+    padding: 2px 6px;
+    border-radius: 10px; 
+}
+
+.formula-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 16px;
+    padding: 12px;
+    background-color: #f8f9fa;
+    border-radius: 8px;
+    margin-bottom: 8px;
+}
+
+.formula-latex {
+    margin: 8px 0;
+}
+
+.formula-svg {
+    flex-shrink: 0;
+    width: 80px;
+    height: 80px;
+}
+
+.formula-svg svg {
+    width: 100%;
+    height: 100%;
+}
+
+.mathjax {
+    display: inline;
+}
+
+.mathjax .math {
+    display: inline;
+    font-style: italic;
+}
+
+
+
+/*==========================================================
+ Telefon ekranlariga moslashgan dizayn (max-width: 767px)
+==========================================================*/
+@media (max-width: 767px) {
+    .container {
+        padding: 0 5px;
+    }
+
+    header.sat-header {
+        height: auto;
+        padding: 5px 0;
+        width: 100%;
+        background-color: #f8f9fa;
+        border-bottom: none; /* Standart chegara o'chiriladi */
+        background-image: linear-gradient(to right, #272626 15px, transparent 3px); /* 6px chiziq, 4px bo'shliq */
+        background-size: 18px 1.5px; /* Tsikl 10px (6px chiziq + 4px bo'shliq), qalinlik 2px */
+        background-position: bottom left; /* Faqat pastki chegara */
+        background-repeat: repeat-x; /* Gorizontal takrorlash */
+        box-sizing: border-box;
+        position: sticky !important;
+        top: 0;
+        z-index: 1000;
+    }
+
+    .header-content {
+        flex-direction: row;
+        justify-content: space-between;
+        align-items: center;
+        flex-wrap: nowrap;
+        gap: 5px;
+        overflow-x: auto;
+        padding: 0 5px;
+    }
+
+    .header-left {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 3px;
+        flex-grow: 1;
+        min-width: auto;
+    }
+
+    .question-number-header {
+        display: block;
+        font-size: 0.8rem;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        max-width: 100px;
+    }
+
+    .directions-btn {
+        display: none;
+    }
+
+    .section-tabs {
+        display: flex;
+        gap: 5px;
+        overflow-x: auto;
+        white-space: nowrap;
+        max-width: 150px;
+    }
+
+    .section-tab {
+        padding: 3px 6px;
+        font-size: 0.7rem;
+        border-radius: 3px;
+        flex-shrink: 0;
+    }
+
+    .timer-container {
+        font-size: 1.2rem;
+        flex-direction: row;
+        gap: 3px;
+        position: absolute;
+        left: 50%;
+        transform: translateX(-50%);
+    }
+
+    #hide-timer-btn {
+        font-size: 0.7rem;
+    }
+
+    .header-right {
+        display: flex;
+        gap: 8px;
+        flex-shrink: 0;
+    }
+
+    .header-btn {
+        font-size: 0;
+        gap: 0;
+    }
+
+    .header-btn span {
+        display: none;
+    }
+
+    .header-btn i {
+        font-size: 1.2rem;
+    }
+
+    .sat-main-content {
+        padding: 15px 0;
+    }
+
+    .question-container {
+        padding: 0 15px;
+    }
+
+    .question-header {
+        border-bottom: none; /* Standart chegara o'chiriladi */
+        background-image: linear-gradient(to right, #272626 6px, transparent 4px); /* 6px chiziq, 4px bo'shliq */
+        background-size: 10px 2px; /* Tsikl 10px (6px chiziq + 4px bo'shliq), qalinlik 2px */
+        background-position: bottom left; /* Faqat pastki chegara */
+        background-repeat: repeat-x; /* Gorizontal takrorlash */
+    }
+
+    .question-number-progress {
+        font-size: 1rem;
+    }
+
+    .mark-btn {
+        padding: 6px 10px;
+        font-size: 0.8rem;
+    }
+
+    .question-content {
+        font-size: 1rem;
+        padding: 0 15px;
+    }
+
+    .option-item {
+        padding: 12px;
+    }
+
+    .option-indicator {
+        width: 30px;
+        height: 30px;
+        margin-right: 12px;
+        font-size: 1rem;
+    }
+
+    .option-item.selected {
+        background-color: #232323;
+        border-color: #000000;
+    }
+
+    .option-item.selected .option-text {
+        color: #ffffff;
+    }
+
+    .option-item.selected .option-indicator {
+        background-color: #232323;
+        border-color: #ffffff;
+        color: #ffffff;
+    }
+
+    .option-item.selected .option-indicator:before {
+        content: none;
+    }
+
+    .option-text {
+        font-size: 0.95rem;
+        max-width: calc(100% - 42px);
+    }
+
+    footer.sat-footer {
+        height: auto;
+        padding: 5px 0;
+        border-top: none; /* Standart chegara o'chiriladi */
+        background-image: linear-gradient(to right, #272626 15px, transparent 4px); /* 6px chiziq, 4px bo'shliq */
+        background-size: 18px 2px; /* Tsikl 10px (6px chiziq + 4px bo'shliq), qalinlik 2px */
+        background-position: top left; /* Faqat pastki chegara */
+        background-repeat: repeat-x; /* Gorizontal takrorlash */
+    }
+
+    .footer-content {
+        flex-direction: row;
+        justify-content: space-between;
+        align-items: center;
+        gap: 5px;
+        padding: 0 5px;
+        overflow-x: auto;
+    }
+
+    .footer-left {
+        font-size: 0.85rem;
+        max-width: 80px;
+    }
+
+    .footer-center {
+        gap: 10px;
+    }
+
+    .question-info {
+        padding: 8px 15px;
+        font-size: 0.85rem;
+        border-radius: 20px;
+    }
+
+    .footer-right {
+        gap: 8px;
+    }
+
+    .footer-right .nav-btn {
+        padding: 8px 12px;
+        font-size: 0;
+        display: flex;
+        align-items: center;
+        gap: 0;
+    }
+
+    .footer-right .nav-btn .nav-btn-text {
+        display: none;
+    }
+
+    .footer-right .nav-btn i {
+        font-size: 1.2rem;
+    }
+
+    .center-modal .nav-btn {
+        padding: 8px 12px;
+        font-size: 0.9rem;
+        display: flex;
+        align-items: center;
+        gap: 4px;
+    }
+
+    .center-modal .nav-btn i {
+        font-size: 1.2rem;
+    }
+
+    .center-modal .nav-btn .nav-btn-text {
+        display: none;
+    }
+
+    #question-nav-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(40px, 1fr));
+        gap: 8px;
+        padding: 12px;
+    }
+
+    .nav-button {
+        height: 40px;
+        font-size: 0.9rem;
+    }
+
+    .modal.open {
+        width: 100%;
+        height: calc(100vh - 80px);
+    }
+
+    #calculator-modal.open {
+        width: 100%;
+    }
+
+    .center-modal .modal-content-wrapper {
+        width: 95%;
+        max-width: none;
+    }
+
+    .nav-modal {
+        width: 95%;
+        max-width: none;
+        bottom: 80px;
+    }
+
+    .formula-panel h3 {
+        font-size: 1.1rem;
+    }
+
+    .formula-item {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 8px;
+    }
+
+    .formula-svg {
+        width: 60px;
+        height: 60px;
+        margin: 0 auto;
+    }
+
+    .formula-item strong {
+        font-size: 1rem;
+    }
+
+    .formula-item .text-sm {
+        font-size: 0.9rem;
+    }
+
+    .formula-latex {
+        font-size: 1.1rem;
+    }
+}

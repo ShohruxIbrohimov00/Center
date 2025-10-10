@@ -1,0 +1,311 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>{{ attempt.exam.title }} - Imtihon</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="{% static 'css/exam_mode.css' %}">
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+    <!-- MathJax sozlamalari -->
+    <script>
+        MathJax = {
+            tex: {
+                inlineMath: [['$', '$'], ['\\(', '\\)']],
+                displayMath: [['$$', '$$'], ['\\[', '\\]']],
+                processEscapes: true
+            },
+            chtml: {
+                fontURL: 'https://cdn.jsdelivr.net/npm/mathjax@3/es5/output/chtml/fonts/woff-v2'
+            }
+        };
+    </script>
+    <script async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <script src="https://kit.fontawesome.com/your-kit-id.js" crossorigin="anonymous"></script>
+    <script src="{% static 'js/sat_formulas.js' %}"></script> 
+</head>
+<body>
+    <div class="sat-wrapper">
+        <header class="sat-header">
+            <div class="container header-content">
+                <div class="header-left">
+                    <span class="question-number-header" id="question-number-header">{{ section_attempt.section.get_section_type_display }} (Module {{ section_attempt.section.module_number }})</span> 
+                    <div class="section-tabs">
+                        {% for section_attempt in section_attempts %}
+                            <span class="section-tab 
+                                {% if section_attempt.id|slugify == section_attempt_id|slugify %}active{% endif %}" 
+                                data-section-id="{{ section_attempt.id }}" data-section-type="{{ section_attempt.section.section_type }}" data-module-number="{{ section_attempt.section.module_number }}">
+                                {{ section_attempt.section.get_section_type_display }} (Module {{ section_attempt.section.module_number }})
+                            </span>
+                        {% endfor %}
+                    </div>
+                    <button class="directions-btn" id="directions-btn" aria-label="Yo'riqnoma ochish">
+                        Directions
+                        <i class="fa-solid fa-caret-down"></i>
+                    </button>
+                </div>
+                
+                <div class="timer-container">
+                    <span id="timer" class="block">Loading...</span>
+                    <button id="hide-timer-btn" class="block text-sm text-gray-500 hover:text-gray-700" aria-label="Taymerni yashirish/yuqorida ko'rsatish">Hide</button>
+                </div>
+                
+                <div class="header-right">
+                    {% if section_attempt.section.section_type == 'math_calc' %}
+                        <button class="header-btn" id="calculator-btn" aria-label="Kalkulyator ochish">
+                            <i class="fa-solid fa-calculator"></i>
+                            <span>Calculator</span>
+                        </button>
+                    {% endif %}
+                    <button class="header-btn" id="reference-btn" aria-label="Formulalar sahifasini ochish">
+                        <i class="fa-solid fa-xmark squared"></i>
+                        <span>Reference</span>
+                    </button>
+                    <button class="header-btn" id="exit-btn" aria-label="Imtihonni yakunlash">
+                        <i class="fa-solid fa-ellipsis-vertical"></i>
+                        <span>More</span>
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <div class="sat-main-content">
+            <div class="question-container" id="question-container"> 
+                <div class="question-header">
+                    <div class="question-number-progress">
+                        <span id="question-number" class="bg-black text-white px-3 py-1 rounded">1</span>
+                    </div>
+                    <button class="mark-btn" id="mark-review-btn" aria-label="Savolni belgilash">
+                        <i class="far fa-bookmark"></i> Mark for Review
+                    </button>
+                </div>
+
+                <div id="question-content" class="question-content">
+                    <div id="question-text" class="question-text">Savol matni yuklanmoqda...</div>
+                    <div id="question-image-container" style="display: none;">
+                        <img id="question-image" src="" alt="Savol Rasmi">
+                    </div>
+                    <div id="answer-options-container"></div> 
+                    <input type="hidden" id="question_format" value=""> 
+                </div>
+            </div>
+        </div>
+
+        <footer class="sat-footer">
+            <div class="container footer-content">
+                <div class="footer-left" id="student-info">
+                    {{ request.user.get_full_name|default:request.user.username }}
+                </div>
+                <div class="footer-center">
+                    <button class="question-info nav-toggle-btn" id="nav-btn" aria-label="Savol navigatsiyasini ochish">
+                        <span id="nav-btn-text">Question 1 of 22</span>
+                        <i class="fa-solid fa-chevron-up"></i>
+                    </button>
+                </div>
+                <div class="footer-right flex space-x-3">
+                    <button id="prev-btn" class="nav-btn bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50" disabled aria-label="Oldingi savol" style="border-radius: 22px;">
+                        <i class="fa-solid fa-chevron-left"></i>
+                        <span class="nav-btn-text">Back</span>
+                    </button> 
+                    <button id="next-btn" class="nav-btn bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50" aria-label="Keyingi savol" style="border-radius: 22px;">
+                        <span class="nav-btn-text">Next</span>
+                        <i class="fa-solid fa-chevron-right"></i>
+                    </button>
+                </div>
+            </div>
+        </footer>
+    </div>
+    
+    <div id="question-nav-modal" class="nav-modal hidden">
+        <div class="modal-content">
+            <div id="question-nav-grid" class="grid grid-cols-5 md:grid-cols-8 gap-3 p-4"> 
+            </div>
+        </div>
+    </div>
+
+    <div id="calculator-modal" class="modal hidden">
+        <div class="modal-header">
+            <h2 class="text-xl font-semibold">Desmos Scientific Calculator</h2>
+            <button class="close-btn" data-modal="calculator-modal" aria-label="Yopish">&times;</button>
+        </div>
+        <div class="modal-content overflow-hidden flex-grow p-0">
+            <div id="desmos-calculator" class="w-full h-full" style="height: 100%;"></div> 
+        </div>
+    </div>
+    
+    <div id="reference-modal" class="modal hidden">
+        <div class="modal-header">
+            <h2 class="text-xl font-semibold">Reference Sheet (Formulalar)</h2>
+            <button class="close-btn" data-modal="reference-modal" aria-label="Yopish">&times;</button>
+        </div>
+        <div class="modal-content p-4">
+            <div class="formula-panel" id="formula-panel">
+                <p>Formulalar yuklanmoqda...</p>
+            </div>
+        </div>
+    </div>
+
+    <div id="confirm-exit-modal" class="center-modal hidden"> 
+        <div class="modal-content-wrapper">
+            <div class="modal-header">
+                <h2 class="text-xl font-semibold">Imtihonni yakunlash</h2>
+                <button class="close-btn" data-modal="confirm-exit-modal" aria-label="Yopish">&times;</button>
+            </div>
+            <div class="modal-content p-4">
+                <p>Siz haqiqatan ham <strong>{{ attempt.exam.title }}</strong> imtihonini yakunlamoqchimisiz?</p>
+                <p class="font-bold mt-2 text-red-600">Yakunlanganidan so'ng qayta kirish imkoni bo'lmaydi!</p>
+                <div class="mt-4 flex justify-end space-x-3">
+                    <button id="final-finish-btn" class="nav-btn bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700" aria-label="Ha, yakunlash">
+                        <i class="fas fa-check mr-1"></i> <!-- Tasdiqlash ikoni -->
+                        <span class="nav-btn-text">Ha, Yakunlash</span>
+                    </button>
+                    <button class="nav-btn bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600" onclick="closeModal('confirm-exit-modal')" aria-label="Bekor qilish">
+                        <i class="fas fa-times mr-1"></i> <!-- Bekor qilish ikoni -->
+                        <span class="nav-btn-text">Bekor Qilish</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="directions-modal" class="center-modal hidden">
+        <div class="modal-content-wrapper">
+            <div class="modal-header">
+                <h2 class="text-xl font-semibold">Directions (Yo'riqnoma)</h2>
+                <button class="close-btn" data-modal="directions-modal" aria-label="Yopish">&times;</button>
+            </div>
+            <div class="modal-content p-4">
+                <p>Bu bo'lim bo'yicha imtihon qoidalari va yo'riqnomalari bu yerda bo'ladi.</p>
+                {% if section_attempt.section.directions %}
+                    <div class="mt-3">{{ section_attempt.section.directions|safe }}</div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Yangi: Xato xabarlari uchun modal -->
+    <div id="error-modal" class="center-modal hidden">
+        <div class="modal-content-wrapper">
+            <div class="modal-header">
+                <h2 class="text-xl font-semibold">Xato yuz berdi</h2>
+                <button class="close-btn" data-modal="error-modal" aria-label="Yopish">&times;</button>
+            </div>
+            <div class="modal-content p-4">
+                <p id="error-message"></p>
+                <div class="mt-4 flex justify-end">
+                    <button class="nav-btn bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700" onclick="closeModal('error-modal')" aria-label="Yopish">Yopish</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Global o'zgaruvchilar (Django kontekstidan olinadi)
+        const EXAM_AJAX_URL = "{% url 'handle_exam_ajax' %}"; 
+        const ATTEMPT_ID = "{{ attempt_id|safe }}"; 
+        const CSRF_TOKEN = "{{ csrf_token|safe }}"; 
+        
+        let currentSectionId = "{{ section_attempt_id|default:'' }}"; 
+        let timeRemaining = parseInt("{{ time_remaining_seconds|default:0 }}", 10);
+        if (isNaN(timeRemaining)) timeRemaining = 0; 
+        
+        // Agar bo'lim ID bo'lmasa, birinchi bo'limni tanlash
+        if (!currentSectionId || currentSectionId === 'None' || currentSectionId === '') {
+            currentSectionId = "{% for sa in section_attempts %}{% if forloop.first %}{{ sa.id }}{% endif %}{% endfor %}"; 
+        }
+
+        // Bo'lim ma'lumotlarini JS ga uzatish
+        const SECTION_ATTEMPTS_DATA = {
+            {% for sa in section_attempts %}
+                '{{ sa.id }}': {
+                    'order': {{ forloop.counter }},
+                    'section_type': '{{ sa.section.section_type }}',
+                    'module_number': {{ sa.section.module_number }},
+                    'is_completed': {{ sa.is_completed|yesno:"true,false" }},
+                    'total_questions': {{ sa.questions.count|default:0 }}
+                }{% if not forloop.last %},{% endif %}
+            {% endfor %}
+        };
+    
+        if (!currentSectionId) {
+            console.error("KRITIK XATO: currentSectionId topilmadi. Kontekstni tekshiring.");
+        }
+        
+        // Yordamchi Funksiyalar (Modal) - CSS sinflari: .modal, .center-modal, .nav-modal
+        function openModal(modalId) {
+            document.querySelectorAll('.modal, .center-modal, .nav-modal').forEach(m => {
+                m.classList.add('hidden');
+                m.classList.remove('open');
+            });
+            const modal = document.getElementById(modalId);
+            if (modal) {
+                modal.classList.remove('hidden');
+                if (modalId !== 'question-nav-modal') {
+                    document.body.classList.add('overflow-hidden'); // Sahifani muzlatish
+                }
+                setTimeout(() => {
+                    modal.classList.add('open');
+                    if (modalId === 'reference-modal' && typeof window.loadReferenceFormulas === 'function') {
+                        window.loadReferenceFormulas();
+                    }
+                    if (modalId === 'calculator-modal' && typeof initDesmosCalculator === 'function') {
+                        initDesmosCalculator();
+                    }
+                }, 10);
+            }
+        }
+        
+        function closeModal(modalId) {
+            const modal = document.getElementById(modalId);
+            if (modal) {
+                modal.classList.remove('open');
+                if (modalId !== 'question-nav-modal') {
+                    document.body.classList.remove('overflow-hidden'); // Muzlatishni olib tashlash
+                }
+                setTimeout(() => {
+                    modal.classList.add('hidden');
+                }, 300); 
+            }
+        }
+
+        // Yangi: Xato modalini ochish
+        function showError(message) {
+            const errorModal = document.getElementById('error-modal');
+            const errorMsg = document.getElementById('error-message');
+            if (errorMsg) errorMsg.textContent = message;
+            openModal('error-modal');
+        }
+
+        // Savol ma'lumotlarini AJAX orqali yuklash
+        async function fetchQuestionData(questionId) {
+            try {
+                const response = await fetch(EXAM_AJAX_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF_TOKEN },
+                    body: JSON.stringify({
+                        action: 'get_question_by_id',
+                        attempt_id: ATTEMPT_ID,
+                        question_id: questionId,
+                        section_attempt_id: currentSectionId,
+                    })
+                });
+                const data = await response.json();
+                return data;
+            } catch (error) {
+                console.error("Savol ma'lumotlarini yuklashda xato:", error);
+                return { status: 'error', message: "Yuklashda xato." };
+            }
+        }
+
+        // Sahifa yuklanganda MathJaxni qayta ishlash
+        document.addEventListener('DOMContentLoaded', () => {
+            if (window.MathJax) {
+                MathJax.typesetPromise().catch(err => console.error('MathJax boshlang\'ich rendering xato:', err));
+            }
+        });
+    </script>
+    <script src="{% static 'js/exam_mode.js' %}"></script>
+</body>
+</html>

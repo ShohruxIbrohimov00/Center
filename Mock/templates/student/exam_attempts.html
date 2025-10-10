@@ -1,0 +1,148 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}{{ exam.title }} - Urinishlar ro'yxati{% endblock %}
+
+{% block content %}
+<div class="container mx-auto px-4 py-8 md:py-12">
+    <div class="text-center mb-10 md:mb-12">
+        <h1 class="text-3xl sm:text-4xl lg:text-5xl font-extrabold text-slate-800 tracking-tight">
+            "{{ exam.title }}"
+        </h1>
+        <p class="mt-3 text-base sm:text-lg text-slate-600 max-w-3xl mx-auto">
+            Ushbu imtihon bo'yicha barcha urinishlaringiz tahlili.
+        </p>
+    </div>
+
+    {% if attempts %}
+    <div class="max-w-5xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-6 mb-16">
+        {% if best_attempt %}
+        <div class="bg-white p-6 rounded-xl shadow-lg border border-slate-100">
+            <div class="flex items-center gap-4">
+                <div class="w-16 h-16 bg-yellow-100 text-yellow-500 rounded-full flex items-center justify-center text-3xl flex-shrink-0">
+                    <i class="fas fa-trophy"></i>
+                </div>
+                <div class="flex-grow">
+                    <h3 class="text-lg font-bold text-slate-800">Eng Yaxshi Natija</h3>
+                    <p class="text-3xl font-extrabold text-slate-900">{{ best_attempt.final_total_score }}</p>
+                    <p class="text-xs text-slate-500">{{ best_attempt.completed_at|date:"d M, Y" }}</p>
+                </div>
+                <a href="{% url 'view_result_detail' best_attempt.id %}" class="ml-auto btn btn-sm btn-slate self-center">Tahlil</a>
+            </div>
+        </div>
+        {% endif %}
+        {% if latest_attempt %}
+        <div class="bg-white p-6 rounded-xl shadow-lg border border-slate-100">
+             <div class="flex items-center gap-4">
+                <div class="w-16 h-16 bg-slate-100 text-slate-500 rounded-full flex items-center justify-center text-3xl flex-shrink-0">
+                    <i class="fas fa-history"></i>
+                </div>
+                <div class="flex-grow">
+                    <h3 class="text-lg font-bold text-slate-800">Oxirgi Natija</h3>
+                    <p class="text-3xl font-extrabold text-slate-900">{{ latest_attempt.final_total_score }}</p>
+                    <p class="text-xs text-slate-500">{{ latest_attempt.completed_at|date:"d M, Y" }}</p>
+                </div>
+                <a href="{% url 'view_result_detail' latest_attempt.id %}" class="ml-auto btn btn-sm btn-slate self-center">Tahlil</a>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+    
+    <div class="relative max-w-6xl mx-auto">
+        <div class="absolute left-4 sm:left-1/2 top-5 h-[calc(100%-2rem)] w-0.5 bg-slate-200 -translate-x-1/2"></div>
+
+        <div class="space-y-12">
+            {% for attempt in attempts %}
+            <div class="timeline-item relative flex items-start">
+                <div class="z-10 flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-white sm:absolute sm:left-1/2 sm:-translate-x-1/2 sm:mt-6
+                    {% if attempt.id == best_attempt.id %} bg-yellow-500 {% else %} bg-slate-400 {% endif %}">
+                    {% if attempt.id == best_attempt.id %}<i class="fas fa-star"></i>{% else %}<i class="fa-solid fa-flag-checkered"></i>{% endif %}
+                </div>
+                
+                <div class="card w-full ml-6 sm:ml-0 {% if forloop.counter|divisibleby:2 %}sm:pl-16{% else %}sm:pr-16{% endif %}">
+                    <div class="bg-white p-5 rounded-xl shadow-lg border-2 {% if attempt.id == best_attempt.id %}border-yellow-300{% else %}border-slate-100{% endif %}">
+                        
+                        <div class="flex justify-between items-start">
+                            <div>
+                                <p class="text-sm font-semibold text-slate-500">{{ attempt.completed_at|date:"d M, Y H:i" }}</p>
+                                <h3 class="text-xl font-bold text-slate-700">Urinish #{{ forloop.revcounter }}</h3>
+                            </div>
+                             {% if attempt.id == best_attempt.id %}
+                                <span class="text-xs font-bold bg-yellow-100 text-yellow-800 px-2 py-1 rounded-full">Eng Yaxshi</span>
+                            {% endif %}
+                        </div>
+
+                        <div class="my-4 flex flex-col md:flex-row items-center gap-4 md:gap-6">
+                            <div class="flex-shrink-0 w-28 h-28 sm:w-32 sm:h-32 rounded-full border-4 flex flex-col items-center justify-center
+                                {% if attempt.final_total_score >= 1200 %}border-green-200{% elif attempt.final_total_score >= 800 %}border-yellow-200{% else %}border-red-200{% endif %}">
+                                <span class="text-xs font-bold text-slate-500">UMUMIY</span>
+                                <p class="text-4xl font-extrabold text-slate-800">{{ attempt.final_total_score|default:"-" }}</p>
+                            </div>
+                            
+                            <div class="w-full space-y-4">
+                                <div>
+                                    <div class="flex justify-between items-baseline mb-1">
+                                        <span class="text-sm font-semibold text-slate-600">EBRW</span>
+                                        <span class="text-lg font-bold text-slate-800">{{ attempt.final_ebrw_score|default:"-" }}/800</span>
+                                    </div>
+                                    <div class="w-full bg-slate-200 rounded-full h-2"><div class="bg-sky-500 h-2 rounded-full" style="width: {% widthratio attempt.final_ebrw_score 800 100 %}%"></div></div>
+                                </div>
+                                <div>
+                                    <div class="flex justify-between items-baseline mb-1">
+                                        <span class="text-sm font-semibold text-slate-600">Math</span>
+                                        <span class="text-lg font-bold text-slate-800">{{ attempt.final_math_score|default:"-" }}/800</span>
+                                    </div>
+                                    <div class="w-full bg-slate-200 rounded-full h-2"><div class="bg-red-500 h-2 rounded-full" style="width: {% widthratio attempt.final_math_score 800 100 %}%"></div></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="mt-4 pt-4 border-t border-slate-100 flex justify-around items-center text-center">
+                            <div title="To'g'ri javoblar">
+                                <p class="text-xl font-bold text-green-600">{{ attempt.correct_answers|default:"-" }}</p>
+                                <p class="text-xs font-semibold text-slate-500">✅ <span class="hidden sm:inline">To'g'ri</span></p>
+                            </div>
+                             <div title="Noto'g'ri javoblar">
+                                <p class="text-xl font-bold text-red-600">{{ attempt.incorrect_answers|default:"-" }}</p>
+                                <p class="text-xs font-semibold text-slate-500">❌ <span class="hidden sm:inline">Noto'g'ri</span></p>
+                            </div>
+                             <div title="O'tkazib yuborilgan javoblar">
+                                <p class="text-xl font-bold text-slate-600">{{ attempt.omitted_answers|default:"-" }}</p>
+                                <p class="text-xs font-semibold text-slate-500">⏩ <span class="hidden sm:inline">O'tkazib yuborilgan</span></p>
+                            </div>
+                        </div>
+                        
+                        <div class="mt-5 text-right">
+                             <a href="{% url 'view_result_detail' attempt.id %}" class="btn btn-sm btn-indigo">
+                                Batafsil tahlil <i class="fas fa-arrow-right ml-1 transition-transform group-hover:translate-x-1"></i>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% else %}
+        <div class="text-center mt-12 p-8 bg-slate-50 rounded-2xl border-2 border-dashed">
+            <i class="fas fa-box-open text-5xl text-slate-400 mb-4"></i>
+            <h3 class="text-2xl font-bold text-slate-700">Urinishlar Topilmadi</h3>
+            <p class="text-lg text-slate-500 mt-2">Bu imtihonni hali topshirmagansiz. Boshlash vaqti keldi! 🚀</p>
+            <a href="{% url 'start_exam' exam.id %}" class="btn-primary mt-6 inline-block">Imtihonni Boshlash</a>
+        </div>
+    {% endif %}
+
+    <div class="mt-12 text-center">
+        <a href="{% url 'completed_exams' %}" class="text-indigo-600 hover:underline font-medium">
+            &larr; Barcha Natijalar Arxivi
+        </a>
+    </div>
+</div>
+
+<style>
+    .btn-indigo { background-color: var(--primary-color, #4f46e5); color: white; }
+    .btn-indigo:hover { background-color: #4338ca; }
+    .btn-slate { background-color: #f1f5f9; color: var(--slate-text, #334155); }
+    .btn-slate:hover { background-color: #e2e8f0; }
+</style>
+{% endblock %}

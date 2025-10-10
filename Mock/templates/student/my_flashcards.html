@@ -1,0 +1,148 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Mening Flashcard Statistikalrim{% endblock %}
+
+{% block content %}
+<div class="bg-slate-50">
+<div class="container mx-auto px-4 py-12 md:py-16">
+    <div class="text-center mb-12 md:mb-16">
+        <h1 class="text-4xl sm:text-5xl lg:text-6xl font-extrabold text-slate-800 tracking-tight">
+            Flashcard Statistikasi 🧠
+        </h1>
+        <p class="mt-4 text-lg text-slate-600 max-w-3xl mx-auto">
+            O'zlashtirish jarayoningizni kuzatib boring va Spaced Repetition (SM2) tizimi yordamida bilimingizni mustahkamlang.
+        </p>
+    </div>
+
+    <div class="max-w-4xl mx-auto mb-12">
+        <div class="bg-white p-6 sm:p-8 rounded-2xl shadow-xl border border-slate-100">
+            <h3 class="text-lg font-bold text-slate-800 mb-6 text-center sm:text-left">Umumiy O'zlashtirish</h3>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-6 items-center">
+                
+                <div class="progress-donut">
+                    <svg width="100%" height="100%" viewBox="0 0 36 36" class="progress-donut__svg">
+                        <circle cx="18" cy="18" r="15.915" class="progress-donut__circle progress-donut__circle-bg"></circle>
+                        
+                        <circle cx="18" cy="18" r="15.915" class="progress-donut__circle progress-donut__circle-segment"
+                                style="stroke: var(--success-color); stroke-dasharray: {{ learned_percentage }}, 100; stroke-dashoffset: 0;"></circle>
+                        
+                        <circle cx="18" cy="18" r="15.915" class="progress-donut__circle progress-donut__circle-segment"
+                                style="stroke: var(--secondary-color); stroke-dasharray: {{ learning_percentage }}, 100; stroke-dashoffset: -{{ learned_percentage }};"></circle>
+                        
+                        <circle cx="18" cy="18" r="15.915" class="progress-donut__circle progress-donut__circle-segment"
+                                style="stroke: #f59e0b; stroke-dasharray: {{ new_percentage }}, 100; stroke-dashoffset: -{{ learned_percentage|add:learning_percentage }};"></circle>
+                    </svg>
+                    <div class="progress-donut__center-text">
+                        <div class="total-count">{{ total_flashcards }}</div>
+                        <div class="total-label">Jami</div>
+                    </div>
+                </div>
+
+                <div class="space-y-4">
+                    <div class="flex items-center p-4 bg-green-50 rounded-lg">
+                        <div class="w-3 h-3 rounded-full bg-green-500 mr-4 flex-shrink-0"></div>
+                        <div class="flex-grow">
+                            <p class="font-semibold text-slate-700">O'zlashtirilgan</p>
+                        </div>
+                        <p class="text-xl font-bold text-slate-800">{{ learned_count }}</p>
+                    </div>
+                    <div class="flex items-center p-4 bg-blue-50 rounded-lg">
+                        <div class="w-3 h-3 rounded-full bg-blue-500 mr-4 flex-shrink-0"></div>
+                        <div class="flex-grow">
+                            <p class="font-semibold text-slate-700">O'rganilayotgan</p>
+                        </div>
+                        <p class="text-xl font-bold text-slate-800">{{ learning_count }}</p>
+                    </div>
+                    <div class="flex items-center p-4 bg-yellow-50 rounded-lg">
+                        <div class="w-3 h-3 rounded-full bg-yellow-500 mr-4 flex-shrink-0"></div>
+                        <div class="flex-grow">
+                            <p class="font-semibold text-slate-700">Yangi</p>
+                        </div>
+                        <p class="text-xl font-bold text-slate-800">{{ new_count }}</p>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8 mb-12">
+        <div class="flex flex-col bg-white p-6 rounded-xl shadow-xl border-t-4 border-green-500">
+            <div class="flex-grow">
+                <i class="fas fa-check-circle text-3xl text-green-600 mb-3"></i>
+                <p class="text-sm font-semibold text-green-600 uppercase">O'zlashtirilgan</p>
+                <p class="text-5xl font-extrabold text-slate-800 mt-1">{{ learned_count }}</p>
+            </div>
+            {% if learned_count > 0 %}
+            <a href="{% url 'practice_flashcards' 'learned' %}" class="btn btn-sm w-full mt-6 bg-green-100 text-green-800 hover:bg-green-200">
+                <i class="fas fa-redo-alt mr-2"></i> Mustahkamlash
+            </a>
+            {% endif %}
+        </div>
+
+        <div class="flex flex-col bg-white p-6 rounded-xl shadow-xl border-t-4 border-blue-500">
+            <div class="flex-grow">
+                <i class="fas fa-hourglass-half text-3xl text-blue-600 mb-3"></i>
+                <p class="text-sm font-semibold text-blue-600 uppercase">O'rganilayotgan</p>
+                <p class="text-5xl font-extrabold text-slate-800 mt-1">{{ learning_count }}</p>
+            </div>
+            {% if learning_count > 0 %}
+            <a href="{% url 'practice_flashcards' 'learning' %}" class="btn btn-sm w-full mt-6 bg-blue-100 text-blue-800 hover:bg-blue-200">
+                <i class="fas fa-brain mr-2"></i> Takrorlash
+            </a>
+            {% endif %}
+        </div>
+        
+        <div class="flex flex-col bg-white p-6 rounded-xl shadow-xl border-t-4 border-yellow-500">
+            <div class="flex-grow">
+                <i class="fas fa-star text-3xl text-yellow-500 mb-3"></i>
+                <p class="text-sm font-semibold text-yellow-600 uppercase">Yangi</p>
+                <p class="text-5xl font-extrabold text-slate-800 mt-1">{{ new_count }}</p>
+            </div>
+            {% if new_count > 0 %}
+             <a href="{% url 'practice_flashcards' 'new' %}" class="btn btn-sm w-full mt-6 bg-yellow-100 text-yellow-800 hover:bg-yellow-200">
+                <i class="fas fa-play-circle mr-2"></i> O'rganishni boshlash
+            </a>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="max-w-4xl mx-auto">
+        {% if review_needed_count > 0 %}
+            <div class="text-center bg-white p-8 rounded-2xl shadow-2xl border-2 border-indigo-500">
+                <i class="fas fa-calendar-alt text-4xl text-indigo-500 mb-4"></i>
+                <h3 class="text-2xl font-bold text-slate-800">Bugun Takrorlash Kerak</h3>
+                <p class="text-6xl font-extrabold text-indigo-600 my-2">{{ review_needed_count }} ta</p>
+                <p class="text-slate-600 max-w-md mx-auto">
+                    Ushbu kartochkalar SM2 algoritmi bo'yicha eslatish vaqti kelgan. Ularni hoziroq takrorlab, xotirangizda mustahkamlang!
+                </p>
+                <a href="{% url 'practice_flashcards' 'review' %}" class="btn btn-primary mt-6 px-8 py-3 text-lg">
+                    Takrorlashni Boshlash
+                </a>
+            </div>
+        {% elif next_review_at %}
+            <div class="text-center bg-white p-8 rounded-2xl shadow-xl">
+                <i class="fas fa-check-double text-4xl text-green-500 mb-4"></i>
+                <h3 class="text-2xl font-bold text-slate-800">Ajoyib Ish!</h3>
+                <p class="text-slate-600 max-w-md mx-auto mt-2">
+                    Bugungi barcha takrorlashlar tugatildi! Keyingi mashg'ulot vaqti:
+                </p>
+                <p class="mt-2 text-xl font-bold text-indigo-600">{{ next_review_at|date:"F j, Y, H:i" }}</p>
+            </div>
+        {% else %}
+            <div class="text-center bg-white p-8 rounded-2xl shadow-xl">
+                <i class="fas fa-rocket text-4xl text-green-500 mb-4"></i>
+                <h3 class="text-2xl font-bold text-slate-800">Siz boshlashga tayyorsiz!</h3>
+                <p class="text-slate-600 max-w-md mx-auto mt-2">
+                    Hozircha takrorlash talab qilinadigan kartochkalar yo'q. Yangi imtihon lug'atlarini o'rganishni boshlang!
+                </p>
+                <a href="{% url 'all_exams' %}" class="btn btn-primary mt-6 inline-block">
+                    Imtihonlarni Ko'rish
+                </a>
+            </div>
+        {% endif %}
+    </div>
+</div>
+</div>
+{% endblock %}

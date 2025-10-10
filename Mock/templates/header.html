@@ -1,99 +1,76 @@
 {% load static %}
-<header class="bg-white shadow-md">
-    <div class="container max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
-        <a href="{% url 'index' %}" class="text-2xl font-bold text-gray-800">SAT Makon</a>
+<header class="bg-white shadow-md sticky top-0 z-50">
+    <div class="container max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="flex items-center justify-between h-16">
+            <div class="flex-shrink-0">
+                <a href="{% url 'index' %}" class="text-3xl font-bold text-gray-800">SAT Makon</a>
+            </div>
 
-        <button id="mobileMenuButton" class="md:hidden text-gray-600 focus:outline-none">
-            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path>
-            </svg>
-        </button>
+            <nav class="hidden md:flex md:items-center md:space-x-2 lg:space-x-4">
+                <a href="{% url 'dashboard' %}" class="nav-link {% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}">Dashboard</a>
+                <a href="{% url 'all_exams' %}" class="nav-link {% if request.resolver_match.url_name == 'all_exams' %}active{% endif %}">Imtihonlar</a>
+                <a href="{% url 'my_flashcards' %}" class="nav-link {% if request.resolver_match.url_name == 'my_flashcards' %}active{% endif %}">Lug'atlar</a>
+                <a href="{% url 'completed_exams' %}" class="nav-link {% if request.resolver_match.url_name == 'completed_exams' %}active{% endif %}">Natijalar</a>
+                <a href="{% url 'price' %}" class="nav-link {% if request.resolver_match.url_name == 'price' %}active{% endif %}">Tariflar</a>
+            </nav>
 
-        <nav id="navMenu" class="hidden md:flex md:items-center md:space-x-4">
-            <a href="{% url 'index' %}" class="text-gray-600 hover:text-gray-900 mx-2 transition duration-300">Bosh sahifa</a>
-            <a href="{% url 'price' %}" class="text-gray-600 hover:text-gray-900 mx-2 transition duration-300">Tariflar</a>
-            {% if user.is_authenticated %}
-                {% if user.role == 'student' %}
-                    <a href="{% url 'tests' %}" class="text-gray-600 hover:text-gray-900 mx-2 transition duration-300">Testlar</a>
-                    <a href="{% url 'student_results' %}" class="text-gray-600 hover:text-gray-900 mx-2 transition duration-300">Natijalar</a>
-                {% elif user.role == 'teacher' %}
-                    <a href="{% url 'my_exams' %}" class="text-gray-600 hover:text-gray-900 mx-2 transition duration-300">Mening testlarim</a>
-                    <a href="{% url 'teacher_results' %}" class="text-gray-600 hover:text-gray-900 mx-2 transition duration-300">Talabalar natijasi</a>
-                    <a href="{% url 'my_questions' %}" class="text-gray-600 hover:text-gray-900 mx-2 transition duration-300">Savollar</a>
-                    <a href="{% url 'passage_list' %}" class="text-gray-600 hover:text-gray-900 mx-2 transition duration-300">Matnlar</a>
-                    <a href="{% url 'list_flashcards' %}" class="text-gray-600 hover:text-gray-900 mx-2 transition duration-300">Flashcardlar</a>
-                {% endif %}
-            {% endif %}
-        </nav>
-
-        <div class="relative">
-            {% if user.is_authenticated %}
-                <button id="dropdownButton" class="flex items-center space-x-2 focus:outline-none">
-                    <i class="fa-solid fa-user text-gray-600"></i>
-                    <span class="font-semibold text-gray-800">{{ user.get_full_name|default:user.username }}</span>
-                </button>
-                <div id="dropdownMenu" class="absolute right-0 mt-2 w-48 bg-white border border-gray-200 rounded-md shadow-lg py-1 z-10 hidden">
-                    <a href="{% url 'profile' %}" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">Profil</a>
-                    <a href="{% url 'logout' %}" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">Chiqish</a>
-                </div>
-            {% else %}
-                <a href="{% url 'telegram_login' %}" class="text-gray-600 hover:text-gray-900 mx-2 transition duration-300">
-                    <i class="fa-brands fa-telegram mr-1"></i> Telegram orqali kirish
+            <div class="flex items-center space-x-4">
+                <a href="{% url 'achievements' %}" class="hidden md:flex items-center space-x-2 nav-link {% if request.resolver_match.url_name == 'achievements' %}active{% endif %}">
+                    <i class="fas fa-trophy text-xl"></i>
+                    <span class="font-semibold text-lg">Yutuqlar</span>
                 </a>
-            {% endif %}
+                
+                {% if user.is_authenticated %}
+                <div class="hidden md:block relative">
+                    <button id="dropdownButton" class="flex items-center space-x-3 focus:outline-none">
+                        {% if user.profile_picture %}
+                            <img class="h-10 w-10 rounded-full object-cover" src="{{ user.profile_picture.url }}" alt="Profil rasmi">
+                        {% else %}
+                            <span class="h-10 w-10 rounded-full bg-blue-500 flex items-center justify-center text-white font-bold text-lg">
+                                {{ user.username|first|upper }}
+                            </span>
+                        {% endif %}
+                        <span class="font-semibold text-lg text-gray-800">{{ user.get_full_name|default:user.username }}</span>
+                        <i class="fas fa-chevron-down text-gray-500 text-sm"></i>
+                    </button>
+                    <div id="dropdownMenu" class="absolute right-0 mt-2 w-48 bg-white border border-gray-200 rounded-md shadow-lg py-1 z-20 hidden">
+                        <a href="{% url 'profile' %}" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">Profil</a>
+                        <a href="{% url 'logout' %}" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">Chiqish</a>
+                    </div>
+                </div>
+                {% else %}
+                <div class="hidden md:block">
+                     <a href="{% url 'login' %}" class="nav-link"><i class="fa-brands fa-telegram mr-1"></i> Kirish</a>
+                </div>
+                {% endif %}
+
+                <button id="mobileMenuButton" class="md:hidden text-gray-600 focus:outline-none">
+                    <svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path>
+                    </svg>
+                </button>
+            </div>
         </div>
     </div>
 
     <div id="mobileMenu" class="md:hidden hidden bg-white border-t border-gray-200">
         <div class="container max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex flex-col space-y-2">
-            <a href="{% url 'index' %}" class="text-gray-600 hover:text-gray-900 py-2">Bosh sahifa</a>
-            <a href="{% url 'price' %}" class="text-gray-600 hover:text-gray-900 py-2">Tariflar</a>
+            <a href="{% url 'dashboard' %}" class="mobile-nav-link {% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}">Dashboard</a>
+            <a href="{% url 'all_exams' %}" class="mobile-nav-link {% if request.resolver_match.url_name == 'all_exams' %}active{% endif %}">Imtihonlar</a>
+            <a href="{% url 'my_flashcards' %}" class="mobile-nav-link {% if request.resolver_match.url_name == 'my_flashcards' %}active{% endif %}">Lug'atlar</a>
+            <a href="{% url 'completed_exams' %}" class="mobile-nav-link {% if request.resolver_match.url_name == 'completed_exams' %}active{% endif %}">Natijalar</a>
+            <a href="{% url 'price' %}" class="mobile-nav-link {% if request.resolver_match.url_name == 'price' %}active{% endif %}">Tariflar</a>
+            
+            <hr class="my-2">
+            
+            <a href="{% url 'achievements' %}" class="mobile-nav-link flex items-center space-x-2 {% if request.resolver_match.url_name == 'achievements' %}active{% endif %}"><i class="fas fa-trophy text-lg"></i><span>Yutuqlar</span></a>
+            
             {% if user.is_authenticated %}
-                {% if user.role == 'student' %}
-                    <a href="{% url 'tests' %}" class="text-gray-600 hover:text-gray-900 py-2">Testlar</a>
-                    <a href="{% url 'student_results' %}" class="text-gray-600 hover:text-gray-900 py-2">Natijalar</a>
-                {% elif user.role == 'teacher' %}
-                    <a href="{% url 'my_exams' %}" class="text-gray-600 hover:text-gray-900 py-2">Mening testlarim</a>
-                    <a href="{% url 'teacher_results' %}" class="text-gray-600 hover:text-gray-900 py-2">Talabalar natijasi</a>
-                    <a href="{% url 'my_questions' %}" class="text-gray-600 hover:text-gray-900 py-2">Savollar</a>
-                    <a href="{% url 'passage_list' %}" class="text-gray-600 hover:text-gray-900 py-2">Matnlar</a>
-                    <a href="{% url 'list_flashcards' %}" class="text-gray-600 hover:text-gray-900 py-2">Flashcardlar</a>
-                {% endif %}
-                <a href="{% url 'profile' %}" class="text-gray-600 hover:text-gray-900 py-2">Profil</a>
-                <a href="{% url 'logout' %}" class="text-gray-600 hover:text-gray-900 py-2">Chiqish</a>
+                <a href="{% url 'profile' %}" class="mobile-nav-link">Profil</a>
+                <a href="{% url 'logout' %}" class="mobile-nav-link">Chiqish</a>
             {% else %}
-                <a href="{% url 'telegram_login' %}" class="text-gray-600 hover:text-gray-900 py-2"><i class="fa-brands fa-telegram mr-1"></i> Telegram orqali kirish</a>
+                <a href="{% url 'login' %}" class="mobile-nav-link"><i class="fa-brands fa-telegram mr-1"></i> Kirish</a>
             {% endif %}
         </div>
     </div>
-
-    <script>
-        document.addEventListener('DOMContentLoaded', function() {
-            const dropdownButton = document.getElementById('dropdownButton');
-            const dropdownMenu = document.getElementById('dropdownMenu');
-            if (dropdownButton && dropdownMenu) {
-                dropdownButton.addEventListener('click', function(event) {
-                    event.preventDefault();
-                    dropdownMenu.classList.toggle('hidden');
-                });
-                document.addEventListener('click', function(event) {
-                    if (!dropdownButton.contains(event.target) && !dropdownMenu.contains(event.target)) {
-                        dropdownMenu.classList.add('hidden');
-                    }
-                });
-            }
-            const mobileMenuButton = document.getElementById('mobileMenuButton');
-            const mobileMenu = document.getElementById('mobileMenu');
-            if (mobileMenuButton && mobileMenu) {
-                mobileMenuButton.addEventListener('click', function() {
-                    mobileMenu.classList.toggle('hidden');
-                });
-                document.addEventListener('click', function(event) {
-                    if (!mobileMenuButton.contains(event.target) && !mobileMenu.contains(event.target)) {
-                        mobileMenu.classList.add('hidden');
-                    }
-                });
-            }
-        });
-    </script>
 </header>

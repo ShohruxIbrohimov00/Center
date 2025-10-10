@@ -1,248 +1,193 @@
+{% extends 'registration_base.html' %}
 {% load static %}
-<!DOCTYPE html>
-<html lang="uz">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Bosh sahifa - SAT Makon</title>
-    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
-    <style>
-        body {
-            font-family: 'Segoe UI', Arial, sans-serif;
-            background-color: #f0f0f0;
-            margin: 0;
-            padding: 0;
-            display: flex;
-            flex-direction: column;
-            min-height: 100vh;
-        }
-        .sat-wrapper {
-            flex-grow: 1;
-            display: flex;
-            flex-direction: column;
-            width: 100%;
-            margin: 0 auto;
-            background-color: #fff;
-            box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
-        }
-        .container {
-            width: 100%;
-            max-width: 1400px;
-            margin: 0 auto;
-            padding: 0 20px;
-            box-sizing: border-box;
-        }
-        .header {
-            width: 100%;
-            height: 80px;
-            background-color: #f8f9fa;
-            border-bottom: 2px solid #ddd;
-            box-sizing: border-box;
-            position: sticky;
-            top: 0;
-            z-index: 1000;
-        }
-        .header-content {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            height: 100%;
-        }
-        .header-title {
-            font-size: 1.5rem;
-            font-weight: 600;
-            color: #2c3e50;
-        }
-        .header-btn {
-            background: none;
-            border: none;
-            cursor: pointer;
-            font-size: 0.9rem;
-            color: #555;
-            display: flex;
-            align-items: center;
-            gap: 5px;
-            transition: color 0.3s;
-        }
-        .header-btn:hover {
-            color: #000;
-        }
-        .main-content {
-            flex-grow: 1;
-            padding: 30px 0;
-        }
-        .hero-section {
-            position: relative;
-            background-color: #fff;
-            overflow: hidden;
-        }
-        .hero-content {
-            max-width: 1400px;
-            margin: 0 auto;
-            display: flex;
-            flex-wrap: wrap;
-            align-items: center;
-        }
-        .hero-text {
-            flex: 1;
-            padding: 20px;
-            max-width: 600px;
-        }
-        .hero-text h1 {
-            font-size: 2.5rem;
-            font-weight: 800;
-            color: #2c3e50;
-            margin-bottom: 20px;
-        }
-        .hero-text p {
-            font-size: 1.2rem;
-            color: #555;
-            margin-bottom: 30px;
-        }
-        .hero-image {
-            flex: 1;
-            max-width: 600px;
-        }
-        .hero-image img {
-            width: 100%;
-            height: auto;
-            object-fit: cover;
-        }
-        .cta-btn {
-            padding: 12px 30px;
-            background-color: #007bff;
-            color: #fff;
-            border-radius: 25px;
-            font-size: 1.1rem;
-            font-weight: bold;
-            text-decoration: none;
-            transition: background-color 0.3s;
-        }
-        .cta-btn:hover {
-            background-color: #0056b3;
-        }
-        .features-section {
-            padding: 50px 0;
-            background-color: #f8f9fa;
-        }
-        .features-section h2 {
-            font-size: 2rem;
-            font-weight: 700;
-            color: #2c3e50;
-            text-align: center;
-            margin-bottom: 20px;
-        }
-        .features-section p {
-            font-size: 1.1rem;
-            color: #555;
-            text-align: center;
-            margin-bottom: 30px;
-        }
-        .feature-item {
-            display: flex;
-            align-items: flex-start;
-            margin-bottom: 20px;
-        }
-        .feature-icon {
-            width: 50px;
-            height: 50px;
-            background-color: #007bff;
-            color: #fff;
-            border-radius: 8px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            margin-right: 20px;
-        }
-        .feature-text h3 {
-            font-size: 1.3rem;
-            font-weight: 600;
-            color: #2c3e50;
-            margin-bottom: 10px;
-        }
-        .feature-text p {
-            font-size: 1rem;
-            color: #555;
-        }
-    </style>
-</head>
-<body>
-    <div class="sat-wrapper">
-        <header class="header">
-            <div class="container header-content">
-                <div class="header-title">SAT Makon</div>
-                <div>
+
+{% block title %}SAT Makon - Digital SAT Math imtihoniga mukammal yechim{% endblock %}
+
+{% block content %}
+
+    <header class="bg-white shadow-sm sticky top-0 z-40">
+        <div class="container mx-auto px-4">
+            <div class="flex justify-between items-center py-4">
+                <a href="{% url 'index' %}" class="text-2xl font-bold text-indigo-600">SAT Makon</a>
+                <nav class="hidden md:flex items-center space-x-8">
+                    <a href="#platforma" class="header-link text-gray-600 hover:text-indigo-600 font-semibold transition-all duration-200 pb-1">Platforma</a>
+                    <a href="#imtihonlar" class="header-link text-gray-600 hover:text-indigo-600 font-semibold transition-all duration-200 pb-1">Imtihonlar</a>
+                    <a href="#flashcards" class="header-link text-gray-600 hover:text-indigo-600 font-semibold transition-all duration-200 pb-1">Flashcard'lar</a>
+                    <a href="#strategiya" class="header-link text-gray-600 hover:text-indigo-600 font-semibold transition-all duration-200 pb-1">Strategiya</a>
+                    <a href="{% url 'price' %}" class="header-link text-gray-600 hover:text-indigo-600 font-semibold transition-all duration-200 pb-1">Narxlar</a>
+                </nav>
+                <div class="flex items-center space-x-4">
                     {% if user.is_authenticated %}
-                        <a href="{% url 'profile' %}" class="header-btn">
-                            <i class="fa-solid fa-user"></i> {{ user.get_full_name|default:user.username }}
-                        </a>
-                        <a href="{% url 'logout' %}" class="header-btn">
-                            <i class="fa-solid fa-sign-out-alt"></i> Chiqish
-                        </a>
+                        <a href="{% url 'dashboard' %}" class="btn-primary">Boshqaruv Paneli</a>
                     {% else %}
-                        <a href="{% url 'telegram_login' %}" class="header-btn">
-                            <i class="fa-brands fa-telegram"></i> Telegram orqali kirish
-                        </a>
+                        <a href="{% url 'login' %}" class="hidden md:inline font-semibold text-gray-600 hover:text-indigo-600">Kirish</a>
+                        <a href="{% url 'signup' %}" class="btn-primary">Boshlash</a>
                     {% endif %}
                 </div>
             </div>
-        </header>
-        <div class="main-content">
-            <div class="hero-section">
-                <div class="hero-content container">
-                    <div class="hero-text">
-                        <h1>
-                            <span class="block">Kelajak sirlari matematikada yashiringan</span>
-                            <span class="block text-blue-600">SAT Makon bilan ularni kashf eting</span>
-                        </h1>
-                        <p>
-                            SAT imtihonining Matematika bo'limida yuqori ball olishni xohlaysizmi? Unda interaktiv testlarimiz va chuqur tahlillarimiz yordamida ishonchli bilimga ega bo'ling.
-                        </p>
-                        <div class="flex flex-wrap gap-4">
-                            {% if user.is_authenticated %}
-                                {% if user.role == 'teacher' %}
-                                    <a href="{% url 'my_exams' %}" class="cta-btn">O'z testlaringizni ko‘rish</a>
-                                {% else %}
-                                    <a href="{% url 'tests' %}" class="cta-btn">Test ishlashni boshlash</a>
-                                {% endif %}
-                            {% else %}
-                                <a href="{% url 'telegram_login' %}" class="cta-btn">Telegram orqali kirish</a>
-                            {% endif %}
-                        </div>
-                    </div>
-                    <div class="hero-image">
-                        <img src="https://images.unsplash.com/photo-1517048676732-d65bc937f952?ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&ixlib=rb-1.2.1&auto=format&fit=crop&w=1350&q=80" alt="SAT imtihoniga tayyorgarlik">
-                    </div>
-                </div>
-            </div>
-            <div class="features-section">
-                <div class="container">
-                    <h2>Nima uchun aynan biz?</h2>
-                    <p>"SAT Makon" o'quvchilarga yanada samarali tayyorgarlik ko'rishlari uchun yaratilgan.</p>
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
-                        <div class="feature-item">
-                            <div class="feature-icon">
-                                <i class="fas fa-check-circle text-2xl"></i>
-                            </div>
-                            <div class="feature-text">
-                                <h3>Batafsil tahlil</h3>
-                                <p>Har bir test yakunida to'g'ri va noto'g'ri javoblar bo'yicha mukammal hisobot. Bu sizning kamchiliklaringizni aniqlashga yordam beradi.</p>
-                            </div>
-                        </div>
-                        <div class="feature-item">
-                            <div class="feature-icon">
-                                <i class="fas fa-edit text-2xl"></i>
-                            </div>
-                            <div class="feature-text">
-                                <h3>Turli formatdagi savollar</h3>
-                                <p>Test bazamizdagi barcha savollar SAT'ning rasmiy talablariga mos keladi, har qanday savol turiga tayyor bo'lishingiz uchun.</p>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
         </div>
-    </div>
-</body>
-</html>
+    </header>
+
+    <main>
+        <section class="py-20 md:py-28 bg-white">
+            <div class="container mx-auto px-4 text-center">
+                <h1 class="text-4xl md:text-6xl font-extrabold text-gray-800 leading-tight mb-6">
+                    <span class="text-indigo-600">SAT Math</span>'dan Maksimal Ball Oling
+                </h1>
+                <p class="max-w-3xl mx-auto text-lg md:text-xl text-gray-600 mb-10">
+                    Realistik testlar, aqlli flashcard'lar va shaxsiy kun tartibi bilan Digital SAT imtihonining Matematika bo'limiga to'liq tayyorlaning.
+                </p>
+                <a href="{% url 'signup' %}" class="btn-primary text-lg px-8 py-4">Hoziroq Bepul Boshlash</a>
+            </div>
+        </section>
+
+        <section id="platforma" class="py-20 bg-gray-50">
+            <div class="container mx-auto px-4">
+                <div class="grid md:grid-cols-3 gap-10">
+                    <div class="feature-card">
+                        <i class="fa-solid fa-calendar-check text-indigo-500"></i>
+                        <h3 class="text-xl font-bold mb-2">Aqlli Kun Tartibi</h3>
+                        <p>Platforma sizning o'sishingizni kuzatadi va har kuni qaysi mavzularga e'tibor berish kerakligini ko'rsatib turadi.</p>
+                    </div>
+                    <div class="feature-card">
+                        <i class="fa-solid fa-display text-indigo-500"></i>
+                        <h3 class="text-xl font-bold mb-2">Realistik Testlar</h3>
+                        <p>Digital SAT'ning eng so'nggi formatidagi adaptiv testlar va integratsiyalashgan Desmos kalkulyatori.</p>
+                    </div>
+                    <div class="feature-card">
+                        <i class="fa-solid fa-layer-group text-indigo-500"></i>
+                        <h3 class="text-xl font-bold mb-2">Aqlli Flashcard'lar</h3>
+                        <p>Unutilayotgan termin va formulalarni kerakli vaqtda takrorlash uchun eslatuvchi "Spaced Repetition" tizimi.</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section id="imtihonlar" class="py-20 bg-white">
+            <div class="container mx-auto px-4">
+                <div class="grid md:grid-cols-2 gap-16 items-center">
+                    <div>
+                        <img src="{% static 'images/exam_with_desmos.jpg' %}" alt="Desmos kalkulyatori bilan imtihon interfeysi" class="rounded-lg shadow-xl">
+                    </div>
+                    <div>
+                        <h2 class="text-3xl font-bold mb-4">Haqiqiy Imtihon Muhitida Mashq Qiling</h2>
+                        <p class="text-gray-600 text-lg mb-6">Bizning test platformamiz sizni Digital SAT Math'ga 100% tayyorlaydi.</p>
+                        <ul class="space-y-4">
+                            <li class="flex items-start">
+                                <i class="fa-solid fa-check-circle text-green-500 mt-1 mr-3"></i>
+                                <div><strong class="block">Integratsiyalashgan Desmos Kalkulyatori:</strong> Haqiqiy imtihondagi kabi dastur ichidagi Desmos grafik kalkulyatoridan foydalanib, tezligingizni oshiring va unga ko'niking.</div>
+                            </li>
+                            <li class="flex items-start">
+                                <i class="fa-solid fa-check-circle text-green-500 mt-1 mr-3"></i>
+                                <div><strong class="block">Adaptiv Format:</strong> Imtihonning ikkinchi moduli sizning birinchi moduldagi natijangizga qarab moslashadi va real imtihon kabi ball beradi.</div>
+                            </li>
+                            <li class="flex items-start">
+                                <i class="fa-solid fa-check-circle text-green-500 mt-1 mr-3"></i>
+                                <div><strong class="block">Batafsil Tahlil:</strong> Har bir testdan so'ng qaysi mavzuda xato qilganingizni aniq ko'rsatuvchi hisobotlar bilan kamchiliklaringiz ustida ishlang.</div>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </section>
+        
+        <section id="flashcards" class="py-20 bg-gray-50">
+            <div class="container mx-auto px-4">
+                <div class="grid md:grid-cols-2 gap-16 items-center">
+                    <div class="md:order-2">
+                        <img src="{% static 'images/srs_flashcards.jpg' %}" alt="Flashcard takrorlash tizimi" class="rounded-lg shadow-xl">
+                    </div>
+                    <div class="md:order-1">
+                        <h2 class="text-3xl font-bold mb-4">Matematik Terminlar va Formulalarni Unutmang!</h2>
+                        <p class="text-gray-600 text-lg mb-6">Ingliz tilidagi masala shartini tushunmaslik yoki formulani eslay olmaslik — endi muammo emas. "Spaced Repetition" texnologiyasi yordamida bilimlarni mustahkamlang.</p>
+                        <ul class="space-y-4">
+                             <li class="flex items-start">
+                                <i class="fa-solid fa-check-circle text-green-500 mt-1 mr-3"></i>
+                                <div><strong class="block">Matematik Lug'at:</strong> "Integer", "slope", "radius" kabi SAT Math'da eng ko'p uchraydigan 500+ terminlarning inglizcha-o'zbekcha izohlari bilan masalalarni oson tushuning.</div>
+                            </li>
+                            <li class="flex items-start">
+                                <i class="fa-solid fa-check-circle text-green-500 mt-1 mr-3"></i>
+                                <div><strong class="block">O'zlashtirish Bosqichlari:</strong> Har bir terminni "O'rganilmagan", "O'rganilmoqda" va "O'zlashtirilgan" kabi bosqichlarga bo'lib, o'sishingizni kuzatib boring.</div>
+                            </li>
+                            <li class="flex items-start">
+                                <i class="fa-solid fa-check-circle text-green-500 mt-1 mr-3"></i>
+                                <div><strong class="block">Aqlli Takrorlash:</strong> Tizim siz unutayotgan so'z va formulalarni aniqlab, ularni aynan kerakli vaqtda "Bugungi Takrorlash" ro'yxatiga qo'shib qo'yadi.</div>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section id="strategiya" class="py-20 bg-white">
+            <div class="container mx-auto px-4 text-center">
+                <h2 class="text-3xl md:text-4xl font-bold text-gray-800">G'alaba Strategiyasi: 4 Qadamda Maksimal Natija</h2>
+                <p class="max-w-2xl mx-auto mt-4 text-gray-600 mb-12">Platformamiz sizni shunchaki mashq qildirmaydi, u sizni o'rgatadi. Mana qanday:</p>
+                <div class="grid md:grid-cols-4 gap-8 text-left">
+                    <div class="strategy-step">
+                        <div class="step-number">1</div>
+                        <h3 class="font-bold text-xl mb-2">Tayyorgarlik (Flashcard)</h3>
+                        <p>Imtihonni boshlashdan oldin, unga tegishli Flashcard to'plamini yod oling. Bu imtihondagi barcha termin va formulalarni eslab qolishga yordam beradi.</p>
+                    </div>
+                     <div class="strategy-step">
+                        <div class="step-number">2</div>
+                        <h3 class="font-bold text-xl mb-2">Sinov (Imtihon)</h3>
+                        <p>Realistik testni ishlab, tayyorgarligingizni amalda sinab ko'ring va o'z bilim darajangiz hamda bo'shliqlaringizni aniqlang.</p>
+                    </div>
+                     <div class="strategy-step">
+                        <div class="step-number">3</div>
+                        <h3 class="font-bold text-xl mb-2">Tahlil va To'ldirish</h3>
+                        <p>Natijalar tahlilida xato qilgan har bir savolingiz yoki esdan chiqqan formulani bitta tugma bilan shaxsiy flashcard to'plamingizga qo'shing.</p>
+                    </div>
+                     <div class="strategy-step">
+                        <div class="step-number">4</div>
+                        <h3 class="font-bold text-xl mb-2">Mustahkamlash (Takrorlash)</h3>
+                        <p>Har kuni "Aqlli Takrorlash" tizimi yordamida o'sha kamchiliklaringizni yod olguncha mashq qiling va bilimingizni mustahkamlang.</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="bg-gray-800">
+            <div class="container mx-auto px-4 py-20 text-center">
+                <h2 class="text-4xl font-bold text-white">SAT Math imtihoniga to'liq tayyormisiz?</h2>
+                <p class="text-gray-300 mt-4 mb-8 max-w-xl mx-auto text-lg">
+                    Bugunoq ro'yxatdan o'ting va o'z potentsialingizni ro'yobga chiqaring.
+                </p>
+                <a href="{% url 'price' %}" class="btn bg-indigo-600 text-white text-lg hover:bg-indigo-500">
+                    Barcha Narxlarni Ko'rish
+                </a>
+            </div>
+        </section>
+    </main>
+
+{% endblock %}
+
+
+{% block extra_js %}
+<script>
+    // Sahifani aylantirganda menyudagi aktiv bo'limni belgilab turadigan JavaScript
+    document.addEventListener('DOMContentLoaded', function() {
+        const sections = document.querySelectorAll('main section[id]');
+        const navLinks = document.querySelectorAll('.header-link');
+
+        window.onscroll = () => {
+            let currentSectionId = '';
+            sections.forEach(section => {
+                const sectionTop = section.offsetTop;
+                if (pageYOffset >= sectionTop - 80) { // Header balandligini hisobga olamiz
+                    currentSectionId = section.getAttribute('id');
+                }
+            });
+
+            navLinks.forEach(link => {
+                link.classList.remove('active');
+                const href = link.getAttribute('href');
+                if (href.includes('#') && href.split('#')[1] === currentSectionId) {
+                    link.classList.add('active');
+                }
+            });
+        };
+    });
+</script>
+{% endblock %}

@@ -1,0 +1,178 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}SAT Makon{% endblock %}</title>
+    
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+    <link rel="stylesheet" href="{% static 'css/custom.css' %}"> 
+    
+    {% block extra_css %}{% endblock %}
+</head>
+<body class="bg-gray-100 min-h-screen flex flex-col font-sans">
+    
+    <div id="toast-container" class="fixed top-5 right-5 z-50 w-full max-w-sm space-y-3">
+        {% if messages %}
+            {% for message in messages %}
+                <div class="alert-toast flex items-start p-4 rounded-lg shadow-lg opacity-0 transform translate-x-full transition-all duration-500 ease-out" 
+                     data-tag="{{ message.tags }}" 
+                     role="alert">
+                    
+                    <div class="flex-shrink-0 text-xl icon-container mr-3"></div>
+                    <div class="ml-1 flex-grow">
+                        <p class="font-bold message-title text-sm"></p>
+                        <p class="text-sm text-gray-700">{{ message }}</p>
+                    </div>
+                    <button type="button" class="ml-auto -mx-1.5 -my-1.5 p-1.5 inline-flex h-8 w-8 rounded-lg focus:ring-2 close-toast-btn">
+                        <span class="sr-only">Yopish</span>
+                        <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"></path></svg>
+                    </button>
+                </div>
+            {% endfor %}
+        {% endif %}
+    </div>
+
+    <div class="sat-wrapper flex flex-col min-h-screen">
+        
+        
+        
+        <main class="flex-grow container mx-auto p-4 md:p-8">
+            {% block content %}{% endblock %}
+        </main>
+        
+        {% include 'footer.html' %}
+    </div>
+
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+    
+    <script src="{% static 'ckeditor/ckeditor-init.js' %}"></script>
+    <script src="{% static 'ckeditor/ckeditor/ckeditor.js' %}"></script>
+
+    <script>
+        // MathJax konfiguratsiyasi...
+        MathJax = {
+            tex: {
+                inlineMath: [['$', '$'], ['\\(', '\\)']],
+                displayMath: [['$$', '$$'], ['\\[', '\\]']],
+                processEscapes: true,
+                packages: {'[+]': ['physics']}
+            },
+            chtml: {
+                displayAlign: 'left',
+            },
+            startup: {
+                pageReady() {
+                    return MathJax.startup.defaultPageReady();
+                }
+            }
+        };
+    </script>
+    <script type="text/javascript" id="MathJax-script" async
+        src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js">
+    </script>
+    
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    {% block extra_js %}{% endblock %}
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // ... (Dropdown va Mobil menyu logikasi) ...
+            
+            // Xabarlarni (toasts) boshqarish logikasi
+            const allToasts = document.querySelectorAll('.alert-toast');
+            
+            // Yordamchi funksiya: toast ko'rinishini sozlash
+            const configureToastStyle = (toast, tag) => {
+                const iconContainer = toast.querySelector('.icon-container');
+                const titleElement = toast.querySelector('.message-title');
+                
+                // Tailwind CSS orqali fon va ranglarni sozlash uchun
+                const styles = {
+                    'success': { title: 'Muvaffaqiyatli!', icon: '✔️', bg: 'bg-green-100', text: 'text-green-700' },
+                    'error': { title: 'Xatolik!', icon: '❌', bg: 'bg-red-100', text: 'text-red-700' },
+                    'info': { title: 'Bildirishnoma', icon: 'ℹ️', bg: 'bg-blue-100', text: 'text-blue-700' },
+                    'warning': { title: 'Ogohlantirish', icon: '⚠️', bg: 'bg-yellow-100', text: 'text-yellow-700' }
+                };
+                
+                const style = styles[tag] || styles['info'];
+                
+                titleElement.textContent = style.title;
+                iconContainer.innerHTML = style.icon;
+                
+                // Dinamik klasslarni qo'shish
+                toast.classList.add(style.bg, style.text);
+                iconContainer.classList.add(style.text);
+            };
+
+            const hideToast = (toast) => {
+                toast.classList.remove('show');
+                toast.classList.remove('translate-x-0');
+                toast.classList.add('translate-x-full'); // O'ngga siljitib yo'qotish
+                setTimeout(() => toast.remove(), 500);
+            };
+            
+            allToasts.forEach((toast, index) => {
+                const tag = toast.dataset.tag;
+                configureToastStyle(toast, tag); // Rang va ikonkalarni sozlash
+
+                // Animatsiyani boshlash (Sekinlik bilan kirib kelish)
+                setTimeout(() => {
+                    toast.classList.remove('opacity-0', 'translate-x-full');
+                    toast.classList.add('opacity-100', 'translate-x-0', 'show');
+                }, 100 * (index + 1));
+
+                // 5 soniyadan keyin avtomatik yopish
+                const hideTimeout = setTimeout(() => {
+                    hideToast(toast);
+                }, 5000 + (100 * (index + 1))); // Har birining chiqishiga qarab yopish vaqtini biroz kechiktirish
+
+                // Yopish tugmasi
+                const closeButton = toast.querySelector('.close-toast-btn');
+                if (closeButton) {
+                    closeButton.addEventListener('click', () => {
+                        clearTimeout(hideTimeout);
+                        hideToast(toast);
+                    });
+                }
+            });
+            
+            // ... (Dropdown va Mobil menyu logikasi) ...
+            
+            const dropdownButton = document.getElementById('dropdownButton');
+            const dropdownMenu = document.getElementById('dropdownMenu');
+            if (dropdownButton && dropdownMenu) {
+                dropdownButton.addEventListener('click', function(event) {
+                    event.stopPropagation();
+                    dropdownMenu.classList.toggle('hidden');
+                });
+                document.addEventListener('click', function(event) {
+                    if (!dropdownButton.contains(event.target) && !dropdownMenu.contains(event.target)) {
+                        dropdownMenu.classList.add('hidden');
+                    }
+                });
+            }
+
+            const mobileMenuButton = document.getElementById('mobileMenuButton');
+            const mobileMenu = document.getElementById('mobileMenu');
+            if (mobileMenuButton && mobileMenu) {
+                mobileMenuButton.addEventListener('click', function(event) {
+                    event.stopPropagation();
+                    mobileMenu.classList.toggle('hidden');
+                });
+                document.addEventListener('click', function(event) {
+                    if (!mobileMenuButton.contains(event.target) && !mobileMenu.contains(event.target)) {
+                        mobileMenu.classList.add('hidden');
+                    }
+                });
+            }
+        });
+    </script>
+
+</body>
+</html>

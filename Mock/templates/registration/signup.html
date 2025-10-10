@@ -1,0 +1,81 @@
+{% extends 'registration_base.html' %}
+
+{% block title %}Ro'yxatdan o'tish{% endblock %}
+
+{% block content %}
+<body class="bg-gray-100">
+    <div class="flex items-center justify-center min-h-screen p-4">
+
+        <div class="relative flex w-full max-w-4xl bg-white rounded-xl shadow-2xl overflow-hidden">
+            
+            <div class="w-full md:w-1/2 p-8 md:p-12">
+                <h2 class="text-3xl font-bold text-gray-800 mb-4">Bizga Qo'shiling!</h2>
+                <p class="text-gray-600 mb-8">Boshlash uchun ma'lumotlaringizni kiriting.</p>
+
+                {% if form.errors %}
+                    <div class="p-4 mb-4 bg-red-100 text-red-700 rounded-lg text-sm">
+                        Iltimos, quyidagi xatoliklarni to'g'rilang:
+                        <ul class="list-disc list-inside mt-2">
+                            {% for field, errors in form.errors.items %}
+                                {% for error in errors %}
+                                    <li>{{ error }}</li>
+                                {% endfor %}
+                            {% endfor %}
+                        </ul>
+                    </div>
+                {% endif %}
+
+                <form method="POST" action="{% url 'signup' %}" class="space-y-5">
+                    {% csrf_token %}
+
+                    <div>
+                        <label for="{{ form.full_name.id_for_label }}" class="block text-gray-700 font-semibold mb-2">{{ form.full_name.label }}</label>
+                        {{ form.full_name }}
+                    </div>
+
+                    <div>
+                        <label for="{{ form.email.id_for_label }}" class="block text-gray-700 font-semibold mb-2">{{ form.email.label }}</label>
+                        {{ form.email }}
+                    </div>
+
+                    <div>
+                        <label for="{{ form.phone_number.id_for_label }}" class="block text-gray-700 font-semibold mb-2">{{ form.phone_number.label }}</label>
+                        {{ form.phone_number }}
+                    </div>
+                    
+                    <div>
+                        <label for="{{ form.username.id_for_label }}" class="block text-gray-700 font-semibold mb-2">{{ form.username.label }}</label>
+                        {{ form.username }}
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label for="{{ form.password.id_for_label }}" class="block text-gray-700 font-semibold mb-2">{{ form.password.label }}</label>
+                            {{ form.password }}
+                        </div>
+                        <div>
+                            <label for="{{ form.password_confirm.id_for_label }}" class="block text-gray-700 font-semibold mb-2">{{ form.password_confirm.label }}</label>
+                            {{ form.password_confirm }}
+                        </div>
+                    </div>
+                    <button type="submit" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-4 rounded-lg focus:outline-none focus:shadow-outline transition duration-300">
+                        Akkaunt Yaratish
+                    </button>
+                </form>
+
+                <p class="text-center text-gray-600 text-sm mt-6">
+                    Akkauntingiz bormi? <a href="{% url 'login' %}" class="text-indigo-600 hover:underline font-semibold">Kirish</a>
+                </p>
+            </div>
+            
+            <div class="hidden md:block w-1/2 relative">
+                <img class="absolute inset-0 w-full h-full object-cover" 
+                     src="https://images.unsplash.com/photo-1543269865-cbf427effbad?q=80&w=2070&auto-format&fit=crop" 
+                     alt="Yangi bilimlar sari">
+                <div class="absolute inset-0 bg-green-800 bg-opacity-40"></div>
+            </div>
+
+        </div>
+    </div>
+</body>
+{% endblock %}

@@ -13,15 +13,6 @@
                 {{ message }}
             </div>
         {% endfor %}
-
-        <div class="mb-6 flex space-x-4">
-            <a href="{% url 'create_static_exam_step1' %}" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-md">
-                Statik imtihon yaratish
-            </a>
-            <a href="{% url 'create_adaptive_exam_step1' %}" class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-md">
-                Adaptiv imtihon yaratish
-            </a>
-        </div>
         
         <hr class="my-6">
         
@@ -35,12 +26,6 @@
                         {% if exam.is_premium %}Pullik{% else %}Bepul{% endif %} | 
                         {% if exam.is_active %}Aktiv{% else %}Noaktiv{% endif %}
                     </p>
-                </div>
-                <div class="flex space-x-4">
-                                        <a href="{% url 'exam_detail' pk=exam.id %}" class="text-indigo-500 hover:underline">Tafsilotlar</a>
-                    
-                    <a href="{% url 'edit_exam' exam_id=exam.id %}" class="text-blue-500 hover:underline">Tahrirlash</a>
-                    <a href="{% url 'delete_exam' exam_id=exam.id %}" class="text-red-500 hover:underline" onclick="return confirm('Bu imtihonni o\'chirishni xohlaysizmi?')">O'chirish</a>
                 </div>
             </div>
             {% empty %}

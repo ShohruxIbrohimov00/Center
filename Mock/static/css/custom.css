@@ -1,112 +1,326 @@
+/* ==========================================================================
+   1. FONTLAR VA ASOSIY SOZLAMALAR
+   ========================================================================== */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
 
-/* Umumiy ranglar va fon */
+:root {
+    --primary-color: #4f46e5; /* Indigo */
+    --secondary-color: #0ea5e9; /* Sky Blue */
+    --success-color: #10b981; /* Emerald */
+    --danger-color: #ef4444; /* Red */
+    --slate-text: #334155;
+    --slate-light: #64748b;
+    --slate-bg: #f8fafc;
+    --card-border: #eef2ff;
+    --card-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.05), 0 2px 4px -2px rgb(0 0 0 / 0.06);
+    --card-shadow-hover: 0 10px 15px -3px rgb(0 0 0 / 0.07), 0 4px 6px -2px rgb(0 0 0 / 0.05);
+}
+
 body {
-    background-color: #f3f4f6; /* Kengaytirilgan kulrang fon */
-    color: #374151; /* Asosiy matn rangi */
+    background-color: var(--slate-bg);
+    color: var(--slate-text);
+    font-family: 'Inter', sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
 }
 
-/* Kartalar va bo'limlar uchun uslublar */
-.card-section {
-    background-color: #ffffff;
-    border: 1px solid #e5e7eb;
-    border-radius: 1rem; /* Katta yumaloq burchaklar */
-    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05); /* Yumshoq soyalar */
-    padding: 1.5rem;
-    margin-bottom: 2rem;
-}
+/* ==========================================================================
+   2. UMUMIY KOMPONENTLAR (BARCHA SAHIFALAR UCHUN)
+   ========================================================================== */
 
-.card-title {
-    font-size: 1.5rem;
-    font-weight: 700;
-    color: #1f2937;
-    border-bottom: 2px solid #e5e7eb;
-    padding-bottom: 0.5rem;
-    margin-bottom: 1.5rem;
-}
-
-/* Kirish maydonlari va tanlash elementlari */
-.form-field {
-    width: 100%;
-    padding: 0.75rem 1rem;
-    border-radius: 0.5rem;
-    border: 1px solid #d1d5db;
-    background-color: #f9fafb;
-    transition: all 0.3s ease;
-}
-
-.form-field:focus {
-    outline: none;
-    border-color: #3b82f6; /* Ko'k rangga o'tish */
-    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.5);
-}
-
-/* Select2 uchun maxsus uslublar */
-.select2-container {
-    width: 100% !important;
-}
-
-.select2-container--default .select2-selection--single,
-.select2-container--default .select2-selection--multiple {
-    border: 1px solid #d1d5db !important;
-    border-radius: 0.5rem !important;
-    min-height: 48px;
-    background-color: #f9fafb !important;
-}
-
-.select2-container--default .select2-selection--single .select2-selection__rendered {
-    padding: 0.75rem 1rem;
-    line-height: normal;
-}
-
-.select2-container--default .select2-selection--single .select2-selection__arrow {
-    height: 100%;
-    top: 0;
-    right: 1rem;
-}
-
-/* Tugmalar uchun umumiy uslublar */
+/* --- Tugmalar (Buttons) --- */
 .btn {
     font-weight: 600;
-    padding: 0.75rem 1.5rem;
-    border-radius: 9999px; /* To'liq yumaloq burchaklar */
-    transition: all 0.3s ease;
+    padding: 0.75rem 1.25rem;
+    border-radius: 0.75rem; /* Qirralari yumaloqroq */
+    transition: all 0.2s ease-in-out;
     text-align: center;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    cursor: pointer;
+    border: 2px solid transparent; /* Chegara qalinroq */
+    white-space: nowrap;
+}
+.btn:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--card-shadow-hover);
 }
 
-.btn-primary {
-    background-color: #3b82f6;
+.btn.btn-sm { 
+    padding: 0.6rem 1rem; 
+    font-size: 0.875rem; 
+    border-radius: 0.5rem;
+}
+
+a.btn-primary {
+  display: inline-block;
+  text-decoration: none;
+  padding: 0.6rem 1.2rem;
+  border-radius: 0.6rem;
+  font-weight: 600;
+  color: #fff;
+  background-color: var(--primary-color, #6d28d9);
+  box-shadow: 0 6px 18px rgba(109,40,217,0.12);
+  transition: background-color 0.2s ease, transform 0.15s ease;
+}
+
+a.btn-primary:hover {
+  background-color: #5b21b6;
+  transform: translateY(-2px);
+  box-shadow: 0 10px 24px rgba(83,33,158,0.16);
+}
+
+a.btn-primary:active {
+  transform: translateY(0);
+  box-shadow: 0 6px 14px rgba(83,33,158,0.12);
+}
+
+
+/* Konturli (ikkinchi darajali) tugma */
+.btn-outline {
+    background-color: transparent;
+    border-color: var(--primary-color);
+    color: var(--primary-color);
+    box-shadow: none;
+}
+.btn-outline:hover {
+    background-color: var(--primary-color);
     color: #ffffff;
 }
 
-.btn-primary:hover {
-    background-color: #2563eb;
-    transform: scale(1.05);
+/* Boshqa rangli tugmalar */
+.btn-emerald { background-color: var(--success-color); border-color: var(--success-color); color: white; }
+.btn-emerald:hover { background-color: #059669; border-color: #059669; }
+
+.btn-sky { background-color: var(--secondary-color); border-color: var(--secondary-color); color: white; }
+.btn-sky:hover { background-color: #0284c7; border-color: #0284c7; }
+
+.btn-indigo { background-color: var(--primary-color); border-color: var(--primary-color); color: white; }
+.btn-indigo:hover { background-color: #4338ca; border-color: #4338ca; }
+
+.btn-slate { background-color: #f1f5f9; border-color: #f1f5f9; color: var(--slate-text); }
+.btn-slate:hover { background-color: #e2e8f0; border-color: #e2e8f0; }
+
+.btn-rose { background-color: var(--danger-color); border-color: var(--danger-color); color: white; }
+.btn-rose:hover { background-color: #e11d48; border-color: #e11d48; }
+
+/* --- Boshqa umumiy komponentlar --- */
+
+.page-header h1 {
+    font-size: 2rem;
+    font-weight: 800;
+    color: #1e293b;
+    letter-spacing: -0.025em;
+    line-height: 1.2;
+}
+.page-header p {
+    font-size: 1rem;
+    color: #64748b;
+    margin-top: 0.75rem;
 }
 
-.btn-secondary {
-    background-color: #e5e7eb;
-    color: #4b5563;
+.info-item { 
+    display: flex; 
+    align-items: center; 
+    gap: 0.5rem; 
+}
+.info-item i { 
+    width: 1rem; 
+    text-align: center; 
 }
 
-.btn-secondary:hover {
-    background-color: #d1d5db;
-    transform: scale(1.05);
+
+/* ==========================================================================
+   3. SAHIFA-MAXSUS STILLARI
+   ========================================================================== */
+
+/* --- "ALL_EXAMS" sahifasi --- */
+.exam-section h2 {
+    font-size: 1.75rem;
+    font-weight: 700;
+    color: #1e293b;
+    padding-bottom: 0.5rem;
+    border-bottom: 2px solid #eef2ff;
+}
+.horizontal-scroll {
+    display: flex;
+    gap: 1.5rem;
+    padding-bottom: 1rem;
+    margin-bottom: -1rem;
+    overflow-x: auto;
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+}
+.horizontal-scroll::-webkit-scrollbar {
+    display: none;
 }
 
-/* Boshqa komponentlar */
-.message-success {
-    background-color: #dcfce7;
-    color: #166534;
-}
-
-.message-error {
-    background-color: #fee2e2;
-    color: #991b1b;
-}
-
-.selected-item-tag {
-    background-color: #dbeafe;
-    color: #1e40af;
+/* --- "PRICING" sahifasi --- */
+.toggle-btn {
+    padding: 0.5rem 1.5rem;
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--slate-light);
     border-radius: 9999px;
-    padding: 0.25rem 0.75rem;
+    transition: all 0.2s ease-in-out;
+    border: 2px solid transparent;
+    cursor: pointer;
+}
+.toggle-btn.active {
+    background-color: white;
+    color: var(--primary-color);
+    box-shadow: var(--card-shadow);
+}
+
+
+/* --- "RESULT_DETAIL" sahifasi --- */
+.solution-box {
+    padding: 1rem;
+    border: 1px solid #c7d2fe;
+    background-color: #eef2ff;
+    border-radius: 0.75rem;
+    color: #374151;
+    box-shadow: inset 0 2px 4px 0 rgba(0, 0, 0, 0.05);
+    font-size: 1rem;
+    line-height: 1.6;
+    word-break: break-word;
+}
+.solution-box pre,
+.solution-box code {
+    font-family: 'Courier New', Courier, monospace;
+    background-color: #e0e7ff;
+    padding: 0.1rem 0.4rem;
+    border-radius: 0.25rem;
+    font-size: 0.9em;
+    white-space: pre-wrap;
+}
+.solution-box pre { padding: 0.75rem; overflow-x: auto; }
+.solution-box::-webkit-scrollbar { width: 6px; }
+.solution-box::-webkit-scrollbar-track { background: #e0e7ff; border-radius: 10px; }
+.solution-box::-webkit-scrollbar-thumb { background: #a5b4fc; border-radius: 10px; }
+.solution-box::-webkit-scrollbar-thumb:hover { background: #818cf8; }
+
+/* ==========================================================================
+   4. MOSLASHUVCHANLIK (RESPONSIVENESS)
+   ========================================================================== */
+
+@media (min-width: 768px) {
+    .page-header h1 { font-size: 2.5rem; }
+    .page-header p { font-size: 1.125rem; }
+}
+
+@media (max-width: 767px) {
+    .btn:not(.btn-sm) {
+        padding: 0.625rem 1rem;
+        font-size: 0.875rem;
+    }
+    .solution-box {
+        font-size: 0.875rem;
+        padding: 0.75rem;
+        max-height: 20rem;
+        overflow-y: auto;
+    }
+}
+
+/* custom.css faylingizning oxiriga qo'shing */
+
+/* ==========================================================================
+   "MY_FLASHCARDS" SAHIFASI UCHUN MAXSUS STILLAR
+   ========================================================================== */
+
+.progress-donut {
+    position: relative;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+.progress-donut__svg {
+    transform: rotate(-90deg); /* Diagrammani tepadan boshlash uchun */
+}
+.progress-donut__circle {
+    fill: none;
+    stroke-width: 2.8;
+}
+.progress-donut__circle-bg {
+    stroke: #e2e8f0; /* Orqa fon aylana rangi */
+}
+.progress-donut__circle-segment {
+    transition: stroke-dashoffset 0.5s ease-in-out;
+    stroke-linecap: round;
+}
+.progress-donut__center-text {
+    position: absolute;
+    text-align: center;
+}
+.progress-donut__center-text .total-count {
+    font-size: 2.5rem;
+    font-weight: 800;
+    color: var(--slate-text);
+}
+.progress-donut__center-text .total-label {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--slate-light);
+    text-transform: uppercase;
+}
+
+/* custom.css faylining oxiriga qo'shing */
+
+/* ==========================================================================
+   5. GLOBAL XABARLAR TIZIMI (TOAST NOTIFICATIONS)
+   ========================================================================== */
+
+#toast-container {
+    position: fixed;
+    top: 1.25rem; /* 20px */
+    right: 1.25rem; /* 20px */
+    z-index: 9999;
+    width: 100%;
+    max-width: 24rem; /* 384px */
+    pointer-events: none; /* Konteynerning o'zi bosilmaydi */
+}
+
+.alert-toast {
+    pointer-events: auto; /* Ichidagi xabarlar bosiladi */
+    opacity: 0;
+    transform: translateX(100%);
+    transition: all 0.4s cubic-bezier(0.68, -0.55, 0.27, 1.55);
+}
+
+.alert-toast.show {
+    opacity: 1;
+    transform: translateX(0);
+}
+
+.alert-toast.hide {
+    opacity: 0;
+    transform: translateX(100%);
+}
+
+/* Xabar turlariga qarab rang berish */
+.alert-toast[data-tag="success"] { background-color: #d1fae5; color: #065f46; }
+.alert-toast[data-tag="error"] { background-color: #fee2e2; color: #991b1b; }
+.alert-toast[data-tag="info"] { background-color: #dbeafe; color: #1e40af; }
+.alert-toast[data-tag="warning"] { background-color: #fef3c7; color: #92400e; }
+
+/* Yopish tugmasi uchun ranglar */
+.alert-toast[data-tag="success"] .close-toast-btn { background-color: #a7f3d0; color: #047857; }
+.alert-toast[data-tag="error"] .close-toast-btn { background-color: #fecaca; color: #b91c1c; }
+.alert-toast[data-tag="info"] .close-toast-btn { background-color: #bfdbfe; color: #1d4ed8; }
+.alert-toast[data-tag="warning"] .close-toast-btn { background-color: #fde68a; color: #b45309; }
+
+.alert-toast .close-toast-btn:hover {
+    opacity: 0.8;
+}
+
+/* Telefonlar uchun moslashuv */
+@media (max-width: 640px) {
+    #toast-container {
+        right: 1rem;
+        left: 1rem;
+        top: 1rem;
+        max-width: none;
+    }
 }

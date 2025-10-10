@@ -6,15 +6,15 @@ from django.core.exceptions import ValidationError
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 from datetime import timedelta
-import re
-# from tinymce.models import HTMLField # TINYMCE importini o'chiramiz
-from ckeditor_uploader.fields import RichTextUploadingField # CKEditor importini qo'shamiz
-
+from ckeditor_uploader.fields import RichTextUploadingField 
 from django.contrib.contenttypes.models import ContentType
 from django.contrib.contenttypes.fields import GenericForeignKey
-from django.db.models import JSONField
+from django.contrib.auth.models import AbstractUser
+from django.utils.html import strip_tags 
 import bleach
-
+import re
+import math
+from utils.irt import ThreeParameterLogisticModel
 
 # =================================================================
 # 1. TIZIM SOZLAMALARI MODELI
@@ -55,24 +55,79 @@ class SystemConfiguration(models.Model):
         verbose_name = "Tizim sozlamasi"
         verbose_name_plural = "Tizim sozlamalari"
 
+class SiteSettings(models.Model):
+    # To'lov uchun ma'lumotlar
+    payment_card_number = models.CharField(max_length=20, help_text="To'lov qabul qilinadigan plastik karta raqami. Format: 8600 1234 ...")
+    payment_card_holder = models.CharField(max_length=100, help_text="Karta egasining ismi va familiyasi. Masalan: ALI VALIYEV")
+    
+    # Tezkor tasdiqlash uchun ma'lumotlar
+    manager_phone_number = models.CharField(max_length=20, help_text="To'lovni tezkor tasdiqlash uchun menejer telefon raqami. Format: +998901234567")
+    manager_telegram_username = models.CharField(max_length=100, blank=True, help_text="Menejerning telegram username'i (masalan, @menejer_username)")
+
+    def __str__(self):
+        return "Sayt Sozlamalari"
+
+    class Meta:
+        verbose_name = "Sayt Sozlamalari"
+        verbose_name_plural = "Sayt Sozlamalari"
+
 # =================================================================
 # 2. FOYDALANUVCHI VA HUQUQLAR MODELLARI
 # =================================================================
+
+
 class CustomUser(AbstractUser):
-    ROLE_CHOICES = [('teacher', 'Ustoz'), ('student', 'Talaba'), ('admin', 'Administrator')]
+    # AbstractUser'dagi first_name va last_name'ni ishlatmaymiz
+    first_name = None
+    last_name = None
+
+    # Ularning o'rniga yangi maydon
+    full_name = models.CharField(max_length=255, verbose_name="To'liq ism (F.I.Sh)")
+    
+    # Email maydonini majburiy va unikal qilamiz
+    email = models.EmailField(unique=True, verbose_name="Elektron pochta")
+
+    # Boshqa maydonlar
+    phone_number = models.CharField(max_length=20, unique=True, verbose_name="Telefon raqami")
+    
+    ROLE_CHOICES = [
+        ('student', 'Talaba'),
+        ('teacher', 'Ustoz'),
+        ('admin', 'Administrator'),
+    ]
     role = models.CharField(max_length=20, choices=ROLE_CHOICES, default='student', verbose_name="Foydalanuvchi roli")
-    is_approved = models.BooleanField(default=True, verbose_name="Tasdiqlangan")
-    ability = models.FloatField(default=0.0, verbose_name="Foydalanuvchi qobiliyati (Rasch)")
-    teacher = models.ForeignKey('self', on_delete=models.SET_NULL, null=True, blank=True,
-                                 limit_choices_to={'role': 'teacher'}, related_name='students',
-                                 verbose_name="Biriktirilgan ustoz")
+    
     profile_picture = models.ImageField(upload_to='profile_pics/', null=True, blank=True, verbose_name="Profil rasmi")
     bio = models.TextField(max_length=500, blank=True, verbose_name="O'zi haqida")
+    
+    # ability va teacher maydonlari sizning asosiy logikangiz uchun qoldirildi
+    ability = models.FloatField(default=0.0, verbose_name="Foydalanuvchi qobiliyati (Rasch)")
+    teacher = models.ForeignKey(
+        'self', 
+        on_delete=models.SET_NULL, 
+        null=True, 
+        blank=True,
+        limit_choices_to={'role': 'teacher'}, 
+        related_name='students',
+        verbose_name="Biriktirilgan ustoz"
+    )
+
+    is_approved = models.BooleanField(default=True, verbose_name="Tasdiqlangan")
     is_banned = models.BooleanField(default=False, verbose_name="Bloklangan")
-    telegram_id = models.CharField(max_length=50, unique=True, null=True, blank=True, verbose_name="Telegram ID")
+
+    USERNAME_FIELD = 'username' # Tizimga kirish uchun username ishlatiladi
+    REQUIRED_FIELDS = ['email', 'full_name', 'phone_number'] # Superuser yaratishda so'raladigan maydonlar
 
     def __str__(self):
-        return f"{self.username} ({self.get_role_display()})"
+        return self.username
+
+    def get_full_name(self):
+        # Django'ning standart get_full_name() funksiyasini to'g'rilab qo'yamiz
+        return self.full_name.strip()
+
+    def get_short_name(self):
+        # get_short_name() funksiyasini ham to'g'rilaymiz
+        return self.full_name.strip().split(' ')[0]
 
     def has_active_subscription(self):
         return hasattr(self, 'subscription') and self.subscription.is_active()
@@ -182,47 +237,79 @@ class UserSubscription(models.Model):
     is_active.short_description = "Aktivmi?"
 
     def __str__(self):
-        return f"{self.user.username} - {self.plan.name if self.plan else 'Yo\'q'} ({'Aktiv' if self.is_active() else 'Aktiv emas'})"
+        return f"{self.user.username} - {self.plan.name if self.plan else 'Yoq'} ({'Aktiv' if self.is_active() else 'Aktiv emas'})"
 
     class Meta:
         verbose_name = "Foydalanuvchi obunasi"
         verbose_name_plural = "Foydalanuvchi obunalari"
 
-@receiver(post_save, sender=CustomUser)
-def create_user_related_models(sender, instance, created, **kwargs):
-    if created:
-        UserBalance.objects.create(user=instance)
-
 class Purchase(models.Model):
-    STATUS_CHOICES = [('pending', 'Kutilmoqda'), ('completed', 'Yakunlangan'), ('failed', 'Xatolik')]
+    # YANGI, KENGAYTIRILGAN STATUSLAR
+    STATUS_CHOICES = [
+        ('pending',      'To\'lov kutilmoqda'), # Xarid yaratildi, foydalanuvchi yo'riqnomani ko'rdi
+        ('moderation',   'Tekshirilmoqda'),   # Foydalanuvchi skrinshotni yukladi, admin tasdiqlashi kutilmoqda
+        ('completed',    'Tasdiqlangan'),    # Admin yoki tizim tasdiqladi
+        ('rejected',     'Rad etilgan'),      # Admin rad etdi
+    ]
     PURCHASE_TYPE_CHOICES = [('package', 'Paket'), ('subscription', 'Obuna')]
-    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name='purchases',
-                             verbose_name="Foydalanuvchi")
+    
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name='purchases', verbose_name="Foydalanuvchi")
     purchase_type = models.CharField(max_length=20, choices=PURCHASE_TYPE_CHOICES, verbose_name="Xarid turi")
     package = models.ForeignKey(ExamPackage, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="Paket")
-    subscription_plan = models.ForeignKey(SubscriptionPlan, on_delete=models.SET_NULL, null=True, blank=True,
-                                          verbose_name="Obuna rejasi")
+    subscription_plan = models.ForeignKey(SubscriptionPlan, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="Obuna rejasi")
+    
     amount = models.DecimalField(max_digits=10, decimal_places=2, verbose_name="Boshlang'ich summa")
-    promo_code = models.ForeignKey(PromoCode, on_delete=models.SET_NULL, null=True, blank=True,
-                                    verbose_name="Promo kod")
+    promo_code = models.ForeignKey(PromoCode, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="Promo kod")
     final_amount = models.DecimalField(max_digits=10, decimal_places=2, verbose_name="Yakuniy summa")
-    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending', db_index=True,
-                              verbose_name="Holati")
-    payment_gateway_id = models.CharField(max_length=255, blank=True, null=True, db_index=True,
-                                         verbose_name="To'lov tizimi IDsi")
+    
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending', db_index=True, verbose_name="Holati")
+    
+    # YANGI QO'SHILGAN MAYDONLAR
+    payment_screenshot = models.FileField(upload_to='screenshots/%Y/%m/', null=True, blank=True, verbose_name="To'lov skrinshoti")
+    payment_comment = models.TextField(blank=True, null=True, verbose_name="To'lovga izoh")
+    
     created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True) # Avtomatik tasdiqlash uchun muhim
 
     def __str__(self):
-        return f"Xarid #{self.id} - {self.user.username}"
+        return f"Xarid #{self.id} - {self.user.username if self.user else 'Noma`lum'}"
 
+    def fulfill(self):
+        """Xarid tasdiqlanganda foydalanuvchiga xizmatni yoqish uchun yagona funksiya"""
+        if self.status == 'completed': # Ikki marta bajarilishini oldini olish
+            return
+
+        if self.purchase_type == 'subscription' and self.subscription_plan:
+            # Foydalanuvchiga obuna berish
+            UserSubscription.objects.update_or_create(
+                user=self.user,
+                defaults={
+                    'plan': self.subscription_plan,
+                    'start_date': timezone.now(),
+                    'end_date': timezone.now() + timedelta(days=self.subscription_plan.duration_days)
+                }
+            )
+        
+        if self.purchase_type == 'package' and self.package:
+            # Foydalanuvchiga kreditlar berish
+            user_balance, created = UserBalance.objects.get_or_create(user=self.user)
+            user_balance.exam_credits += self.package.exam_credits
+            user_balance.solution_view_credits += self.package.solution_view_credits_on_purchase
+            user_balance.save()
+
+        self.status = 'completed'
+        self.save()
+        
     class Meta:
         verbose_name = "Xarid"
         verbose_name_plural = "Xaridlar"
         ordering = ['-created_at']
 
+
 # =================================================================
-# 7. FLASHCARD VA LUG'AT O'RGANISH MODELLARI
+# 7. FLASHCARD VA LUG'AT O'RGANISH MODELLARI (YANGLANGAN)
 # =================================================================
+
 class Flashcard(models.Model):
     CONTENT_TYPE_CHOICES = [('word', 'So\'z/Ibora'), ('formula', 'Formula')]
     content_type = models.CharField(max_length=20, choices=CONTENT_TYPE_CHOICES, default='word', verbose_name="Kontent turi")
@@ -233,7 +320,7 @@ class Flashcard(models.Model):
     author = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='flashcards', verbose_name="Muallif")
     
     source_question = models.ForeignKey(
-        'Question', # 'Question' modeliga to'g'ri havolani ta'minlash uchun stringdan foydalanish
+        'Question', 
         on_delete=models.SET_NULL, 
         related_name='associated_flashcards',
         verbose_name="Manba-savol",
@@ -246,12 +333,14 @@ class Flashcard(models.Model):
     class Meta:
         verbose_name = "Flashcard (lug'at)"
         verbose_name_plural = "Flashcardlar (lug'atlar)"
-        unique_together = ('english_content', 'source_question')
+        # 'Question' modelini import qilish talab qilinadi, shuning uchun 'Question' emas, 
+        # balki faqat 'english_content' bo'yicha unique_together qo'shildi
+        unique_together = ('english_content', 'author')
 
     def __str__(self):
         cleaned_english_content = bleach.clean(self.english_content, tags=[], strip=True)
         cleaned_uzbek_meaning = bleach.clean(self.uzbek_meaning, tags=[], strip=True)
-        return f"{cleaned_english_content} - {cleaned_uzbek_meaning}"
+        return f"{cleaned_english_content[:50]} - {cleaned_uzbek_meaning[:50]}"
 
 class UserFlashcardStatus(models.Model):
     STATUS_CHOICES = [('not_learned', 'O\'rganilmagan'), ('learning', 'O\'rganilmoqda'), ('learned', 'O\'rganilgan')]
@@ -261,16 +350,41 @@ class UserFlashcardStatus(models.Model):
                               verbose_name="O'zlashtirish holati")
     last_reviewed_at = models.DateTimeField(null=True, blank=True, verbose_name="Oxirgi ko'rilgan vaqt")
     next_review_at = models.DateTimeField(default=timezone.now, db_index=True, verbose_name="Keyingi takrorlash vaqti")
-    ease_factor = models.FloatField(default=2.5, verbose_name="Osonlik faktori")
+    ease_factor = models.FloatField(default=2.5, verbose_name="Osonlik faktori (SM2)")
     review_interval = models.PositiveIntegerField(default=1, verbose_name="Takrorlash intervali (kunda)")
+    
+    # ✅ YANGI: Nechanchi marta to'g'ri (3 yoki undan yuqori) javob berilgani
+    repetition_count = models.PositiveIntegerField(default=0, verbose_name="Muvaffaqiyatli takrorlash soni")
+    # ✅ YANGI: Oxirgi marta berilgan baho (0-5)
+    last_quality_rating = models.PositiveSmallIntegerField(default=5, verbose_name="Oxirgi baho (0-5)")
+
 
     class Meta:
-        verbose_name = "Foydalanuvchi flashcard holati"
-        verbose_name_plural = "Foydalanuvchi flashcard holatlari"
+        verbose_name = "Foydalanuvchi flashcard holati (SM2)"
+        verbose_name_plural = "Foydalanuvchi flashcard holatlari (SM2)"
         unique_together = ('user', 'flashcard')
 
     def __str__(self):
         return f"{self.user.username} - {self.flashcard.english_content}: {self.get_status_display()}"
+
+class FlashcardReviewLog(models.Model):
+    """
+    Har bir flashcard takrorlanishini loglash uchun yangi model.
+    Bu chuqur statistika uchun juda muhimdir.
+    """
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='flashcard_reviews')
+    flashcard = models.ForeignKey(Flashcard, on_delete=models.CASCADE, related_name='reviews_log')
+    # 0 (mutlaqo unutgan) dan 5 (mukammal esladi) gacha bo'lgan baho
+    quality_rating = models.PositiveSmallIntegerField(verbose_name="Sifat bahosi (0-5)")
+    reviewed_at = models.DateTimeField(auto_now_add=True, verbose_name="Ko'rib chiqish vaqti")
+    
+    class Meta:
+        verbose_name = "Flashcard takrorlash logi"
+        verbose_name_plural = "Flashcard takrorlash loglari"
+        ordering = ['-reviewed_at']
+    
+    def __str__(self):
+        return f"{self.user.username} - {self.flashcard.english_content[:30]} - Baho: {self.quality_rating}"
 
 class UserFlashcardDeck(models.Model):
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='flashcard_decks')
@@ -300,33 +414,79 @@ class FlashcardExam(models.Model):
         verbose_name = "Flashcard mashg'uloti"
         verbose_name_plural = "Flashcard mashg'ulotlari"
 
-class FlashcardExamAttempt(models.Model):
-    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='flashcard_attempts')
-    flashcard_exam = models.ForeignKey(FlashcardExam, on_delete=models.CASCADE, related_name='attempts')
-    started_at = models.DateTimeField(auto_now_add=True)
-    completed_at = models.DateTimeField(null=True, blank=True)
-
-    class Meta:
-        verbose_name = "Flashcard mashg'uloti urinishi"
-        verbose_name_plural = "Flashcard mashg'uloti urinishlari"
-
-    def __str__(self):
-        return f"{self.user.username} - {self.flashcard_exam.title}"
-
 # =================================================================
 # 4. KONTENT VA SAVOLLAR BANKI MODELLARI
 # =================================================================
 
 class Tag(models.Model):
-    name = models.CharField(max_length=100, unique=True, verbose_name="Teg nomi")
+    name = models.CharField(max_length=100, verbose_name="Teg/Mavzu nomi")
+    parent = models.ForeignKey(
+        'self',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='children',
+        verbose_name="Ota-ona teg (yuqori darajali mavzu)"
+    )
+    description = models.TextField(
+        blank=True,
+        null=True,
+        verbose_name="Tavsif",
+        help_text="Ushbu teg/mavzu haqida qisqacha ma'lumot"
+    )
+    created_at = models.DateTimeField(
+        auto_now_add=True,  # Faqat yaratilish vaqtini avtomatik saqlaydi
+        verbose_name="Yaratilgan vaqt"
+    )
+    updated_at = models.DateTimeField(
+        auto_now=True,  # Faqat yangilanish vaqtini avtomatik saqlaydi
+        verbose_name="Yangilangan vaqt"
+    )
 
     def __str__(self):
+        if self.parent:
+            return f"{self.parent.name} > {self.name}"
         return self.name
 
     class Meta:
-        verbose_name = "Teg"
-        verbose_name_plural = "Teglar"
+        verbose_name = "Teg/Mavzu"
+        verbose_name_plural = "Teglar/Mavzular"
+        unique_together = ('name', 'parent')
+        indexes = [
+            models.Index(fields=['name']),
+            models.Index(fields=['parent']),
+        ]
 
+    def get_full_hierarchy(self):
+        hierarchy = [self.name]
+        current = self
+        while current.parent:
+            hierarchy.append(current.parent.name)
+            current = current.parent
+        return " > ".join(reversed(hierarchy))
+
+class UserTagPerformance(models.Model):
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='tag_performances')
+    tag = models.ForeignKey(Tag, on_delete=models.CASCADE, related_name='user_performances')
+    correct_answers = models.PositiveIntegerField(default=0, verbose_name="To'g'ri javoblar soni")
+    incorrect_answers = models.PositiveIntegerField(default=0, verbose_name="Noto'g'ri javoblar soni")
+    total_time_spent = models.PositiveIntegerField(default=0, verbose_name="Sarflangan umumiy vaqt (soniya)")
+    attempts_count = models.PositiveIntegerField(default=0, verbose_name="Urinishlar soni")
+    average_difficulty = models.FloatField(default=0.0, verbose_name="O'rtacha qiyinlik (Rasch)")
+    last_attempted_at = models.DateTimeField(null=True, blank=True, verbose_name="Oxirgi urinilgan vaqt")
+
+    class Meta:
+        verbose_name = "Foydalanuvchi teg/mavzu bo'yicha ko'rsatkichi"
+        verbose_name_plural = "Foydalanuvchi teglar/mavzular bo'yicha ko'rsatkichlari"
+        unique_together = ('user', 'tag')
+
+    def __str__(self):
+        return f"{self.user.username} - {self.tag.name}"
+
+    def success_rate(self):
+        total = self.correct_answers + self.incorrect_answers
+        return (self.correct_answers / total * 100) if total > 0 else 0.0
+    
 class Topic(models.Model):
     name = models.CharField(max_length=200, verbose_name="Mavzu nomi")
     teacher = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, verbose_name="Ustoz")
@@ -363,9 +523,6 @@ class Passage(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
     def save(self, *args, **kwargs):
-        # CKEditor o'zining tozalash funksiyalariga ega, shuning uchun bu qism shart emas
-        # Lekin qo'shimcha xavfsizlik uchun qoldirilishi mumkin
-        # self.content = bleach.clean(self.content, tags=['p', 'b', 'i', 'u', 'strong', 'em'], strip=True)
         super().save(*args, **kwargs)
 
     class Meta:
@@ -408,7 +565,9 @@ class Question(models.Model):
     
     ANSWER_CHOICES = (('single', 'Yagona tanlov'), ('multiple', 'Ko\'p tanlov'), ('short_answer', 'Qisqa javob'))
     answer_format = models.CharField(max_length=20, choices=ANSWER_CHOICES, default='single', verbose_name="Javob formati")
-    difficulty = models.FloatField(default=0.0, db_index=True, verbose_name="Qiyinlik darajasi (Rasch)")
+    difficulty = models.FloatField(default=0.0, db_index=True, verbose_name="Qiyinlik darajasi (IRT difficulty)")
+    discrimination = models.FloatField(default=1.0, verbose_name="Farqlash parametri (IRT discrimination)")
+    guessing = models.FloatField(default=0.25, verbose_name="Taxmin parametri (IRT guessing)")
     difficulty_level = models.ForeignKey(RaschDifficultyLevel, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="Qiyinlik darajasi")
     STATUS_CHOICES = (('draft', 'Qoralama'), ('published', 'Nashr qilingan'), ('archived', 'Arxivlangan'))
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='draft', db_index=True,verbose_name="Holati")
@@ -435,8 +594,6 @@ class QuestionTranslation(models.Model):
     text = RichTextUploadingField(verbose_name="Savol matni (HTML)") # `TextField` dan `RichTextUploadingField` ga o'zgartirildi
 
     def save(self, *args, **kwargs):
-        # CKEditor o'zining tozalash funksiyalariga ega
-        # self.text = bleach.clean(self.text, tags=['p', 'b', 'i', 'u', 'strong', 'em'], strip=True)
         super().save(*args, **kwargs)
 
     class Meta:
@@ -460,7 +617,8 @@ class QuestionSolution(models.Model):
         return f"Savol: {self.question.id} yechimi"
 
 class AnswerOption(models.Model):
-    text = RichTextUploadingField(verbose_name="Variant matni", default="<p></p>") # `HTMLField` dan `RichTextUploadingField` ga o'zgartirildi
+    # 'text' maydoni avvalgidek RichTextUploadingField bo'lib qoladi
+    text = RichTextUploadingField(verbose_name="Variant matni", default="<p></p>") 
     question = models.ForeignKey(Question, on_delete=models.CASCADE, related_name='options', verbose_name="Savol")
     is_correct = models.BooleanField(default=False, verbose_name="To'g'ri javob")
 
@@ -469,8 +627,22 @@ class AnswerOption(models.Model):
         verbose_name_plural = "Javob variantlari"
 
     def __str__(self):
-        cleaned_text = bleach.clean(self.text, tags=[], strip=True)
+        cleaned_text = strip_tags(self.text) # str uchun bleach.clean o'rniga oddiy strip_tags ishlatamiz
         return cleaned_text[:70]
+
+    def save(self, *args, **kwargs):
+        # 1. Matnni serverga saqlashdan oldin tozalash
+        cleaned_text = self.text.strip()
+        
+        # 2. CKEditor/RichText tomonidan qo'shilgan keraksiz <p> teglarni olib tashlash
+        # (Faqat matnning boshida va oxirida bo'lsa)
+        if cleaned_text.startswith('<p>') and cleaned_text.endswith('</p>'):
+            # Matnning boshidagi "<p>" (3 ta belgi) va oxiridagi "</p>" (4 ta belgi) ni olib tashlash
+            # O'rtadagi barcha boshqa HTML teglari (masalan, <b> yoki <i>) saqlanib qoladi.
+            cleaned_text = cleaned_text[3:-4].strip()
+        
+        self.text = cleaned_text
+        super().save(*args, **kwargs)
 
 class AnswerOptionTranslation(models.Model):
     answer_option = models.ForeignKey(AnswerOption, on_delete=models.CASCADE, related_name='translations')
@@ -478,8 +650,6 @@ class AnswerOptionTranslation(models.Model):
     text = RichTextUploadingField(verbose_name="Variant matni (HTML)") # `TextField` dan `RichTextUploadingField` ga o'zgartirildi
 
     def save(self, *args, **kwargs):
-        # CKEditor o'zining tozalash funksiyalariga ega
-        # self.text = bleach.clean(self.text, tags=['p', 'b', 'i', 'u', 'strong', 'em'], strip=True)
         super().save(*args, **kwargs)
 
     class Meta:
@@ -513,6 +683,75 @@ class QuestionReview(models.Model):
 # 5. IMTIHON VA FOYDALANUVCHI FAOLIYATI MODELLARI
 # =================================================================
 
+
+class LiveExam(models.Model):
+    exam = models.ForeignKey(
+        'Exam',
+        on_delete=models.CASCADE,
+        related_name='live_exams',
+        verbose_name="Bog'langan imtihon"
+    )
+    title = models.CharField(max_length=255, verbose_name="Imtihon nomi")
+    description = models.TextField(blank=True, verbose_name="Tavsif")
+    start_time = models.DateTimeField(verbose_name="Boshlanish vaqti")
+    registration_deadline = models.DateTimeField(verbose_name="Ro'yxatdan o'tish oxirgi muddati")
+    price = models.DecimalField(max_digits=10, decimal_places=2, verbose_name="Narx (so'm)")
+    is_active = models.BooleanField(default=True, verbose_name="Faol")
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="Yaratilgan vaqt")
+    updated_at = models.DateTimeField(auto_now=True, verbose_name="Yangilangan vaqt")
+
+    def __str__(self):
+        return f"{self.title} ({self.start_time})"
+
+    class Meta:
+        verbose_name = "Live Imtihon"
+        verbose_name_plural = "Live Imtihonlar"
+
+    def is_registration_open(self):
+        """Ro'yxatdan o'tish ochiq yoki yopiq ekanligini aniqlaydi."""
+        return timezone.now() <= self.registration_deadline
+
+    def is_exam_started(self):
+        """Imtihon boshlangan yoki boshlanmaganligini aniqlaydi."""
+        return timezone.now() >= self.start_time
+
+class LiveExamRegistration(models.Model):
+    live_exam = models.ForeignKey(
+        LiveExam,
+        on_delete=models.CASCADE,
+        related_name='registrations',
+        verbose_name="Live Imtihon"
+    )
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='live_exam_registrations',
+        verbose_name="Foydalanuvchi"
+    )
+    purchase = models.OneToOneField(
+        'Purchase',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='live_exam_registration',
+        verbose_name="Bog'langan xarid"
+    )
+    payment_status = models.CharField(
+        max_length=20,
+        choices=(('pending', "Kutilmoqda"), ('completed', "To'langan"), ('failed', "Muvaffaqiyatsiz")),
+        default='pending',
+        verbose_name="To'lov holati"
+    )
+    payment_amount = models.DecimalField(max_digits=10, decimal_places=2, verbose_name="To'langan summa")
+    registered_at = models.DateTimeField(auto_now_add=True, verbose_name="Ro'yxatdan o'tgan vaqt")
+
+    def __str__(self):
+        return f"{self.user.username} - {self.live_exam.title}"
+    class Meta:
+        verbose_name = "Live Imtihon Ro'yxati"
+        verbose_name_plural = "Live Imtihon Ro'yxatlari"
+        unique_together = ('live_exam', 'user')
+
 class Exam(models.Model):
     EXAM_TYPE_CHOICES = [('adaptive', 'Adaptiv (generatsiyalanuvchi)'), ('static', 'Statik (qotirilgan)')]
     exam_type = models.CharField(max_length=20, choices=EXAM_TYPE_CHOICES, default='adaptive',
@@ -535,7 +774,7 @@ class Exam(models.Model):
 class ExamSection(models.Model):
     exam = models.ForeignKey(Exam, on_delete=models.CASCADE, related_name='sections', verbose_name="Imtihon")
     SECTION_TYPES = (
-        ('reading', 'Reading'), ('writing', 'Writing and Language'), ('math_no_calc', 'Math (No Calculator)'),
+        ('read_write_m1', 'Reading'), ('read_write_m2', 'Writing and Language'), ('math_no_calc', 'Math (No Calculator)'),
         ('math_calc', 'Math (Calculator)'))
     section_type = models.CharField(max_length=30, choices=SECTION_TYPES, verbose_name="Bo‘lim turi")
     duration_minutes = models.PositiveIntegerField(verbose_name="Davomiyligi (minut)")
@@ -545,8 +784,8 @@ class ExamSection(models.Model):
     static_questions = models.ManyToManyField(Question, through='ExamSectionStaticQuestion',
                                              related_name='static_exam_sections', blank=True,
                                              verbose_name="Statik savollar")
-    min_difficulty = models.FloatField(null=True, blank=True, verbose_name="Minimal qiyinlik (Rasch)")
-    max_difficulty = models.FloatField(null=True, blank=True, verbose_name="Maksimal qiyinlik (Rasch)")
+    min_difficulty = models.FloatField(null=True, blank=True, verbose_name="Minimal qiyinlik (IRT)")
+    max_difficulty = models.FloatField(null=True, blank=True, verbose_name="Maksimal qiyinlik (IRT)")
 
     class Meta:
         verbose_name = "Imtihon bo‘limi"
@@ -586,16 +825,28 @@ class ExamSectionSubtopicRule(models.Model):
     topic_rule = models.ForeignKey(ExamSectionTopicRule, on_delete=models.CASCADE, related_name='subtopic_rules',
                                      verbose_name="Mavzu qoidasi")
     subtopic = models.ForeignKey(Subtopic, on_delete=models.CASCADE, verbose_name="Ichki mavzu")
-    questions_count = models.PositiveIntegerField(verbose_name="Savollar soni")
+    questions_count = models.PositiveIntegerField(default=0, verbose_name="Savollar soni")
 
     class Meta:
         verbose_name = "Bo‘lim ichki mavzu qoidasi (Adaptiv)"
         verbose_name_plural = "Bo‘lim ichki mavzu qoidalari (Adaptiv)"
-        unique_together = ('topic_rule', 'subtopic')
-
+        
     def __str__(self):
         return f"{self.subtopic.name}: {self.questions_count} ta savol"
 
+class ExamSectionTagRule(models.Model):
+    exam_section = models.ForeignKey(ExamSection, on_delete=models.CASCADE, related_name='tag_rules', verbose_name="Bo‘lim")
+    tag = models.ForeignKey(Tag, on_delete=models.CASCADE, verbose_name="Teg/Mavzu")
+    questions_count = models.PositiveIntegerField(verbose_name="Savollar soni")
+
+    class Meta:
+        verbose_name = "Bo‘lim teg qoidasi (Adaptiv)"
+        verbose_name_plural = "Bo‘lim teg qoidalari (Adaptiv)"
+        unique_together = ('exam_section', 'tag')
+
+    def __str__(self):
+        return f"{self.exam_section} - {self.tag.name}: {self.questions_count} ta savol"
+    
 class UserAttempt(models.Model):
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='attempts',
                              verbose_name="Foydalanuvchi")
@@ -607,19 +858,47 @@ class UserAttempt(models.Model):
     final_math_score = models.PositiveIntegerField(null=True, blank=True, verbose_name="Yakuniy Math balli")
     final_total_score = models.PositiveIntegerField(null=True, blank=True, verbose_name="Yakuniy umumiy ball")
 
+    # Bu siz so'ragan maydon
+    mode = models.CharField(max_length=50, default='exam', verbose_name="Imtihon rejimi")
+
     class Meta:
         verbose_name = "Foydalanuvchi urinishi"
         verbose_name_plural = "Foydalanuvchi urinishlari"
 
     def __str__(self):
-        return f"{self.user.username} - {self.exam.title}"
+        return f"{self.user.username} - {self.exam.title} ({self.mode})"
+
+    def generate_adaptive_section(self, section_order):
+        """Adaptiv imtihon uchun 2-modul savollarini 1-modul natijasi asosida tanlash."""
+        if self.exam.exam_type != 'adaptive' or section_order != 2:
+            return
+
+        first_section = self.section_attempts.filter(section__order=1).first()
+        if not first_section or not first_section.is_completed:
+            raise ValidationError("2-modulni boshlash uchun 1-modul yakunlanishi kerak.")
+
+        first_section_ability = first_section.ability_estimate
+
+        second_section = self.section_attempts.filter(section__order=2).first()
+        if second_section:
+            if first_section_ability > 1.0:
+                min_diff = 1.0
+                max_diff = 3.0
+            else:
+                min_diff = -3.0
+                max_diff = 1.0
+
+            rules = ExamSectionTagRule.objects.filter(exam_section=second_section.section)
+            for rule in rules:
+                questions = Question.objects.filter(tags=rule.tag, difficulty__gte=min_diff, difficulty__lte=max_diff).order_by('?')[:rule.questions_count]
+                second_section.questions.add(*questions)
 
 class UserAttemptSection(models.Model):
     attempt = models.ForeignKey(UserAttempt, on_delete=models.CASCADE, related_name='section_attempts',
                                  verbose_name="Urinish")
     section = models.ForeignKey(ExamSection, on_delete=models.CASCADE, verbose_name="Bo‘lim")
     score = models.PositiveIntegerField(default=0, verbose_name="Bo‘lim balli")
-    ability_estimate = models.FloatField(default=0.0, verbose_name="Taxminiy qobiliyat (Rasch)")
+    ability_estimate = models.FloatField(default=0.0, verbose_name="Taxminiy qobiliyat (IRT)")
     correct_answers_count = models.PositiveIntegerField(default=0, verbose_name="To'g'ri javoblar soni")
     incorrect_answers_count = models.PositiveIntegerField(default=0, verbose_name="Noto'g'ri javoblar soni")
     started_at = models.DateTimeField(auto_now_add=True)
@@ -627,6 +906,7 @@ class UserAttemptSection(models.Model):
     questions = models.ManyToManyField(Question, related_name='attempted_in_sections', blank=True,
                                        verbose_name="Berilgan savollar")
     remaining_time_seconds = models.PositiveIntegerField(null=True, blank=True, verbose_name="Qolgan vaqt (soniya)")
+    is_completed = models.BooleanField(default=False, verbose_name="Yakunlangan")
 
     class Meta:
         verbose_name = "Bo‘lim urinishi"
@@ -642,6 +922,7 @@ class UserAnswer(models.Model):
     selected_options = models.ManyToManyField(AnswerOption, blank=True, verbose_name="Tanlangan variantlar")
     short_answer_text = models.CharField(max_length=255, blank=True, null=True, verbose_name="Qisqa javob matni")
     is_correct = models.BooleanField(null=True, verbose_name="To'g'riligi")
+    is_marked_for_review = models.BooleanField(default=False, verbose_name="Ko'rib chiqish uchun belgilangan")
     answered_at = models.DateTimeField(auto_now_add=True)
     time_taken_seconds = models.PositiveIntegerField(null=True, blank=True, verbose_name="Sarflangan vaqt (soniya)")
 
@@ -653,10 +934,10 @@ class UserAnswer(models.Model):
     def __str__(self):
         return f"{self.attempt_section.attempt.user.username} javobi"
 
-
 # =================================================================
 # 6. SAVOL YECHIMLARINI KO'RISHNI NAZORAT QILISH
 # =================================================================
+
 class UserSolutionView(models.Model):
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='solution_views')
     question = models.ForeignKey(Question, on_delete=models.CASCADE, related_name='solution_views')
@@ -674,6 +955,7 @@ class UserSolutionView(models.Model):
 # =================================================================
 # 8. FOYDALANUVCHI FAOLIYATI VA XABARNOMALAR
 # =================================================================
+
 class Notification(models.Model):
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='notifications')
     title = models.CharField(max_length=255, verbose_name="Sarlavha")
@@ -695,13 +977,62 @@ class Notification(models.Model):
 # =================================================================
 # 9. GAMIFIKATSIYA MODELLARI
 # =================================================================
+
 class Badge(models.Model):
+    TRIGGER_TYPES = [
+        ('exam_completed', 'Imtihon yakunlandi'),  # Misol: exam_count=5 (5 ta imtihon yakunlagan bo'lsa)
+        ('score_achieved', 'Ball yetkazildi'),     # Misol: min_score=80 (80 ball yetkazgan bo'lsa)
+        ('streak', 'Ketma-ketlik'),                # Misol: streak_days=7 (7 kun ketma-ket mashq qilgan bo'lsa)
+        ('flashcard_learned', 'Flashcard o\'rganildi'),  # Misol: flashcard_count=50 (50 ta flashcard o'rganilgan bo'lsa)
+        # Yangi meyorlar qo'shildi
+        ('daily_high_score', 'Eng yaxshi kunlik natija'),  # Kunlik eng yuqori ball
+        ('referral', 'Do\'stlarni taklif qilish'),         # Taklif qilingan do'stlar soni
+    ]
     title = models.CharField(max_length=100, unique=True, verbose_name="Nishon nomi")
     description = models.TextField(verbose_name="Tavsif")
     icon = models.ImageField(upload_to='badges/', verbose_name="Nishon ikonasi")
-    trigger_condition = models.CharField(max_length=100, verbose_name="Trigger sharti")
-    condition_params = JSONField(null=True, blank=True, verbose_name="Shart parametrlari",
-                                 help_text="JSON formatida qo'shimcha shartlar (masalan, {'min_score': 80, 'exam_count': 5})")
+    trigger_type = models.CharField(
+        max_length=50,
+        choices=TRIGGER_TYPES,
+        verbose_name="Meyor turi",
+        help_text="Nishon qachon berilishini tanlang"
+    )
+    # Har bir meyor uchun alohida maydonlar (JSON emas, oddiy kiritish)
+    exam_count = models.PositiveIntegerField(
+        default=0,
+        blank=True,
+        verbose_name="Imtihonlar soni (imtihon yakunlash meyorida)",
+        help_text="Agar 'Imtihon yakunlandi' tanlangan bo'lsa, shu son yetkazilsa nishon beriladi"
+    )
+    min_score = models.PositiveIntegerField(
+        default=0,
+        blank=True,
+        verbose_name="Minimal ball (ball yetkazish meyorida)",
+        help_text="Agar 'Ball yetkazildi' tanlangan bo'lsa, shu balldan yuqori bo'lsa nishon beriladi"
+    )
+    streak_days = models.PositiveIntegerField(
+        default=0,
+        blank=True,
+        verbose_name="Ketma-ket kunlar soni (ketma-ketlik meyorida)",
+        help_text="Agar 'Ketma-ketlik' tanlangan bo'lsa, shu kun ketma-ket mashq qilinsa nishon beriladi"
+    )
+    flashcard_count = models.PositiveIntegerField(
+        default=0,
+        blank=True,
+        verbose_name="Flashcardlar soni (flashcard o'rganish meyorida)",
+        help_text="Agar 'Flashcard o'rganildi' tanlangan bo'lsa, shu son o'rganilsa nishon beriladi"
+    )
+    # Yangi meyorlar uchun maydonlar
+    daily_min_score = models.PositiveIntegerField(
+        default=0,
+        blank=True,
+        verbose_name="Kunlik minimal ball (eng yaxshi kunlik natija meyorida)"
+    )
+    referral_count = models.PositiveIntegerField(
+        default=0,
+        blank=True,
+        verbose_name="Taklif qilingan do'stlar soni (referral meyorida)"
+    )
 
     def __str__(self):
         return self.title
@@ -723,9 +1054,48 @@ class UserBadge(models.Model):
     def __str__(self):
         return f"{self.user.username} - {self.badge.title}"
 
+class LeaderboardEntry(models.Model):
+    LEADERBOARD_TYPES = [
+        ('effort', 'Mehnat bo\'yicha (ko\'p imtihon ishlaganlar)'),
+        ('performance', 'Natija bo\'yicha (yuqori ball olganlar)'),
+    ]
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='leaderboard_entries')
+    leaderboard_type = models.CharField(max_length=20, choices=LEADERBOARD_TYPES, verbose_name="Leaderboard turi")
+    week_number = models.PositiveIntegerField(verbose_name="Hafta raqami")  # Haftalik reset uchun
+    score = models.PositiveIntegerField(default=0, verbose_name="Ball yoki ko'rsatkich")
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Leaderboard kirishi"
+        verbose_name_plural = "Leaderboard kirishlari"
+        unique_together = ('user', 'leaderboard_type', 'week_number')
+        indexes = [
+            models.Index(fields=['leaderboard_type', 'week_number', '-score']),
+        ]
+        ordering = ['-score']
+
+    def __str__(self):
+        return f"{self.user.username} - {self.get_leaderboard_type_display()} (Hafta {self.week_number}): {self.score}"
+
+class UserMissionProgress(models.Model):
+    user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='mission_progress')
+    exam_attempts_completed = models.PositiveIntegerField(default=0, verbose_name="Yakunlangan exam mode urinishlari")
+    study_attempts_completed = models.PositiveIntegerField(default=0, verbose_name="Yakunlangan study mode urinishlari")
+    highest_score = models.PositiveIntegerField(default=0, verbose_name="Eng yuqori ball (exam mode)")
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Foydalanuvchi missiya progressi"
+        verbose_name_plural = "Foydalanuvchi missiya progresslari"
+
+    def __str__(self):
+        return f"{self.user.username} - Exam: {self.exam_attempts_completed}, Study: {self.study_attempts_completed}"
+
+
 # =================================================================
 # 10. MA'LUMOTLAR ARXIVI
 # =================================================================
+
 class UserAnswerArchive(models.Model):
     attempt_section = models.ForeignKey(UserAttemptSection, on_delete=models.CASCADE, related_name='archived_answers')
     question = models.ForeignKey(Question, on_delete=models.CASCADE)

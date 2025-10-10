@@ -1,0 +1,161 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Imtihonlar Markazi{% endblock %}
+
+{% block content %}
+<div class="container mx-auto px-4 py-8 md:py-12">
+    <div class="text-center mb-10 md:mb-12">
+        <h1 class="text-3xl sm:text-4xl lg:text-5xl font-extrabold text-slate-800 tracking-tight">
+            Imtihonlar Markazi
+        </h1>
+        <p class="mt-3 text-base sm:text-lg text-slate-600 max-w-3xl mx-auto">
+            Bilimingizni sinang, natijalaringizni tahlil qiling va SAT imtihoniga to'liq tayyorlaning.
+        </p>
+        <div class="mt-8 max-w-xl mx-auto">
+            <div class="relative flex items-center">
+            
+                <input type="text" id="exam-search-input" placeholder="Imtihon nomini kiriting..." class="w-full pl-5 pr-12 py-3 text-lg border-2 border-slate-200 rounded-full focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition">
+                
+                <i class="fa-solid fa-search absolute right-5 text-slate-400 text-xl"></i>
+                
+            </div>
+        </div>
+    </div>
+
+    <section class="exam-section mb-12">
+        <h2 class="text-2xl font-bold text-slate-800 mb-4">Yangi Qo'shilgan</h2>
+        <div class="horizontal-scroll flex gap-6 pb-4 -mb-4">
+            {% for exam_data in new_exams %}
+                {% include 'partials/exam_card.html' with exam_data=exam_data %}
+            {% empty %}
+                <p class="text-slate-500">Hozircha yangi imtihonlar yo'q.</p>
+            {% endfor %}
+        </div>
+    </section>
+
+    <section class="exam-section mb-12">
+        <h2 class="text-2xl font-bold text-slate-800 mb-4">Eng Ommabop</h2>
+        <div class="horizontal-scroll flex gap-6 pb-4 -mb-4">
+            {% for exam_data in popular_exams %}
+                {% include 'partials/exam_card.html' with exam_data=exam_data %}
+            {% empty %}
+                <p class="text-slate-500">Ommabop imtihonlar hali shakllanmadi.</p>
+            {% endfor %}
+        </div>
+    </section>
+
+    <section class="exam-section">
+        <h2 class="text-2xl font-bold text-slate-800 mb-4">Bepul Imtihonlar</h2>
+        <div class="horizontal-scroll flex gap-6 pb-4 -mb-4">
+            {% for exam_data in free_exams %}
+                {% include 'partials/exam_card.html' with exam_data=exam_data %}
+            {% empty %}
+                <p class="text-slate-500">Hozircha bepul imtihonlar yo'q.</p>
+            {% endfor %}
+        </div>
+    </section>
+
+    <div id="no-search-results" class="hidden text-center mt-12 p-8 bg-slate-50 rounded-lg border-2 border-dashed">
+        <p class="text-lg text-slate-500">Afsuski, qidiruvingiz bo'yicha hech narsa topilmadi.</p>
+    </div>
+</div>
+
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    // Qidiruv funksiyasi (o'zgarmaydi)
+    const searchInput = document.getElementById('exam-search-input');
+    const allSections = document.querySelectorAll('.exam-section');
+    const noResultsMessage = document.getElementById('no-search-results');
+
+    searchInput.addEventListener('input', (e) => {
+        const searchTerm = e.target.value.toLowerCase().trim();
+        let totalVisibleCards = 0;
+
+        allSections.forEach(section => {
+            let sectionHasVisibleCard = false;
+            const cardsInSection = section.querySelectorAll('.exam-card');
+
+            cardsInSection.forEach(card => {
+                const title = card.querySelector('h3').textContent.toLowerCase();
+                if (title.includes(searchTerm)) {
+                    card.style.display = 'flex';
+                    sectionHasVisibleCard = true;
+                    totalVisibleCards++;
+                } else {
+                    card.style.display = 'none';
+                }
+            });
+            section.style.display = sectionHasVisibleCard ? 'block' : 'none';
+        });
+
+        noResultsMessage.style.display = totalVisibleCards === 0 && searchTerm !== '' ? 'block' : 'none';
+    });
+
+    // Imtihonni boshlash uchun JS
+    function getCookie(name) {
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+            const cookies = document.cookie.split(';');
+            for (let i = 0; i < cookies.length; i++) {
+                const cookie = cookies[i].trim();
+                if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
+                }
+            }
+        }
+        return cookieValue;
+    }
+    const csrftoken = getCookie('csrftoken');
+    
+    document.querySelectorAll('.start-exam-btn').forEach(button => {
+        button.addEventListener('click', async (e) => {
+            e.preventDefault();
+            const examId = button.dataset.examId;
+            if (!examId) {
+                console.error('examId not found in button dataset');
+                alert('Imtihon ID topilmadi.');
+                return;
+            }
+            const originalHtml = button.innerHTML;
+            button.disabled = true;
+            button.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Yuklanmoqda...';
+            try {
+                const response = await fetch(`/start-exam/${examId}/`, {
+                    method: 'POST',
+                    headers: { 
+                        'X-CSRFToken': csrftoken, 
+                        'Accept': 'application/json',
+                        'Content-Type': 'application/json' // JSON yuborish uchun
+                    },
+                    body: JSON.stringify({}) // Bo'sh JSON, agar kerak bo'lsa qo'shimcha ma'lumot yuboriladi
+                });
+                if (!response.ok) {
+                    const text = await response.text();
+                    console.error('Non-JSON response:', text);
+                    throw new Error(`HTTP error! Status: ${response.status}`);
+                }
+                const data = await response.json();
+                if (data.status === 'success' && data.exam_url) {
+                    window.location.href = data.exam_url;
+                } else {
+                    console.error('Server response error:', data.message);
+                    alert(data.message || 'Xatolik yuz berdi.');
+                    button.disabled = false;
+                    button.innerHTML = originalHtml;
+                }
+            } catch (error) {
+                console.error('Fetch error:', error);
+                alert('Ulanishda xatolik: ' + error.message);
+                button.disabled = false;
+                button.innerHTML = originalHtml;
+            }
+        });
+    });
+});
+</script>
+{% endblock %}
+{% endblock %}

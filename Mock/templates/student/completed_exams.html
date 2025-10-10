@@ -1,0 +1,164 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Tugatilgan imtihonlar{% endblock %}
+
+{% block content %}
+<div class="container mx-auto px-4 py-8 md:py-12">
+    <div class="text-center mb-10 md:mb-12">
+        <h1 class="text-3xl sm:text-4xl lg:text-5xl font-extrabold text-slate-800 tracking-tight">
+            Natijalar Arxivi
+        </h1>
+        <p class="mt-3 text-base sm:text-lg text-slate-600 max-w-3xl mx-auto">Sizning barcha yakunlangan sinovlaringiz va ularning natijalari.</p>
+        <div class="mt-8 max-w-xl mx-auto">
+            <div class="relative">
+
+                <input type="text" id="exam-search-input" placeholder="Imtihon nomini qidiring..." class="w-full pl-5 pr-12 py-3 text-lg border-2 border-slate-200 rounded-full focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition">
+                
+                <div class="absolute inset-y-0 right-0 flex items-center pr-5 pointer-events-none">
+                    <i class="fa-solid fa-search text-slate-400 text-xl"></i>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    {% if not top_results and not recent_results %}
+        <div class="col-span-full text-center mt-12 p-8 bg-slate-50 rounded-2xl border-2 border-dashed">
+            <i class="fas fa-box-open text-5xl text-slate-400 mb-4"></i>
+            <h3 class="text-2xl font-bold text-slate-700">Tugatilgan Imtihonlar Yo'q</h3>
+            <p class="text-lg text-slate-500 mt-2">Imtihon topshirib, o'z bilimingizni sinab ko'ring! 🚀</p>
+            <a href="{% url 'all_exams' %}" class="btn-primary mt-6 inline-block">Imtihonlar Ro'yxatiga O'tish</a>
+        </div>
+    {% else %}
+        <section class="exam-section mb-12">
+            <h2 class="text-2xl font-bold text-slate-800 mb-4">Eng Yuqori Ballar</h2>
+            <div class="horizontal-scroll">
+                {% for result in top_results %}
+                    {% include 'partials/completed_exam_card.html' with result=result %}
+                {% endfor %}
+            </div>
+        </section>
+
+        <section class="exam-section">
+            <h2 class="text-2xl font-bold text-slate-800 mb-4">Oxirgi Topshirilganlar</h2>
+            <div class="horizontal-scroll">
+                {% for result in recent_results %}
+                    {% include 'partials/completed_exam_card.html' with result=result %}
+                {% endfor %}
+            </div>
+        </section>
+        
+        <div id="no-search-results" class="hidden text-center mt-12 p-8 bg-slate-50 rounded-lg border-2 border-dashed">
+            <p class="text-lg text-slate-500">Afsuski, qidiruvingiz bo'yicha hech narsa topilmadi.</p>
+        </div>
+    {% endif %}
+</div>
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    // 1. QIDIRUV KODI (BU O'ZI SIZDA BOR)
+    const searchInput = document.getElementById('exam-search-input');
+    if (searchInput) {
+        const allSections = document.querySelectorAll('.exam-section');
+        const noResultsMessage = document.getElementById('no-search-results');
+        
+        searchInput.addEventListener('input', (e) => {
+            const searchTerm = e.target.value.toLowerCase().trim();
+            let totalVisibleCards = 0;
+            
+            allSections.forEach(section => {
+                let sectionHasVisibleCard = false;
+                const cardsInSection = section.querySelectorAll('.exam-card-wrapper');
+                
+                cardsInSection.forEach(card => {
+                    const title = card.querySelector('h3').textContent.toLowerCase();
+                    if (title.includes(searchTerm)) {
+                        card.style.display = 'block'; // 'flex' o'rniga 'block' ishlatamiz
+                        sectionHasVisibleCard = true;
+                        totalVisibleCards++;
+                    } else {
+                        card.style.display = 'none';
+                    }
+                });
+                section.style.display = sectionHasVisibleCard ? 'block' : 'none';
+            });
+            
+            if (noResultsMessage) {
+                noResultsMessage.style.display = totalVisibleCards === 0 && searchTerm !== '' ? 'block' : 'none';
+            }
+        });
+    }
+
+    // 2. TUGMALAR UCHUN KOD (MANA SHU QISM QO'SHILISHI KERAK)
+    
+    function getCookie(name) {
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+            const cookies = document.cookie.split(';');
+            for (let i = 0; i < cookies.length; i++) {
+                const cookie = cookies[i].trim();
+                if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
+                }
+            }
+        }
+        return cookieValue;
+    }
+    const csrftoken = getCookie('csrftoken');
+    
+    document.querySelectorAll('.start-exam-btn').forEach(button => {
+        button.addEventListener('click', async (e) => {
+            e.preventDefault();
+            const examId = button.dataset.examId;
+            if (!examId) {
+                console.error('examId not found in button dataset');
+                alert('Imtihon ID topilmadi.');
+                return;
+            }
+            
+            const originalHtml = button.innerHTML;
+            button.disabled = true;
+            button.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Yuklanmoqda...';
+            
+            try {
+                const response = await fetch(`/start-exam/${examId}/`, {
+                    method: 'POST',
+                    headers: { 
+                        'X-CSRFToken': csrftoken, 
+                        'Accept': 'application/json',
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({})
+                });
+                
+                if (!response.ok) {
+                    const text = await response.text();
+                    console.error('Server error response:', text);
+                    throw new Error(`Server xatosi: ${response.status}`);
+                }
+                
+                const data = await response.json();
+                
+                if (data.status === 'success' && data.exam_url) {
+                    window.location.href = data.exam_url;
+                } else {
+                    console.error('Server response error:', data.message);
+                    alert(data.message || 'Xatolik yuz berdi.');
+                    button.disabled = false;
+                    button.innerHTML = originalHtml;
+                }
+            } catch (error) {
+                console.error('Fetch error:', error);
+                alert('Ulanishda xatolik: ' + error.message);
+                button.disabled = false;
+                button.innerHTML = originalHtml;
+            }
+        });
+    });
+});
+</script>
+{% endblock %}
+{% endblock %}

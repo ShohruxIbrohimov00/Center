@@ -1,0 +1,153 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Mening profilim{% endblock %}
+
+{% block content %}
+<div class="bg-slate-50 min-h-screen">
+<div class="container mx-auto px-4 py-8 md:py-12">
+    <div class="max-w-4xl mx-auto">
+        
+        <div class="bg-white p-6 rounded-2xl shadow-lg mb-8 flex flex-col sm:flex-row items-center gap-6">
+            {% if user.profile_picture %}
+                <img src="{{ user.profile_picture.url }}" alt="Profil rasmi" class="w-24 h-24 rounded-full object-cover border-4 border-indigo-200">
+            {% else %}
+                <div class="w-24 h-24 rounded-full bg-slate-200 flex items-center justify-center text-slate-500 text-5xl border-4 border-slate-300 flex-shrink-0">
+                    <i class="fas fa-user"></i>
+                </div>
+            {% endif %}
+            <div class="text-center sm:text-left">
+                <h1 class="text-3xl font-extrabold text-slate-800">{{ user.get_full_name|default:user.username }}</h1>
+                <p class="text-slate-500 mt-1">{{ user.bio|default:"Ma'lumotlar kiritilmagan"|truncatechars:80 }}</p>
+            </div>
+            <div class="sm:ml-auto flex gap-3 mt-4 sm:mt-0">
+                <a href="{% url 'change_password' %}" class="btn btn-outline">
+                    <i class="fas fa-key"></i> Parolni o'zgartirish
+                </a>
+            </div>
+        </div>
+        
+        <div class="bg-white rounded-2xl shadow-lg">
+            <div class="border-b border-slate-200">
+                <nav class="-mb-px flex gap-6 px-6" id="profile-tabs">
+                    <button data-tab="personal-info" class="tab-btn active">Shaxsiy ma'lumotlar</button>
+                    <button data-tab="balance" class="tab-btn">Mening balansim</button>
+                </nav>
+            </div>
+
+            <div class="p-6 md:p-8">
+                <div id="personal-info-content" class="tab-content">
+                    <form action="{% url 'profile' %}" method="POST" enctype="multipart/form-data" class="space-y-6">
+                        {% csrf_token %}
+                        
+                        <div>
+                            <label class="block text-sm font-semibold text-slate-700 mb-2">Foydalanuvchi nomi (username)</label>
+                            <input type="text" value="{{ user.username }}" class="form-field bg-slate-100 cursor-not-allowed" disabled>
+                            <p class="text-xs text-slate-500 mt-1">Foydalanuvchi nomini o'zgartirib bo'lmaydi.</p>
+                        </div>
+
+                        <div>
+                            <label for="{{ form.full_name.id_for_label }}" class="block text-sm font-semibold text-slate-700 mb-2">{{ form.full_name.label }}</label>
+                            {{ form.full_name }}
+                        </div>
+                        
+                        <div>
+                            <label for="{{ form.email.id_for_label }}" class="block text-sm font-semibold text-slate-700 mb-2">{{ form.email.label }}</label>
+                            {{ form.email }}
+                        </div>
+
+                        <div>
+                            <label for="{{ form.profile_picture.id_for_label }}" class="block text-sm font-semibold text-slate-700 mb-2">{{ form.profile_picture.label }}</label>
+                            {{ form.profile_picture }}
+                            {% if user.profile_picture %}
+                                <p class="text-xs text-slate-500 mt-1">Joriy rasm: <a href="{{ user.profile_picture.url }}" target="_blank" class="text-indigo-600">{{ user.profile_picture.name|truncatechars:20 }}</a></p>
+                            {% endif %}
+                        </div>
+                        
+                        <div>
+                            <label for="{{ form.bio.id_for_label }}" class="block text-sm font-semibold text-slate-700 mb-2">{{ form.bio.label }}</label>
+                            {{ form.bio }}
+                        </div>
+                        
+                        <div class="pt-4">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-save mr-2"></i> O'zgarishlarni Saqlash
+                            </button>
+                        </div>
+                    </form>
+                </div>
+
+                <div id="balance-content" class="tab-content hidden">
+                    <div class="space-y-6">
+                        <div>
+                            <h3 class="text-xl font-bold text-slate-800 mb-4 flex items-center"><i class="fas fa-star mr-3 text-yellow-500"></i>Obuna Ma'lumotlari</h3>
+                                {% if subscription and subscription.is_active %}
+                                    <div class="bg-slate-50 p-4 rounded-lg space-y-2 border border-slate-200">
+                                        <p>Joriy tarif: <span class="font-bold text-slate-900">{{ subscription.plan.name }}</span></p>
+                                        <p>Holat: <span class="font-semibold text-green-600">Faol</span></p>
+                                        <p>Tugash sanasi: <span class="font-semibold">{{ subscription.end_date|date:"d M, Y" }}</span></p>
+                                    </div>
+                                {% else %}
+                                    <div class="bg-slate-50 p-4 rounded-lg text-center border border-slate-200">
+                                        <p class="text-slate-600 mb-4">Sizda faol obuna mavjud emas.</p>
+                                        <a href="{% url 'price' %}" class="btn btn-primary">
+                                            Obuna Sotib Olish
+                                        </a>
+                                    </div>
+                                {% endif %}
+                        </div>
+                        <div>
+                            <h3 class="text-xl font-bold text-slate-800 mb-4 flex items-center"><i class="fas fa-gem mr-3 text-indigo-500"></i>Kreditlar Balansi</h3>
+                            {% if user_balance %}
+                                <div class="bg-slate-50 p-4 rounded-lg space-y-3 border border-slate-200">
+                                    <p class="flex justify-between items-center text-lg"><span>Imtihon kreditlari:</span> <span class="font-bold text-indigo-600 px-2 py-1 bg-indigo-100 rounded-md">{{ user_balance.exam_credits }} ta</span></p>
+                                    <p class="flex justify-between items-center text-lg"><span>Yechim kreditlari:</span> <span class="font-bold text-indigo-600 px-2 py-1 bg-indigo-100 rounded-md">{{ user_balance.solution_view_credits }} ta</span></p>
+                                </div>
+                            {% else %}
+                                <p class="text-slate-600">Sizda hozircha kreditlar yo'q.</p>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+</div>
+
+<style>
+    /* Formalar uchun stillar (agar custom.css da bo'lmasa) */
+    .form-field { display: block; width: 100%; padding: 0.75rem 1rem; font-size: 1rem; color: #334155; background-color: #ffffff; border: 1px solid #cbd5e1; border-radius: 0.5rem; transition: all 0.2s ease-in-out; }
+    .form-field:focus { outline: none; border-color: var(--primary-color); box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.2); }
+    .form-field-file { display: block; width: 100%; font-size: 1rem; color: #334155; }
+    textarea.form-field { min-height: 100px; }
+
+    /* Tab-menyular uchun stillar */
+    .tab-btn { padding: 1rem 0.5rem; font-weight: 600; color: var(--slate-light); border-bottom: 3px solid transparent; transition: all 0.2s ease-in-out; }
+    .tab-btn.active { color: var(--primary-color); border-bottom-color: var(--primary-color); }
+    .tab-btn:hover { color: var(--slate-text); }
+</style>
+
+{% block extra_js %}
+<script>
+// Tab menyularni ishlatish uchun JavaScript
+document.addEventListener('DOMContentLoaded', () => {
+    const tabs = document.querySelectorAll('#profile-tabs .tab-btn');
+    const contents = document.querySelectorAll('.tab-content');
+
+    tabs.forEach(tab => {
+        tab.addEventListener('click', () => {
+            const targetId = tab.dataset.tab;
+            tabs.forEach(t => t.classList.remove('active'));
+            tab.classList.add('active');
+            contents.forEach(content => content.classList.add('hidden'));
+            const targetContent = document.getElementById(targetId + '-content');
+            if(targetContent) {
+                targetContent.classList.remove('hidden');
+            }
+        });
+    });
+});
+</script>
+{% endblock %}
+{% endblock %}

@@ -1,0 +1,158 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}To'lovni tasdiqlash{% endblock %}
+
+{% block content %}
+<div class="bg-slate-50">
+    <div class="container mx-auto px-4 py-12 md:py-20">
+        <div class="max-w-4xl mx-auto">
+            <div class="text-center mb-8">
+                <h1 class="text-3xl md:text-4xl font-extrabold text-slate-800">To'lovni Tasdiqlash</h1>
+                <p class="mt-2 text-lg text-slate-500">Xaridingizni yakunlash uchun so'nggi qadamlar.</p>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-5 gap-8 items-start">
+                
+                <div class="lg:col-span-2">
+                    <div class="bg-white p-6 rounded-2xl shadow-lg border border-slate-200">
+                        <p class="font-bold text-lg mb-2 text-indigo-600">1-qadam: To'lovni o'tkazing</p>
+                        <div class="bg-slate-100 text-slate-800 p-4 rounded-lg text-center space-y-2">
+                            <p class="text-sm">To'lov summasi: <span class="font-bold text-lg">{{ purchase.amount|floatformat:"0" }} so'm</span></p>
+                            {% if site_settings %}
+                                <div class="relative group">
+                                    <p id="card-number" class=" font-mono font-bold tracking-wider break-all">{{ site_settings.payment_card_number }}</p>
+                                    <button id="copy-btn" title="Nusxalash" class="absolute -top-1 -right-1 bg-slate-300 hover:bg-slate-400 text-slate-700 p-1.5 rounded-md opacity-0 group-hover:opacity-100 transition-opacity">
+                                        <i class="far fa-copy"></i>
+                                    </button>
+                                </div>
+                                <p class="text-sm">Qabul qiluvchi: {{ site_settings.payment_card_holder }}</p>
+                            {% else %}
+                                <p class="my-2 text-yellow-500">To'lov ma'lumotlari admin tomonidan kiritilmagan.</p>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+
+                <div class="lg:col-span-3 lg:row-span-2">
+                     <div class="bg-white p-6 md:p-8 rounded-2xl shadow-xl border-2 border-indigo-200 h-full">
+                        <p class="font-bold text-lg mb-2 text-indigo-600">2-qadam: To'lovni tasdiqlang</p>
+                        <p class="text-slate-600 mb-6">To'lov chekini (skrinshot) yuklang va "To'lov qildim" tugmasini bosing.</p>
+                        <form method="POST" enctype="multipart/form-data" class="space-y-6">
+                            {% csrf_token %}
+                            <div>
+                                <label for="{{ form.payment_screenshot.id_for_label }}" class="font-semibold text-slate-700 block mb-2">{{ form.payment_screenshot.label }}</label>
+                                <div id="file-upload-wrapper" class="relative border-2 border-dashed border-slate-300 rounded-lg p-6 text-center cursor-pointer hover:border-indigo-500 transition-colors">
+                                    <div class="flex flex-col items-center">
+                                        <i class="fas fa-cloud-upload-alt text-4xl text-slate-400"></i>
+                                        <p id="file-upload-text" class="mt-2 text-sm text-slate-500">Faylni tanlang yoki shu yerga tashlang</p>
+                                        <span id="file-name" class="mt-2 text-xs font-semibold text-indigo-600"></span>
+                                    </div>
+                                    {{ form.payment_screenshot }}
+                                </div>
+                                {% if form.payment_screenshot.errors %}
+                                    <p class="text-sm text-red-600 mt-1">{{ form.payment_screenshot.errors.0 }}</p>
+                                {% endif %}
+                            </div>
+                            <div>
+                                <label for="{{ form.payment_comment.id_for_label }}" class="font-semibold text-slate-700 block mb-2">{{ form.payment_comment.label }}</label>
+                                {{ form.payment_comment }}
+                            </div>
+                            <button type="submit" class="btn btn-primary w-full py-3 text-lg">
+                                <i class="fas fa-check-circle mr-2"></i> To'lov qildim
+                            </button>
+                        </form>
+                    </div>
+                </div>
+
+                <div class="lg:col-span-2">
+                    <div class="bg-white p-6 rounded-2xl shadow-lg border border-slate-200">
+                        <p class="font-bold text-lg mb-4 text-indigo-600">Tasdiqlash jarayoni</p>
+                        <div class="space-y-4">
+                            <div class="flex items-start gap-3">
+                                <i class="fas fa-hourglass-half mt-1 text-slate-500 fa-fw"></i>
+                                <div>
+                                    <h4 class="font-semibold text-slate-700">Standart tasdiqlash</h4>
+                                    <p class="text-sm text-slate-500">To'lovingiz <b>1 soat ichida</b> tizim tomonidan avtomatik tasdiqlanadi.</p>
+                                </div>
+                            </div>
+                            {% if site_settings.manager_phone_number %}
+                            <div class="flex items-start gap-3">
+                                <i class="fas fa-phone-alt mt-1 text-green-500 fa-fw"></i>
+                                <div>
+                                    <h4 class="font-semibold text-slate-700">Tezkor tasdiqlash</h4>
+                                    <p class="text-sm text-slate-500">Menejerga <a href="tel:{{ site_settings.manager_phone_number }}" class="font-bold text-green-600 hover:underline">{{ site_settings.manager_phone_number }}</a> raqamiga telefon qilib, to'lovingizni bir necha daqiqada tasdiqlating.</p>
+                                </div>
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="mt-8 text-center">
+                <a href="{% url 'price' %}" class="text-sm text-slate-500 hover:underline">&larr; Boshqa tarif tanlash</a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    #file-upload-wrapper input[type="file"] { position: absolute; width: 100%; height: 100%; top: 0; left: 0; opacity: 0; cursor: pointer; }
+    textarea {
+        display: block; width: 100%; padding: 0.75rem 1rem; font-size: 1rem;
+        color: #334155; background-color: #ffffff; border: 1px solid #cbd5e1;
+        border-radius: 0.5rem; min-height: 80px;
+        transition: border-color 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+    }
+    textarea:focus {
+        outline: none; border-color: var(--primary-color);
+        box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.2);
+    }
+</style>
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    // Fayl yuklash logikasi
+    const fileInput = document.getElementById('{{ form.payment_screenshot.id_for_label }}');
+    if(fileInput) {
+        const fileNameSpan = document.getElementById('file-name');
+        const uploadText = document.getElementById('file-upload-text');
+        const wrapper = document.getElementById('file-upload-wrapper');
+        fileInput.addEventListener('change', () => {
+            if (fileInput.files.length > 0) {
+                fileNameSpan.textContent = fileInput.files[0].name;
+                uploadText.textContent = "Fayl tanlandi:";
+                wrapper.classList.remove('border-slate-300');
+                wrapper.classList.add('border-green-500', 'bg-green-50');
+            } else {
+                fileNameSpan.textContent = '';
+                uploadText.textContent = "Faylni tanlang yoki shu yerga tashlang";
+                wrapper.classList.add('border-slate-300');
+                wrapper.classList.remove('border-green-500', 'bg-green-50');
+            }
+        });
+    }
+
+    // Karta raqamini nusxalash logikasi
+    const copyBtn = document.getElementById('copy-btn');
+    if(copyBtn) {
+        const cardNumberEl = document.getElementById('card-number');
+        copyBtn.addEventListener('click', () => {
+            navigator.clipboard.writeText(cardNumberEl.textContent.replace(/\s/g, ''))
+                .then(() => {
+                    copyBtn.innerHTML = '<i class="fas fa-check"></i>';
+                    setTimeout(() => {
+                        copyBtn.innerHTML = '<i class="far fa-copy"></i>';
+                    }, 2000);
+                })
+                .catch(err => {
+                    console.error('Nusxalashda xato:', err);
+                });
+        });
+    }
+});
+</script>
+{% endblock %}
+{% endblock %}

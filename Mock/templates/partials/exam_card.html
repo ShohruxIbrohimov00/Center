@@ -1,0 +1,92 @@
+{% with exam=exam_data.obj user_best_attempt=exam_data.user_best_attempt %}
+<div class="exam-card w-72 md:w-80 flex-shrink-0">
+    <div class="relative bg-white rounded-xl shadow-lg border border-slate-100 flex flex-col h-full transition-all duration-300 ease-in-out hover:shadow-2xl hover:-translate-y-1">
+        
+        {% if exam.price > 0 and exam_data.type == 'exam' %}
+            <div class="absolute top-3 right-3 flex items-center justify-center w-8 h-8 bg-indigo-100 rounded-full" title="Pullik imtihon">
+                <i class="fa-solid fa-lock text-indigo-500"></i>
+            </div>
+        {% endif %}
+
+        <div class="p-5 flex-grow flex flex-col">
+            <div class="flex-grow">
+                <h3 class="text-lg font-bold text-slate-800 mb-2 line-clamp-2 pr-8">{{ exam.title }}</h3>
+                <p class="text-slate-500 text-sm mb-4 line-clamp-2">{{ exam.description|default:"Bu test SAT rasmiy formati asosida tuzilgan." }}</p>
+
+                <div class="mt-4 flex flex-wrap gap-2">
+                    {% for section in exam.sections.all %}
+                        <span class="flex items-center gap-x-1.5 rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-700">
+                            {% if 'math' in section.section_type %}
+                                <i class="fa-solid fa-calculator text-slate-500"></i>
+                            {% else %}
+                                <i class="fa-solid fa-book-open text-slate-500"></i>
+                            {% endif %}
+                            {{ section.get_section_type_display }} M{{ section.module_number }}
+                        </span>
+                    {% endfor %}
+                </div>
+                
+                {% if user_best_attempt and user_best_attempt.final_total_score %}
+                    <div class="my-4 p-3 bg-green-50/70 border border-green-200 rounded-lg text-center">
+                        <span class="text-xs font-semibold text-green-800 block">Eng yaxshi natija</span>
+                        <p class="text-2xl font-extrabold text-green-600">{{ user_best_attempt.final_total_score }}</p>
+                    </div>
+                {% else %}
+                    <div class="my-4 p-3 bg-blue-50/70 border border-blue-200 rounded-lg grid grid-cols-2 gap-x-4 text-sm">
+                        <div class="info-item text-slate-600" title="Imtihon davomiyligi">
+                            <i class="fa-regular fa-clock text-blue-500"></i>
+                            <span class="font-semibold">{{ exam_data.total_duration|default:"N/A" }} daqiqa</span>
+                        </div>
+                        <div class="info-item text-slate-600" title="Jami savollar soni">
+                            <i class="fa-solid fa-list-ol text-blue-500"></i>
+                            <span class="font-semibold">{{ exam_data.total_questions|default:"N/A" }} savol</span>
+                        </div>
+                    </div>
+                {% endif %}
+            </div>
+            
+            <div class="mt-auto pt-4 border-t border-slate-100">
+                <div class="flex flex-col space-y-3">
+                    
+                    {% if user_best_attempt.id %}
+                        <a href="{% url 'exam_attempts' exam.id %}" class="btn btn-sm w-full btn-indigo">
+                            <i class="fas fa-chart-line"></i> Natijalar
+                        </a>
+                        <div class="grid grid-cols-2 gap-3">
+                            {% if exam_data.has_flashcard_exam %}
+                                <a href="{% url 'flashcard_exam_view' exam.flashcard_exam.id %}" class="btn btn-sm w-full btn-sky">
+                                    <i class="fa-solid fa-layer-group"></i> Lug'at
+                                </a>
+                            {% else %}
+                                <button class="btn btn-sm w-full btn-slate cursor-not-allowed" disabled><i class="fa-solid fa-layer-group"></i> Lug'at</button>
+                            {% endif %}
+                            
+                            <button type="button" 
+                                    class="start-exam-btn btn btn-sm w-full btn-slate" 
+                                    data-exam-id="{{ exam.id }}">
+                                <i class="fas fa-redo"></i> Imtihon
+                            </button>
+                        </div>
+
+                    {% elif exam_data.can_start_exam %}
+                        <button class="start-exam-btn btn btn-sm w-full btn-emerald" data-exam-id="{{ exam.id }}">
+                            <i class="fa-solid fa-play"></i> Testni Boshlash
+                        </button>
+                        {% if exam_data.has_flashcard_exam %}
+                        <a href="{% url 'flashcard_exam_view' exam.flashcard_exam.id %}" class="btn btn-sm w-full btn-sky">
+                            <i class="fa-solid fa-layer-group"></i> So'zlarni Yodlash
+                        </a>
+                        {% endif %}
+
+                    {% else %}
+                        <a href="{% url 'price' %}" class="btn btn-sm w-full btn-rose">
+                            <i class="fas fa-crown"></i> Paket sotib olish
+                        </a>
+                    {% endif %}
+
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endwith %}

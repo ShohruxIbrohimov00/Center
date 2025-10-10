@@ -1,0 +1,51 @@
+<div class="p-5 rounded-xl shadow-lg border 
+    {% if user_answer.is_correct %} border-green-200 bg-green-50/50 
+    {% elif user_answer.is_correct is None %} border-yellow-200 bg-yellow-50/50 
+    {% else %} border-red-200 bg-red-50/50 {% endif %}">
+    
+    <div class="flex justify-between items-center mb-4 border-b pb-3">
+        <p class="font-extrabold text-lg text-slate-800">Savol Tahlili</p>
+        <span class="text-xs font-semibold px-2.5 py-1 rounded-full 
+            {% if user_answer.is_correct %} bg-green-500 text-white 
+            {% elif user_answer.is_correct is None %} bg-yellow-500 text-slate-800 
+            {% else %} bg-red-500 text-white {% endif %}">
+            {% if user_answer.is_correct %}TO'G'RI{% elif user_answer.is_correct is None %}O'TKAZILGAN{% else %}NOTO'G'RI{% endif %}
+        </span>
+    </div>
+
+    <div class="text-slate-800 text-base mb-4 tex2jax_process">
+        {{ user_answer.question.text|safe }}
+    </div>
+
+    <ul class="space-y-2 mt-4">
+        {% for item in options_with_status %}
+        <li class="p-3 rounded-lg border flex items-start gap-3
+            {% if item.is_user_selected and item.is_correct %} bg-blue-100 border-blue-400 font-semibold {% endif %}
+            {% if not item.is_user_selected and item.is_correct %} bg-green-100 border-green-400 {% endif %}
+            {% if item.is_user_selected and not item.is_correct %} bg-red-100 border-red-400 font-semibold {% endif %}
+            {% if not item.is_user_selected and not item.is_correct %} bg-white border-slate-200 {% endif %}">
+            
+            {% if item.is_user_selected and item.is_correct %} <i class="fas fa-check-circle mt-1 text-blue-600"></i>
+            {% elif item.is_user_selected and not item.is_correct %} <i class="fas fa-times-circle mt-1 text-red-600"></i>
+            {% elif not item.is_user_selected and item.is_correct %} <i class="fas fa-check-circle mt-1 text-green-600"></i>
+            {% else %} <i class="far fa-circle mt-1 text-slate-400"></i>
+            {% endif %}
+            
+            <span class="flex-1 tex2jax_process">{{ item.option.text|safe }}</span>
+        </li>
+        {% endfor %}
+    </ul>
+
+    <div class="mt-6 border-t border-slate-200 pt-4">
+        {% if solution_viewed or is_solution_free %}
+        <h4 class="text-md font-bold text-indigo-700 mb-2">Yechim</h4>
+        <div class="solution-box tex2jax_process">
+            {{ user_answer.question.solution.detailed_solution|safe }}
+        </div>
+        {% else %}
+        <a href="{% url 'view_solution' user_answer.question.id %}?attempt_id={{ attempt.id }}" class="btn btn-sm btn-indigo">
+            <i class="fas fa-lock mr-2"></i> Yechimni ko'rish (1 kredit)
+        </a>
+        {% endif %}
+    </div>
+</div>

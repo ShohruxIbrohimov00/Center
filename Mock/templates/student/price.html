@@ -1,0 +1,198 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Tariflar{% endblock %}
+
+{% block content %}
+<div class="bg-slate-50">
+    <div class="container mx-auto px-4 py-12 md:py-20">
+        <div class="text-center mb-12 md:mb-16">
+            <h1 class="text-4xl sm:text-5xl lg:text-6xl font-extrabold text-slate-800 tracking-tight">
+                O'zingizga mos tarifni tanlang
+            </h1>
+            <p class="mt-4 text-lg text-slate-600 max-w-3xl mx-auto">
+                Shaxsiy imtihon paketlari yoki barcha imkoniyatlarni ochuvchi to'liq obuna orqali bilimingizni keyingi bosqichga olib chiqing.
+            </p>
+        </div>
+
+        {% if messages %}
+            <div class="max-w-4xl mx-auto mb-8 space-y-4">
+                {% for message in messages %}
+                    <div class="p-4 rounded-lg text-center font-semibold {% if message.tags == 'success' %}bg-green-100 text-green-800{% elif message.tags == 'error' %}bg-red-100 text-red-800{% endif %}">
+                        {{ message }}
+                    </div>
+                {% endfor %}
+            </div>
+        {% endif %}
+
+        <div class="flex justify-center mb-10">
+            <div class="flex p-1 bg-slate-200 rounded-full" id="pricing-toggle">
+                <button data-target="subscriptions" class="toggle-btn active">Obuna Rejalari</button>
+                <button data-target="packages" class="toggle-btn">Imtihon Paketlari</button>
+            </div>
+        </div>
+
+        <section id="subscriptions-section" class="pricing-section">
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 max-w-6xl mx-auto">
+                {% for plan in subscription_plans %}
+                <div class="relative flex flex-col rounded-2xl bg-white shadow-xl border-2 
+                    {% if forloop.counter == 2 %}border-indigo-500{% else %}border-slate-100{% endif %}">
+                    
+                    {% if forloop.counter == 2 %}
+                    <div class="absolute top-0 right-6 -translate-y-1/2 bg-indigo-500 text-white text-xs font-bold px-4 py-1 rounded-full uppercase tracking-wider">🏆 Tavsiya etamiz</div>
+                    {% endif %}
+
+                    <div class="p-8 text-center border-b border-slate-200">
+                        <h3 class="text-2xl font-bold text-slate-800">{{ plan.name }}</h3>
+                        <p class="mt-2 text-slate-500 text-sm min-h-[40px]">{{ plan.description|default:"" }}</p>
+                        <div class="mt-6">
+                            <span class="text-5xl font-extrabold text-slate-900">{{ plan.price|floatformat:"0" }}</span>
+                            <span class="text-lg font-medium text-slate-500">so'm</span>
+                        </div>
+                        <p class="mt-1 text-sm text-slate-500">{{ plan.duration_days }} kunlik obuna</p>
+                    </div>
+
+                    <div class="flex-grow p-8 border-y border-slate-100">
+                        <p class="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-4">Imkoniyatlar:</p>
+                        <ul class="space-y-4 text-slate-600">
+                            <li class="flex items-start">
+                                <i class="fas fa-check-circle text-indigo-500 mr-3 mt-1 flex-shrink-0"></i>
+                                <span><span class="font-semibold text-slate-700">Barcha imtihonlardan</span> cheklanmagan foydalanish</span>
+                            </li>
+                            <li class="flex items-start">
+                                {% if plan.includes_solution_access %}
+                                    <i class="fas fa-check-circle text-indigo-500 mr-3 mt-1 flex-shrink-0"></i>
+                                    <span><span class="font-semibold text-slate-700">Barcha yechimlarni</span> cheklanmasdan ko'rish</span>
+                                {% else %}
+                                    <i class="fas fa-times-circle text-slate-400 mr-3 mt-1 flex-shrink-0"></i>
+                                    <span class="text-slate-400">Yechimlarni ko'rish imkoniyati yo'q</span>
+                                {% endif %}
+                            </li>
+                        </ul>
+                    </div>
+                    
+                    <div class="p-8 mt-auto">
+                        <form action="{% url 'process_purchase' 'subscription' plan.id %}" method="POST">
+                            {% csrf_token %}
+                            {% if forloop.counter == 2 %}
+                            <button type="submit"
+                                class="btn btn-sm w-full py-3 btn-primary"
+                                style="background-color: #3b82f6; color: #fff; border: 2px solid #3b82f6; border-radius: 8px; font-weight: 600;">
+                                Obuna bo'lish
+                            </button>
+                            {% else %}
+                            <button type="submit"
+                                class="btn btn-sm w-full py-3 btn-outline"
+                                style="border: 2px solid #3b82f6; color: #3b82f6; background-color: transparent; border-radius: 8px; font-weight: 600;">
+                                Obuna bo'lish
+                            </button>
+                            {% endif %}
+                        </form>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </section>
+
+        <section id="packages-section" class="pricing-section hidden">
+             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 max-w-6xl mx-auto">
+                {% for package in exam_packages %}
+                <div class="flex flex-col rounded-2xl bg-white shadow-xl border-2 {% if forloop.counter == 2 %}border-indigo-500{% else %}border-slate-100{% endif %}">
+                    {% if forloop.counter == 2 %}
+                    <div class="absolute top-0 right-6 -translate-y-1/2 bg-indigo-500 text-white text-xs font-bold px-4 py-1 rounded-full uppercase tracking-wider">🏆 Tavsiya etamiz</div>
+                    {% endif %}
+                    <div class="p-8 text-center">
+                        <h3 class="text-2xl font-bold text-slate-800">{{ package.name }}</h3>
+                        <p class="mt-2 text-slate-500 text-sm min-h-[40px]">{{ package.description|default:"" }}</p>
+                        <div class="mt-6">
+                            <span class="text-5xl font-extrabold text-slate-900">{{ package.price|floatformat:"0" }}</span>
+                            <span class="text-lg font-medium text-slate-500">so'm</span>
+                        </div>
+                    </div>
+
+                    <div class="flex-grow p-8 border-y border-slate-100">
+                        <p class="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-4">Paketga kiritilgan:</p>
+                        <ul class="space-y-4 text-slate-600">
+                           <li class="flex items-start">
+                                <i class="fas fa-check-circle text-indigo-500 mr-3 mt-1 flex-shrink-0"></i>
+                                <span><span class="font-semibold text-slate-700">{{ package.exam_credits }} ta</span> imtihon krediti</span>
+                            </li>
+                             <li class="flex items-start">
+                                <i class="fas fa-check-circle text-indigo-500 mr-3 mt-1 flex-shrink-0"></i>
+                                <span><span class="font-semibold text-slate-700">{{ package.solution_view_credits_on_purchase }} ta</span> yechim ko'rish krediti</span>
+                            </li>
+                        </ul>
+                    </div>
+                    
+                    <div class="p-8 mt-auto">
+                        <form action="{% url 'process_purchase' 'package' package.id %}" method="POST">
+                            {% csrf_token %}
+                            {% if forloop.counter == 2 %}
+                            <button type="submit"
+                                class="btn btn-sm w-full py-3 btn-primary"
+                                style="background-color: #3b82f6; color: #fff; border: 2px solid #3b82f6; border-radius: 8px; font-weight: 600;">
+                                Sotib olish
+                            </button>
+                            {% else %}
+                            <button type="submit"
+                                class="btn btn-sm w-full py-3 btn-outline"
+                                style="border: 2px solid #3b82f6; color: #3b82f6; background-color: transparent; border-radius: 8px; font-weight: 600;">
+                                Sotib olish
+                            </button>
+                            {% endif %}
+                        </form>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </section>
+    </div>
+</div>
+
+<style>
+    /* Bu stillar `custom.css` ga olib chiqsangiz ham bo'ladi */
+    .toggle-btn {
+        padding: 0.5rem 1.5rem;
+        font-size: 0.875rem;
+        font-weight: 600;
+        color: var(--slate-light);
+        border-radius: 9999px;
+        transition: all 0.2s ease-in-out;
+        border: 2px solid transparent;
+        cursor: pointer;
+    }
+    .toggle-btn.active {
+        background-color: white;
+        color: var(--primary-color);
+        box-shadow: var(--card-shadow);
+    }
+</style>
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    const toggleButtons = document.querySelectorAll('#pricing-toggle .toggle-btn');
+    const sections = {
+        subscriptions: document.getElementById('subscriptions-section'),
+        packages: document.getElementById('packages-section')
+    };
+
+    toggleButtons.forEach(button => {
+        button.addEventListener('click', () => {
+            toggleButtons.forEach(btn => btn.classList.remove('active'));
+            button.classList.add('active');
+            const targetId = button.dataset.target;
+
+            Object.values(sections).forEach(section => {
+                if(section) section.classList.add('hidden');
+            });
+
+            if(sections[targetId]) {
+                sections[targetId].classList.remove('hidden');
+            }
+        });
+    });
+});
+</script>
+{% endblock %}
+{% endblock %}

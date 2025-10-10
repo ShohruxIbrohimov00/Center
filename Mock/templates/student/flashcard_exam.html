@@ -1,0 +1,262 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}{{ session_title|default:"Flashcardlar" }}{% endblock %}
+
+{% block content %}
+<div class="bg-slate-50 min-h-screen flex flex-col justify-center items-center py-8">
+    <div class="w-full max-w-lg mx-auto px-4">
+        <div class="text-center mb-6">
+            <h1 class="text-2xl sm:text-3xl font-bold text-slate-800 tracking-tight">
+                {{ session_title|default:"Flashcard Mashg'uloti" }}
+            </h1>
+        </div>
+
+        <div class="flex items-center justify-between w-full text-slate-600 font-semibold text-sm mb-4">
+            <span id="card-status" class="w-16 text-left">1 / {{ total_flashcards }}</span>
+            <div class="flex-grow mx-4">
+                <div class="w-full bg-slate-200 rounded-full h-2.5">
+                    <div id="progress-indicator" class="bg-indigo-600 h-2.5 rounded-full transition-all duration-500 ease-out" style="width: 0%;"></div>
+                </div>
+            </div>
+            <div class="flex items-center space-x-2 w-16 justify-end">
+                <span id="known-count" class="text-green-600 flex items-center gap-1">0 ✅</span>
+                <span id="unknown-count" class="text-red-600 flex items-center gap-1">0 ❌</span>
+            </div>
+        </div>
+
+        <div class="relative w-full h-80 md:h-96" id="flashcard-container" style="perspective: 1000px;">
+            <div id="card-bg" class="absolute inset-0 rounded-2xl transition-all duration-300"></div>
+
+            <div id="flashcard" class="relative w-full h-full cursor-pointer transition-transform duration-700 ease-in-out" style="transform-style: preserve-3d;">
+                
+                <div class="absolute w-full h-full bg-white rounded-xl shadow-xl border border-slate-200 p-6 flex flex-col items-center justify-center text-center overflow-hidden" style="backface-visibility: hidden;">
+                    <p class="text-3xl md:text-4xl font-bold text-slate-800 tex2jax_process" id="card-english-content">Yuklanmoqda...</p>
+                    <p class="mt-4 text-base md:text-lg text-slate-500 italic tex2jax_process" id="card-context-sentence"></p>
+                </div>
+                
+                <div class="absolute w-full h-full bg-indigo-600 text-white rounded-xl shadow-xl p-6 flex items-center justify-center text-center overflow-hidden" style="backface-visibility: hidden; transform: rotateY(180deg);">
+                    <p class="text-2xl md:text-3xl font-semibold tex2jax_process" id="card-uzbek-meaning">Yuklanmoqda...</p>
+                </div>
+            </div>
+        </div>
+        
+        <p id="helper-text" class="text-center text-slate-500 mt-4 text-sm font-semibold">Javobni ko'rish uchun kartochka ustiga bosing</p>
+
+        <div id="buttons-section" class="mt-8 flex space-x-4 justify-center opacity-0 transition-opacity duration-300 pointer-events-none">
+            <button id="unknown-button" class="btn btn-rose py-3 px-8 rounded-full text-base">
+                <i class="fas fa-times mr-2"></i> Bilmadim
+            </button>
+            <button id="known-button" class="btn btn-emerald py-3 px-8 rounded-full text-base">
+                <i class="fas fa-check mr-2"></i> Bildim
+            </button>
+        </div>
+    </div>
+</div>
+
+{% csrf_token %}
+<script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js" async></script>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const flashcard = document.getElementById('flashcard');
+    const flashcardContainer = document.getElementById('flashcard-container');
+    const cardBg = document.getElementById('card-bg');
+    
+    const cardEnglishContent = document.getElementById('card-english-content');
+    const cardUzbekMeaning = document.getElementById('card-uzbek-meaning');
+    const cardContextSentence = document.getElementById('card-context-sentence');
+    
+    const knownButton = document.getElementById('known-button');
+    const unknownButton = document.getElementById('unknown-button');
+    const buttonsSection = document.getElementById('buttons-section');
+    const helperText = document.getElementById('helper-text');
+    
+    const cardStatus = document.getElementById('card-status');
+    const knownCountSpan = document.getElementById('known-count');
+    const unknownCountSpan = document.getElementById('unknown-count');
+    const progressIndicator = document.getElementById('progress-indicator');
+    
+    const flashcards = JSON.parse('{{ flashcards_json|safe|escapejs }}');
+    const totalCards = flashcards.length;
+    
+    let currentCardIndex = 0;
+    let knownCardsCount = 0;
+    let unknownCardsCount = 0;
+    let isFlipped = false;
+    let isDraggable = true;
+
+    function renderMath() {
+        if (typeof MathJax !== 'undefined' && MathJax.typesetPromise) {
+            MathJax.typesetPromise();
+        }
+    }
+
+    function updateCardContent() {
+        if (currentCardIndex < totalCards) {
+            const currentCard = flashcards[currentCardIndex];
+            cardEnglishContent.innerHTML = currentCard.english_content || '...';
+            cardContextSentence.innerHTML = currentCard.context_sentence || '';
+            cardUzbekMeaning.innerHTML = currentCard.uzbek_meaning || '...';
+            
+            resetCardState();
+            renderMath();
+            updateProgress();
+        } else {
+            showQuizEndScreen();
+        }
+    }
+
+    function resetCardState() {
+        isFlipped = false;
+        isDraggable = true;
+        flashcard.style.transition = 'transform 0.7s ease-in-out';
+        flashcard.style.transform = 'rotateY(0deg) translateX(0px) rotate(0deg)';
+        buttonsSection.classList.add('opacity-0', 'pointer-events-none');
+        helperText.textContent = "Javobni ko'rish uchun kartochka ustiga bosing yoki suring";
+        cardBg.style.backgroundColor = 'transparent';
+    }
+
+    function updateProgress() {
+        cardStatus.innerText = `${currentCardIndex + 1} / ${totalCards}`;
+        knownCountSpan.innerHTML = `${knownCardsCount} ✅`;
+        unknownCountSpan.innerHTML = `${unknownCardsCount} ❌`;
+        const reviewedCount = currentCardIndex;
+        const progressPercentage = totalCards > 0 ? (reviewedCount / totalCards) * 100 : 0;
+        progressIndicator.style.width = `${progressPercentage}%`;
+    }
+
+    function showQuizEndScreen() {
+        const successRate = totalCards > 0 ? Math.round((knownCardsCount / totalCards) * 100) : 0;
+        
+        flashcardContainer.parentElement.innerHTML = `
+            <div class="text-center p-8 bg-white rounded-2xl shadow-xl h-full flex flex-col justify-center items-center">
+                <h2 class="text-3xl font-bold text-slate-800 mb-4">Mashg'ulot yakunlandi! 🎉</h2>
+                <p class="text-lg text-slate-600">Jami kartochkalar: <strong>${totalCards}</strong></p>
+                <p class="text-lg mb-4">
+                    <span class="text-green-600 font-bold">Bildim: ${knownCardsCount}</span> | 
+                    <span class="text-red-600 font-bold">Bilmadim: ${unknownCardsCount}</span>
+                </p>
+                <p class="text-xl text-indigo-600 font-bold">O'zlashtirish darajasi: <strong>${successRate}%</strong></p>
+                <div class="mt-8">
+                    <a href="{% url 'my_flashcards' %}" class="btn btn-primary px-8 py-3 text-lg">
+                        Statistika sahifasiga
+                    </a>
+                </div>
+            </div>
+        `;
+    }
+
+    function handleInteraction(responseType) {
+        if (currentCardIndex >= totalCards || !isDraggable) return;
+        isDraggable = false;
+
+        const cardId = flashcards[currentCardIndex].id;
+        sendProgress(cardId, responseType);
+
+        if (responseType === 'known') {
+            knownCardsCount++;
+        } else {
+            unknownCardsCount++;
+        }
+
+        const direction = responseType === 'known' ? 1 : -1;
+        flashcard.style.transition = 'transform 0.5s ease-out';
+        flashcard.style.transform = `translateX(${direction * 150}%) rotate(${direction * 15}deg)`;
+
+        setTimeout(() => {
+            currentCardIndex++;
+            updateCardContent();
+        }, 500);
+    }
+    
+    // Asosiy hodisalar
+    flashcard.addEventListener('click', () => {
+        if (isFlipped || currentCardIndex >= totalCards) return;
+        flashcard.style.transform = 'rotateY(180deg)';
+        buttonsSection.classList.remove('opacity-0', 'pointer-events-none');
+        helperText.textContent = "O'zingizni sinang: bildingizmi yoki yo'q?";
+        isFlipped = true;
+        renderMath();
+    });
+
+    knownButton.addEventListener('click', () => handleInteraction('known'));
+    unknownButton.addEventListener('click', () => handleInteraction('unknown'));
+
+    // Swipe (surish) funksiyasi
+    let startX = 0;
+    let distX = 0;
+    flashcard.addEventListener('mousedown', (e) => {
+        if (!isDraggable || isFlipped) return;
+        startX = e.pageX || e.touches[0].pageX;
+        flashcard.style.transition = 'none';
+    });
+    flashcard.addEventListener('touchstart', (e) => {
+        if (!isDraggable || isFlipped) return;
+        startX = e.touches[0].pageX;
+        flashcard.style.transition = 'none';
+    });
+
+    document.addEventListener('mousemove', (e) => {
+        if (startX && isDraggable && !isFlipped) {
+            const currentX = e.pageX || e.touches[0].pageX;
+            distX = currentX - startX;
+            flashcard.style.transform = `translateX(${distX}px) rotate(${distX / 20}deg)`;
+            
+            if(distX > 0) cardBg.style.backgroundColor = 'rgba(22, 163, 74, 0.2)'; // Yashil
+            else cardBg.style.backgroundColor = 'rgba(239, 68, 68, 0.2)'; // Qizil
+        }
+    });
+     document.addEventListener('touchmove', (e) => {
+        if (startX && isDraggable && !isFlipped) {
+            const currentX = e.touches[0].pageX;
+            distX = currentX - startX;
+            flashcard.style.transform = `translateX(${distX}px) rotate(${distX / 20}deg)`;
+            if(distX > 0) cardBg.style.backgroundColor = 'rgba(22, 163, 74, 0.2)';
+            else cardBg.style.backgroundColor = 'rgba(239, 68, 68, 0.2)';
+        }
+    });
+
+    document.addEventListener('mouseup', () => {
+        if (startX && isDraggable && !isFlipped) {
+            if (Math.abs(distX) > 100) {
+                handleInteraction(distX > 0 ? 'known' : 'unknown');
+            } else {
+                resetCardState();
+            }
+        }
+        startX = 0;
+    });
+     document.addEventListener('touchend', () => {
+        if (startX && isDraggable && !isFlipped) {
+            if (Math.abs(distX) > 100) {
+                handleInteraction(distX > 0 ? 'known' : 'unknown');
+            } else {
+                resetCardState();
+            }
+        }
+        startX = 0;
+    });
+
+    function sendProgress(cardId, userResponse) {
+        const csrftoken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+        fetch('/update-flashcard-progress/', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrftoken,
+            },
+            body: JSON.stringify({ 'flashcard_id': cardId, 'user_response': userResponse })
+        }).then(response => response.json()).then(data => {
+            if (!data.success) console.error("Xato:", data.error);
+        }).catch((error) => console.error('Aloqa xatosi:', error));
+    }
+
+    if (totalCards === 0) {
+        showQuizEndScreen();
+    } else {
+        updateCardContent();
+    }
+});
+</script>
+{% endblock %}
