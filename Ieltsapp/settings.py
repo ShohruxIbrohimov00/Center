@@ -12,7 +12,7 @@ SECRET_KEY = 'django-insecure-e0-aau%v!xj1%+$!9o(5#tm05%-d!crg=wl&&q@jcla_5_j-za
 
 DEBUG = True
 
-ALLOWED_HOSTS = ['satmock.onrender.com', '127.0.0.1', 'localhost']
+ALLOWED_HOSTS = ['satmockfull.onrender.com', '127.0.0.1', 'localhost']
 
 ALLOWED_TELEGRAM_IDS = []
 
