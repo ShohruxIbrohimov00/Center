@@ -48,20 +48,78 @@ class SiteSettingsAdmin(admin.ModelAdmin):
 
 @admin.register(CustomUser)
 class CustomUserAdmin(UserAdmin):
-    # Endi 'ability' va 'teacher' maydonlarini yana qaytarib qo'shamiz
-    list_display = ('username', 'email', 'first_name', 'last_name', 'role', 'ability', 'teacher', 'is_staff')
-    
-    fieldsets = UserAdmin.fieldsets + (
-        ('Qo\'shimcha ma\'lumotlar', {'fields': ('role', 'phone_number', 'ability', 'teacher', 'profile_picture', 'bio', 'is_banned')}),
+    # 'first_name' va 'last_name' o'rniga 'full_name' ishlatiladi.
+    # 'ability' va 'teacher' ham qo'shildi.
+    list_display = (
+        'username', 
+        'email', 
+        'full_name', # ⭐️ TUZATILDI: 'first_name'/'last_name' o'rniga 'full_name'
+        'role', 
+        'ability', 
+        'teacher', 
+        'is_staff'
     )
     
-    add_fieldsets = UserAdmin.add_fieldsets + (
-        ('Qo\'shimcha ma\'lumotlar', {'fields': ('first_name', 'last_name', 'role', 'phone_number', 'teacher')}),
+    # -------------------------------------------------------------
+    # 1. FOYDALANUVCHINI TAHRIRLASH (CHANGE FORM) UCHUN FIELDSETS
+    # -------------------------------------------------------------
+    fieldsets = (
+        (None, {'fields': ('username', 'password')}), # Asosiy ma'lumotlar
+        
+        ('Shaxsiy ma\'lumotlar', {'fields': (
+            'full_name',         # ⭐️ TUZATILDI
+            'email',             # Majburiy qilingan email
+            'phone_number',
+            'role',
+            'profile_picture',
+            'bio',
+        )}),
+        
+        ('Boshqaruv ma\'lumotlari', {'fields': (
+            'ability',           # Maxsus maydon
+            'teacher',           # Maxsus maydon
+            'is_approved',       # Maxsus maydon
+            'is_banned',         # Maxsus maydon
+        )}),
+        
+        ('Ruxsatlar', {'fields': (
+            'is_active', 
+            'is_staff', 
+            'is_superuser', 
+            'groups', 
+            'user_permissions',
+        )}),
+        
+        ('Muhim sanalar', {'fields': ('last_login', 'date_joined')}),
+    )
+    
+    # -------------------------------------------------------------
+    # 2. YANGI FOYDALANUVCHI QO'SHISH (ADD FORM) UCHUN FIELDSETS
+    # -------------------------------------------------------------
+    add_fieldsets = (
+        (None, {
+            'classes': ('wide',),
+            'fields': ('username', 'password', 'password2'),
+        }),
+        ('Shaxsiy ma\'lumotlar', {
+            'fields': (
+                'full_name',     # ⭐️ TUZATILDI
+                'email', 
+                'phone_number', 
+                'role',
+                'teacher'
+            )
+        }),
     )
     
     # teacher maydoni uchun qulay qidiruvni yoqamiz
     raw_id_fields = ('teacher',)
-
+    
+    # Qidiruv maydonlari
+    search_fields = ('username', 'full_name', 'email', 'phone_number')
+    
+    # Filtrlar
+    list_filter = ('is_staff', 'is_superuser', 'is_active', 'role', 'is_banned')
 # =================================================================
 # 2. TIJORAT MODELLARI
 # =================================================================

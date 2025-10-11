@@ -5,7 +5,7 @@
 
 {% block content %}
 <div class="bg-slate-50">
-<div class="container mx-auto px-4 py-8 md:py-12">
+<div class="container mx-auto px-4 py-4 md:py-4">
     <div class="mb-10">
         <h1 class="text-4xl md:text-5xl font-extrabold text-slate-800 tracking-tight">
             Xush kelibsiz, {{ user.first_name|default:user.username }}!
@@ -31,7 +31,7 @@
                             <i class="fas fa-chevron-right text-slate-400"></i>
                         </a>
                     {% empty %}
-                        <div class="text-center py-8">
+                        <div class="text-center py-4">
                             <p class="text-slate-500">Hozircha siz uchun vazifalar yo'q. Ajoyib!</p>
                         </div>
                     {% endfor %}

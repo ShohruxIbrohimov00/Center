@@ -9,19 +9,19 @@
         <div class="container mx-auto px-4">
             <div class="flex justify-between items-center py-4">
                 <a href="{% url 'index' %}" class="text-2xl font-bold text-indigo-600">SAT Makon</a>
-                <nav class="hidden md:flex items-center space-x-8">
-                    <a href="#platforma" class="header-link text-gray-600 hover:text-indigo-600 font-semibold transition-all duration-200 pb-1">Platforma</a>
-                    <a href="#imtihonlar" class="header-link text-gray-600 hover:text-indigo-600 font-semibold transition-all duration-200 pb-1">Imtihonlar</a>
-                    <a href="#flashcards" class="header-link text-gray-600 hover:text-indigo-600 font-semibold transition-all duration-200 pb-1">Flashcard'lar</a>
-                    <a href="#strategiya" class="header-link text-gray-600 hover:text-indigo-600 font-semibold transition-all duration-200 pb-1">Strategiya</a>
-                    <a href="{% url 'price' %}" class="header-link text-gray-600 hover:text-indigo-600 font-semibold transition-all duration-200 pb-1">Narxlar</a>
+                <nav class="hidden md:flex items-center space-x-2">
+                    <a href="#platforma" class="nav-link">Platforma</a>
+                    <a href="#imtihonlar" class="nav-link">Imtihonlar</a>
+                    <a href="#flashcards" class="nav-link">Flashcard'lar</a>
+                    <a href="#strategiya" class="nav-link">Strategiya</a>
+                    <a href="{% url 'price' %}" class="nav-link">Narxlar</a>
                 </nav>
-                <div class="flex items-center space-x-4">
+                <div class="flex items-center space-x-3">
                     {% if user.is_authenticated %}
-                        <a href="{% url 'dashboard' %}" class="btn-primary">Boshqaruv Paneli</a>
+                        <a href="{% url 'dashboard' %}" class="btn btn-primary">Boshqaruv Paneli</a>
                     {% else %}
-                        <a href="{% url 'login' %}" class="hidden md:inline font-semibold text-gray-600 hover:text-indigo-600">Kirish</a>
-                        <a href="{% url 'signup' %}" class="btn-primary">Boshlash</a>
+                        <a href="{% url 'login' %}" class="hidden md:inline font-semibold text-gray-600 hover:text-indigo-600 nav-link">Kirish</a>
+                        <a href="{% url 'signup' %}" class="btn btn-primary">Boshlash</a>
                     {% endif %}
                 </div>
             </div>
@@ -29,7 +29,7 @@
     </header>
 
     <main>
-        <section class="py-20 md:py-28 bg-white">
+        <section class="pt-16 pb-20 md:pt-20 md:pb-28 bg-white"> 
             <div class="container mx-auto px-4 text-center">
                 <h1 class="text-4xl md:text-6xl font-extrabold text-gray-800 leading-tight mb-6">
                     <span class="text-indigo-600">SAT Math</span>'dan Maksimal Ball Oling
@@ -37,32 +37,32 @@
                 <p class="max-w-3xl mx-auto text-lg md:text-xl text-gray-600 mb-10">
                     Realistik testlar, aqlli flashcard'lar va shaxsiy kun tartibi bilan Digital SAT imtihonining Matematika bo'limiga to'liq tayyorlaning.
                 </p>
-                <a href="{% url 'signup' %}" class="btn-primary text-lg px-8 py-4">Hoziroq Bepul Boshlash</a>
+                <a href="{% url 'signup' %}" class="btn btn-primary text-lg">Hoziroq Bepul Boshlash</a>
             </div>
         </section>
 
         <section id="platforma" class="py-20 bg-gray-50">
             <div class="container mx-auto px-4">
                 <div class="grid md:grid-cols-3 gap-10">
-                    <div class="feature-card">
-                        <i class="fa-solid fa-calendar-check text-indigo-500"></i>
-                        <h3 class="text-xl font-bold mb-2">Aqlli Kun Tartibi</h3>
-                        <p>Platforma sizning o'sishingizni kuzatadi va har kuni qaysi mavzularga e'tibor berish kerakligini ko'rsatib turadi.</p>
+                    <div class="feature-card card text-center p-6"> 
+                        <i class="fa-solid fa-calendar-check text-indigo-500 text-3xl mb-4"></i>
+                        <h3 class="text-xl font-bold mb-2 text-slate-text">Aqlli Kun Tartibi</h3>
+                        <p class="text-slate-light">Platforma sizning o'sishingizni kuzatadi va har kuni qaysi mavzularga e'tibor berish kerakligini ko'rsatib turadi.</p>
                     </div>
-                    <div class="feature-card">
-                        <i class="fa-solid fa-display text-indigo-500"></i>
-                        <h3 class="text-xl font-bold mb-2">Realistik Testlar</h3>
-                        <p>Digital SAT'ning eng so'nggi formatidagi adaptiv testlar va integratsiyalashgan Desmos kalkulyatori.</p>
+                    <div class="feature-card card text-center p-6">
+                        <i class="fa-solid fa-display text-indigo-500 text-3xl mb-4"></i>
+                        <h3 class="text-xl font-bold mb-2 text-slate-text">Realistik Testlar</h3>
+                        <p class="text-slate-light">Digital SAT'ning eng so'nggi formatidagi adaptiv testlar va integratsiyalashgan Desmos kalkulyatori.</p>
                     </div>
-                    <div class="feature-card">
-                        <i class="fa-solid fa-layer-group text-indigo-500"></i>
-                        <h3 class="text-xl font-bold mb-2">Aqlli Flashcard'lar</h3>
-                        <p>Unutilayotgan termin va formulalarni kerakli vaqtda takrorlash uchun eslatuvchi "Spaced Repetition" tizimi.</p>
+                    <div class="feature-card card text-center p-6">
+                        <i class="fa-solid fa-layer-group text-indigo-500 text-3xl mb-4"></i>
+                        <h3 class="text-xl font-bold mb-2 text-slate-text">Aqlli Flashcard'lar</h3>
+                        <p class="text-slate-light">Unutilayotgan termin va formulalarni kerakli vaqtda takrorlash uchun eslatuvchi "Spaced Repetition" tizimi.</p>
                     </div>
                 </div>
             </div>
         </section>
-
+        
         <section id="imtihonlar" class="py-20 bg-white">
             <div class="container mx-auto px-4">
                 <div class="grid md:grid-cols-2 gap-16 items-center">
@@ -70,27 +70,27 @@
                         <img src="{% static 'images/exam_with_desmos.jpg' %}" alt="Desmos kalkulyatori bilan imtihon interfeysi" class="rounded-lg shadow-xl">
                     </div>
                     <div>
-                        <h2 class="text-3xl font-bold mb-4">Haqiqiy Imtihon Muhitida Mashq Qiling</h2>
+                        <h2 class="text-3xl font-bold mb-4 text-slate-text">Haqiqiy Imtihon Muhitida Mashq Qiling</h2>
                         <p class="text-gray-600 text-lg mb-6">Bizning test platformamiz sizni Digital SAT Math'ga 100% tayyorlaydi.</p>
-                        <ul class="space-y-4">
+                        <ul class="space-y-4 text-slate-light">
                             <li class="flex items-start">
                                 <i class="fa-solid fa-check-circle text-green-500 mt-1 mr-3"></i>
-                                <div><strong class="block">Integratsiyalashgan Desmos Kalkulyatori:</strong> Haqiqiy imtihondagi kabi dastur ichidagi Desmos grafik kalkulyatoridan foydalanib, tezligingizni oshiring va unga ko'niking.</div>
+                                <div><strong class="block text-slate-text">Integratsiyalashgan Desmos Kalkulyatori:</strong> Haqiqiy imtihondagi kabi dastur ichidagi Desmos grafik kalkulyatoridan foydalanib, tezligingizni oshiring va unga ko'niking.</div>
                             </li>
                             <li class="flex items-start">
                                 <i class="fa-solid fa-check-circle text-green-500 mt-1 mr-3"></i>
-                                <div><strong class="block">Adaptiv Format:</strong> Imtihonning ikkinchi moduli sizning birinchi moduldagi natijangizga qarab moslashadi va real imtihon kabi ball beradi.</div>
+                                <div><strong class="block text-slate-text">Adaptiv Format:</strong> Imtihonning ikkinchi moduli sizning birinchi moduldagi natijangizga qarab moslashadi va real imtihon kabi ball beradi.</div>
                             </li>
                             <li class="flex items-start">
                                 <i class="fa-solid fa-check-circle text-green-500 mt-1 mr-3"></i>
-                                <div><strong class="block">Batafsil Tahlil:</strong> Har bir testdan so'ng qaysi mavzuda xato qilganingizni aniq ko'rsatuvchi hisobotlar bilan kamchiliklaringiz ustida ishlang.</div>
+                                <div><strong class="block text-slate-text">Batafsil Tahlil:</strong> Har bir testdan so'ng qaysi mavzuda xato qilganingizni aniq ko'rsatuvchi hisobotlar bilan kamchiliklaringiz ustida ishlang.</div>
                             </li>
                         </ul>
                     </div>
                 </div>
             </div>
         </section>
-        
+
         <section id="flashcards" class="py-20 bg-gray-50">
             <div class="container mx-auto px-4">
                 <div class="grid md:grid-cols-2 gap-16 items-center">
@@ -98,20 +98,20 @@
                         <img src="{% static 'images/srs_flashcards.jpg' %}" alt="Flashcard takrorlash tizimi" class="rounded-lg shadow-xl">
                     </div>
                     <div class="md:order-1">
-                        <h2 class="text-3xl font-bold mb-4">Matematik Terminlar va Formulalarni Unutmang!</h2>
+                        <h2 class="text-3xl font-bold mb-4 text-slate-text">Matematik Terminlar va Formulalarni Unutmang!</h2>
                         <p class="text-gray-600 text-lg mb-6">Ingliz tilidagi masala shartini tushunmaslik yoki formulani eslay olmaslik — endi muammo emas. "Spaced Repetition" texnologiyasi yordamida bilimlarni mustahkamlang.</p>
-                        <ul class="space-y-4">
+                        <ul class="space-y-4 text-slate-light">
                              <li class="flex items-start">
                                 <i class="fa-solid fa-check-circle text-green-500 mt-1 mr-3"></i>
-                                <div><strong class="block">Matematik Lug'at:</strong> "Integer", "slope", "radius" kabi SAT Math'da eng ko'p uchraydigan 500+ terminlarning inglizcha-o'zbekcha izohlari bilan masalalarni oson tushuning.</div>
+                                <div><strong class="block text-slate-text">Matematik Lug'at:</strong> "Integer", "slope", "radius" kabi SAT Math'da eng ko'p uchraydigan 500+ terminlarning inglizcha-o'zbekcha izohlari bilan masalalarni oson tushuning.</div>
                             </li>
                             <li class="flex items-start">
                                 <i class="fa-solid fa-check-circle text-green-500 mt-1 mr-3"></i>
-                                <div><strong class="block">O'zlashtirish Bosqichlari:</strong> Har bir terminni "O'rganilmagan", "O'rganilmoqda" va "O'zlashtirilgan" kabi bosqichlarga bo'lib, o'sishingizni kuzatib boring.</div>
+                                <div><strong class="block text-slate-text">O'zlashtirish Bosqichlari:</strong> Har bir terminni "O'rganilmagan", "O'rganilmoqda" va "O'zlashtirilgan" kabi bosqichlarga bo'lib, o'sishingizni kuzatib boring.</div>
                             </li>
                             <li class="flex items-start">
                                 <i class="fa-solid fa-check-circle text-green-500 mt-1 mr-3"></i>
-                                <div><strong class="block">Aqlli Takrorlash:</strong> Tizim siz unutayotgan so'z va formulalarni aniqlab, ularni aynan kerakli vaqtda "Bugungi Takrorlash" ro'yxatiga qo'shib qo'yadi.</div>
+                                <div><strong class="block text-slate-text">Aqlli Takrorlash:</strong> Tizim siz unutayotgan so'z va formulalarni aniqlab, ularni aynan kerakli vaqtda "Bugungi Takrorlash" ro'yxatiga qo'shib qo'yadi.</div>
                             </li>
                         </ul>
                     </div>
@@ -124,25 +124,25 @@
                 <h2 class="text-3xl md:text-4xl font-bold text-gray-800">G'alaba Strategiyasi: 4 Qadamda Maksimal Natija</h2>
                 <p class="max-w-2xl mx-auto mt-4 text-gray-600 mb-12">Platformamiz sizni shunchaki mashq qildirmaydi, u sizni o'rgatadi. Mana qanday:</p>
                 <div class="grid md:grid-cols-4 gap-8 text-left">
-                    <div class="strategy-step">
-                        <div class="step-number">1</div>
-                        <h3 class="font-bold text-xl mb-2">Tayyorgarlik (Flashcard)</h3>
-                        <p>Imtihonni boshlashdan oldin, unga tegishli Flashcard to'plamini yod oling. Bu imtihondagi barcha termin va formulalarni eslab qolishga yordam beradi.</p>
+                    <div class="strategy-step card p-6">
+                        <div class="step-number text-indigo-600 font-bold text-3xl mb-3">1</div>
+                        <h3 class="font-bold text-xl mb-2 text-slate-text">Tayyorgarlik (Flashcard)</h3>
+                        <p class="text-slate-light">Imtihonni boshlashdan oldin, unga tegishli Flashcard to'plamini yod oling. Bu imtihondagi barcha termin va formulalarni eslab qolishga yordam beradi.</p>
                     </div>
-                     <div class="strategy-step">
-                        <div class="step-number">2</div>
-                        <h3 class="font-bold text-xl mb-2">Sinov (Imtihon)</h3>
-                        <p>Realistik testni ishlab, tayyorgarligingizni amalda sinab ko'ring va o'z bilim darajangiz hamda bo'shliqlaringizni aniqlang.</p>
+                    <div class="strategy-step card p-6">
+                        <div class="step-number text-indigo-600 font-bold text-3xl mb-3">2</div>
+                        <h3 class="font-bold text-xl mb-2 text-slate-text">Sinov (Imtihon)</h3>
+                        <p class="text-slate-light">Realistik testni ishlab, tayyorgarligingizni amalda sinab ko'ring va o'z bilim darajangiz hamda bo'shliqlaringizni aniqlang.</p>
                     </div>
-                     <div class="strategy-step">
-                        <div class="step-number">3</div>
-                        <h3 class="font-bold text-xl mb-2">Tahlil va To'ldirish</h3>
-                        <p>Natijalar tahlilida xato qilgan har bir savolingiz yoki esdan chiqqan formulani bitta tugma bilan shaxsiy flashcard to'plamingizga qo'shing.</p>
+                    <div class="strategy-step card p-6">
+                        <div class="step-number text-indigo-600 font-bold text-3xl mb-3">3</div>
+                        <h3 class="font-bold text-xl mb-2 text-slate-text">Tahlil va To'ldirish</h3>
+                        <p class="text-slate-light">Natijalar tahlilida xato qilgan har bir savolingiz yoki esdan chiqqan formulani bitta tugma bilan shaxsiy flashcard to'plamingizga qo'shing.</p>
                     </div>
-                     <div class="strategy-step">
-                        <div class="step-number">4</div>
-                        <h3 class="font-bold text-xl mb-2">Mustahkamlash (Takrorlash)</h3>
-                        <p>Har kuni "Aqlli Takrorlash" tizimi yordamida o'sha kamchiliklaringizni yod olguncha mashq qiling va bilimingizni mustahkamlang.</p>
+                    <div class="strategy-step card p-6">
+                        <div class="step-number text-indigo-600 font-bold text-3xl mb-3">4</div>
+                        <h3 class="font-bold text-xl mb-2 text-slate-text">Mustahkamlash (Takrorlash)</h3>
+                        <p class="text-slate-light">Har kuni "Aqlli Takrorlash" tizimi yordamida o'sha kamchiliklaringizni yod olguncha mashq qiling va bilimingizni mustahkamlang.</p>
                     </div>
                 </div>
             </div>
@@ -154,7 +154,7 @@
                 <p class="text-gray-300 mt-4 mb-8 max-w-xl mx-auto text-lg">
                     Bugunoq ro'yxatdan o'ting va o'z potentsialingizni ro'yobga chiqaring.
                 </p>
-                <a href="{% url 'price' %}" class="btn bg-indigo-600 text-white text-lg hover:bg-indigo-500">
+                <a href="{% url 'price' %}" class="btn btn-primary text-lg">
                     Barcha Narxlarni Ko'rish
                 </a>
             </div>
@@ -168,20 +168,26 @@
 <script>
     // Sahifani aylantirganda menyudagi aktiv bo'limni belgilab turadigan JavaScript
     document.addEventListener('DOMContentLoaded', function() {
+        // .header-link o'rniga .nav-link ishlatiladi
         const sections = document.querySelectorAll('main section[id]');
-        const navLinks = document.querySelectorAll('.header-link');
+        const navLinks = document.querySelectorAll('.nav-link'); 
 
         window.onscroll = () => {
             let currentSectionId = '';
+            // Header balandligini hisobga olish (fixed header)
+            const headerHeight = document.querySelector('header').offsetHeight || 80;
+
             sections.forEach(section => {
                 const sectionTop = section.offsetTop;
-                if (pageYOffset >= sectionTop - 80) { // Header balandligini hisobga olamiz
+                // Skroll pozitsiyasi sectionning boshlang'ich joyidan header balandligicha yuqorida bo'lsa
+                if (pageYOffset >= sectionTop - headerHeight) { 
                     currentSectionId = section.getAttribute('id');
                 }
             });
 
             navLinks.forEach(link => {
-                link.classList.remove('active');
+                // Aktiv holatni o'zgartirish: custom.css da .nav-link.active stili ishlaydi
+                link.classList.remove('active'); 
                 const href = link.getAttribute('href');
                 if (href.includes('#') && href.split('#')[1] === currentSectionId) {
                     link.classList.add('active');

@@ -200,7 +200,7 @@
         {% endfor %}
     </div>
     {% else %}
-    <div class="text-center py-12 bg-gray-50 rounded-lg">
+    <div class="text-center py-4 bg-gray-50 rounded-lg">
         <i class="fas fa-exclamation-triangle text-6xl text-gray-400 mb-4"></i>
         <p class="text-gray-500 text-lg mb-4">Bu ichki mavzuda hali savollar mavjud emas.</p>
         <a href="{% url 'add_question' %}?subtopic={{ subtopic.id }}" class="btn btn-primary">
@@ -222,7 +222,7 @@
         {% endfor %}
     </div>
     {% else %}
-    <div class="text-center py-12 bg-gray-50 rounded-lg">
+    <div class="text-center py-4 bg-gray-50 rounded-lg">
         <i class="fas fa-exclamation-triangle text-6xl text-gray-400 mb-4"></i>
         <p class="text-gray-500 text-lg mb-4">Bu mavzuda hali ichki mavzular mavjud emas.</p>
         <a href="{% url 'create_subtopic_for_topic' topic_id=topic.id %}" class="btn btn-info">
