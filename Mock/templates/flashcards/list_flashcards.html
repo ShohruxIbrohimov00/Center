@@ -3,103 +3,229 @@
 
 {% block title %}Mening Flashcardlarim{% endblock %}
 
-{% block content %}
-<div class="container mx-auto p-4 md:p-8">
-    <div class="flex justify-between items-center mb-6">
-        <h2 class="text-3xl font-bold text-gray-800">Flashcardlarim</h2>
-        <a href="{% url 'create_flashcard' %}" class="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-md">
-            + Yangi yaratish
-        </a>
-    </div>
+{% block extra_css %}
+<link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+<style>
+    .btn { 
+        display: inline-flex; 
+        align-items: center; 
+        padding: 0.5rem 1rem; 
+        font-weight: 600; 
+        border-radius: 0.375rem; 
+        transition: all 0.3s; 
+    }
+    .btn-primary { background-color: #4f46e5; color: white; } /* Indigo */
+    .btn-primary:hover { background-color: #4338ca; }
+    .btn-danger { background-color: #ef4444; color: white; }
+    .btn-danger:hover { background-color: #dc2626; }
+    
+    /* Icon tugmalar */
+    .btn-icon { 
+        display: flex; 
+        align-items: center; 
+        justify-content: center; 
+        width: 2.5rem; 
+        height: 2.5rem; 
+        border-radius: 0.375rem; 
+        transition: all 0.2s; 
+    }
+    .btn-icon:hover { background-color: rgba(0, 0, 0, 0.05); }
 
-    {% for message in messages %}
-        <div class="p-4 mb-4 text-sm rounded-lg {% if message.tags == 'success' %}bg-green-100 text-green-700{% elif message.tags == 'error' %}bg-red-100 text-red-700{% endif %}" role="alert">
-            {{ message }}
-        </div>
-    {% endfor %}
-
-    <!-- Qidiruv maydoni -->
-    <div class="mb-4">
-        <input type="text" id="searchInput" onkeyup="searchFlashcards()" placeholder="Flashcardlarni qidirish..." class="w-full px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
-    </div>
-
-    <div class="bg-white rounded-lg shadow-md overflow-x-auto">
-        <table class="min-w-full leading-normal" id="flashcardTable">
-            <thead>
-                <tr>
-                    <th class="px-5 py-3 border-b-2 border-gray-200 bg-gray-100 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                        Inglizcha
-                    </th>
-                    <th class="px-5 py-3 border-b-2 border-gray-200 bg-gray-100 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                        O'zbekcha
-                    </th>
-                    <th class="px-5 py-3 border-b-2 border-gray-200 bg-gray-100 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                        Yaratilgan
-                    </th>
-                    <th class="px-5 py-3 border-b-2 border-gray-200 bg-gray-100 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                        Amallar
-                    </th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for flashcard in flashcards %}
-                <tr class="hover:bg-gray-50">
-                    <td class="px-5 py-5 border-b border-gray-200 bg-white text-sm">
-                        <div class="text-gray-900 whitespace-no-wrap">{{ flashcard.english_content|safe }}</div>
-                    </td>
-                    <td class="px-5 py-5 border-b border-gray-200 bg-white text-sm">
-                        <div class="text-gray-900 whitespace-no-wrap">{{ flashcard.uzbek_meaning|safe }}</div>
-                    </td>
-                    <td class="px-5 py-5 border-b border-gray-200 bg-white text-sm">
-                        <p class="text-gray-900 whitespace-no-wrap">{{ flashcard.created_at|date:"d M Y" }}</p>
-                    </td>
-                    <td class="px-5 py-5 border-b border-gray-200 bg-white text-sm text-center">
-                        <a href="{% url 'edit_flashcard' flashcard.id %}" class="text-indigo-600 hover:text-indigo-900 mx-1" title="Tahrirlash">
-                            <i class="fas fa-edit"></i>
-                        </a>
-                        <form action="{% url 'delete_flashcard' flashcard.id %}" method="POST" class="inline" onsubmit="return confirm('Haqiqatan ham bu flashcardni oʻchirmoqchimisiz?');">
-                            {% csrf_token %}
-                            <button type="submit" class="text-red-600 hover:text-red-900 mx-1" title="O'chirish">
-                                <i class="fas fa-trash-alt"></i>
-                            </button>
-                        </form>
-                    </td>
-                </tr>
-                {% empty %}
-                <tr>
-                    <td colspan="4" class="px-5 py-5 text-center text-gray-500">
-                        Hali hech qanday flashcard yaratilmagan.
-                    </td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    </div>
-</div>
+    /* Modal style */
+    .modal { 
+        display: none; 
+        position: fixed; 
+        z-index: 1000; 
+        left: 0; 
+        top: 0; 
+        width: 100%; 
+        height: 100%; 
+        overflow: auto; 
+        background-color: rgba(0, 0, 0, 0.4); 
+        padding-top: 60px; 
+    }
+    .modal-content { 
+        background-color: #fefefe; 
+        margin: 5% auto; 
+        padding: 20px; 
+        border-radius: 8px; 
+        box-shadow: 0 0 15px rgba(0, 0, 0, 0.2); 
+        width: 90%; 
+        max-width: 500px; 
+    }
+    .close { 
+        color: #aaa; 
+        float: right; 
+        font-size: 28px; 
+        font-weight: bold; 
+        cursor: pointer; 
+    }
+    .close:hover, .close:focus { color: #000; text-decoration: none; }
+</style>
 {% endblock %}
 
-{% block extra_body %}
-<script>
-function searchFlashcards() {
-    let input, filter, table, tr, td, i, txtValue;
-    input = document.getElementById("searchInput");
-    filter = input.value.toUpperCase();
-    table = document.getElementById("flashcardTable");
-    tr = table.getElementsByTagName("tr");
+{% block content %}
+<div class="container mx-auto p-4 md:p-8 max-w-7xl">
+    <div class="bg-white shadow-2xl rounded-xl p-6 md:p-8 border border-gray-100">
+        
+        {# Sarlavha va Yaratish tugmasi #}
+        <div class="flex flex-col sm:flex-row justify-between items-center mb-6 space-y-4 sm:space-y-0">
+            <h2 class="text-3xl font-extrabold text-gray-900">Flashcardlar Ro'yxati 📚</h2>
+            
+            {# SLUG qo'shildi #}
+            <a href="{% url 'create_flashcard' slug=center.slug %}" class="btn btn-primary">
+                <i class="fas fa-plus mr-2"></i> Yangi Flashcard yaratish
+            </a>
+        </div>
 
-    for (i = 1; i < tr.length; i++) { // 1 dan boshlanadi, chunki 0 - sarlavha
-        td1 = tr[i].getElementsByTagName("td")[0];
-        td2 = tr[i].getElementsByTagName("td")[1];
-        if (td1 || td2) {
-            txtValue1 = td1.textContent || td1.innerText;
-            txtValue2 = td2.textContent || td2.innerText;
-            if (txtValue1.toUpperCase().indexOf(filter) > -1 || txtValue2.toUpperCase().indexOf(filter) > -1) {
-                tr[i].style.display = "";
-            } else {
-                tr[i].style.display = "none";
-            }
-        }       
+        {% for message in messages %}
+            <div class="p-4 mb-4 text-sm rounded-lg {% if message.tags == 'success' %}bg-green-100 text-green-700{% elif message.tags == 'error' %}bg-red-100 text-red-700{% endif %}" role="alert">
+                {{ message }}
+            </div>
+        {% endfor %}
+
+        <div class="mb-6">
+            <input type="text" id="searchInput" onkeyup="searchFlashcards()" placeholder="Inglizcha/O'zbekcha so'zlarni qidirish..." class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-sm">
+        </div>
+
+        {# Flashcardlar ro'yxati #}
+        {% if flashcards %}
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200" id="flashcardTable">
+                <thead class="bg-indigo-50">
+                    <tr>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
+                            Inglizcha (Savol)
+                        </th>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider hidden sm:table-cell">
+                            O'zbekcha (Javob)
+                        </th>
+                        <th scope="col" class="px-6 py-3 text-center text-xs font-medium text-gray-600 uppercase tracking-wider hidden md:table-cell">
+                            Yaratilgan sana
+                        </th>
+                        <th scope="col" class="px-6 py-3 text-right text-xs font-medium text-gray-600 uppercase tracking-wider">
+                            Amallar
+                        </th>
+                    </tr>
+                </thead>
+                <tbody class="bg-white divide-y divide-gray-200">
+                    {% for flashcard in flashcards %}
+                    <tr class="hover:bg-indigo-50 transition duration-150">
+                        <td class="px-6 py-4">
+                            <div class="text-sm font-semibold text-gray-900">{{ flashcard.english_content|safe }}</div>
+                        </td>
+                        <td class="px-6 py-4 hidden sm:table-cell">
+                            <div class="text-sm text-gray-700">{{ flashcard.uzbek_meaning|safe|truncatechars:100 }}</div>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-center text-sm text-gray-500 hidden md:table-cell">
+                            {{ flashcard.created_at|date:"d M Y" }}
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                            <div class="flex justify-end space-x-2">
+                                
+                                {# SLUG qo'shildi #}
+                                <a href="{% url 'edit_flashcard' slug=center.slug pk=flashcard.id %}" class="btn-icon text-blue-600 hover:bg-blue-100" title="Tahrirlash">
+                                    <i class="fas fa-edit"></i>
+                                </a>
+                                <button onclick="openDeleteModal('delete-modal-{{ flashcard.id }}')" class="btn-icon text-red-600 hover:bg-red-100" title="O'chirish">
+                                    <i class="fas fa-trash-alt"></i>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        
+        {% else %}
+        <div class="text-center py-12 bg-gray-50 rounded-lg border border-dashed border-gray-300 mt-6">
+            <i class="fas fa-lightbulb text-6xl text-gray-400 mb-4"></i>
+            <p class="text-lg text-gray-500 mb-4">Hali hech qanday flashcard yaratilmagan.</p>
+            
+            {# SLUG qo'shildi #}
+            <a href="{% url 'create_flashcard' slug=center.slug %}" class="btn btn-primary">
+                <i class="fas fa-plus mr-2"></i> Birinchi Flashcardni yaratish
+            </a>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+{# O'chirish Modallari #}
+{% for flashcard in flashcards %}
+    <div id="delete-modal-{{ flashcard.id }}" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeModal('delete-modal-{{ flashcard.id }}')">&times;</span>
+            <h3 class="text-xl font-bold text-gray-800 mb-4">Flashcardni o'chirishni tasdiqlash</h3>
+            <p class="text-gray-600 mb-4">
+                Haqiqatan ham flashcardni o'chirmoqchimisiz? Bu amalni <b>qaytarib bo'lmaydi!</b>
+            </p>
+            
+            {# SLUG qo'shildi #}
+            <form method="post" action="{% url 'delete_flashcard' slug=center.slug pk=flashcard.id %}"> 
+                {% csrf_token %}
+                <div class="flex justify-end space-x-3 mt-6">
+                    <button type="button" onclick="closeModal('delete-modal-{{ flashcard.id }}')" class="btn btn-secondary">Bekor qilish</button>
+                    <button type="submit" class="btn btn-danger">O'chirish</button>
+                </div>
+            </form>
+        </div>
+    </div>
+{% endfor %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Qidiruv funksiyasi (JavaScript orqali tezkor ishlashi uchun)
+    function searchFlashcards() {
+        let input, filter, table, tr, td1, td2, i, txtValue1, txtValue2;
+        input = document.getElementById("searchInput");
+        filter = input.value.toUpperCase();
+        table = document.getElementById("flashcardTable");
+        // Flashcardlar yo'q bo'lsa table mavjud emas, shuning uchun tekshiramiz
+        if (!table) return; 
+
+        tr = table.getElementsByTagName("tr");
+
+        for (i = 1; i < tr.length; i++) { // Sarlavha (thead) qatorini o'tkazib yuboramiz
+            // Inglizcha (0-ustun) va O'zbekcha (1-ustun) kontentlarni olamiz
+            td1 = tr[i].getElementsByTagName("td")[0]; 
+            td2 = tr[i].getElementsByTagName("td")[1]; 
+            
+            if (td1 && td2) {
+                txtValue1 = td1.textContent || td1.innerText;
+                txtValue2 = td2.textContent || td2.innerText;
+                
+                if (txtValue1.toUpperCase().indexOf(filter) > -1 || txtValue2.toUpperCase().indexOf(filter) > -1) {
+                    tr[i].style.display = ""; // Ko'rsatish
+                } else {
+                    tr[i].style.display = "none"; // Yashirish
+                }
+            }       
+        }
     }
-}
+
+    // Modal funksiyalari
+    function closeModal(modalId) {
+        document.getElementById(modalId).style.display = 'none';
+    }
+
+    function openDeleteModal(modalId) {
+        // Avval barcha modallarni yopish
+        document.querySelectorAll('.modal').forEach(modal => {
+             modal.style.display = 'none';
+        });
+        // Keyin kerakli modalni ochish
+        document.getElementById(modalId).style.display = 'block';
+    }
+    
+    // Modal tashqarisini bosganda yopish
+    window.onclick = function(event) {
+        if (event.target.classList.contains('modal')) {
+            event.target.style.display = "none";
+        }
+    }
 </script>
 {% endblock %}

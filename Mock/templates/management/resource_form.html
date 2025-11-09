@@ -1,0 +1,77 @@
+{% extends 'base.html' %}
+{% load static i18n widget_tweaks %}
+
+{% block title %}Resurs Qo'shish{% endblock %}
+
+{% block content %}
+<div class="container mx-auto p-4 md:p-8 max-w-2xl">
+    <div class="flex items-center mb-6 space-x-4">
+        {# Darslar ro'yxatiga qaytish havolasi #}
+        <a href="{% url 'lesson_list' module_id=lesson.module.id %}" class="text-gray-500 hover:text-indigo-600 transition">
+            <i class="fas fa-arrow-left text-xl"></i>
+        </a>
+        <h1 class="text-3xl font-extrabold text-gray-900">
+            Resurs (Link) Qo'shish
+        </h1>
+    </div>
+
+    <div class="bg-white p-6 md:p-10 rounded-xl shadow-xl border border-gray-100">
+        <p class="text-lg font-medium text-gray-700 mb-6">Dars: <span class="text-indigo-600 font-semibold">{{ lesson.title }}</span></p>
+
+        <div class="p-4 mb-6 bg-blue-50 border-l-4 border-blue-400 text-blue-800 rounded-md" role="alert">
+            <p class="font-medium">Ma'lumot:</p>
+            <p class="text-sm">Bu darsga bir nechta video, vazifa yoki yechim linklarini qo'shishingiz mumkin.</p>
+        </div>
+
+        <form method="post" class="space-y-6">
+            {% csrf_token %}
+
+            <div class="space-y-4">
+
+                {# Resurs turi maydoni (Resource Type Field) #}
+                <div class="form-group">
+                    <label for="{{ form.resource_type.id_for_label }}" class="block text-sm font-medium text-gray-700">{{ form.resource_type.label }}</label>
+                    {% render_field form.resource_type class="mt-1 block w-full border border-gray-300 bg-white rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" %}
+                    {% if form.resource_type.help_text %}<p class="mt-2 text-sm text-gray-500">{{ form.resource_type.help_text }}</p>{% endif %}
+                    {% for error in form.resource_type.errors %}<p class="mt-2 text-sm text-red-600">{{ error }}</p>{% endfor %}
+                </div>
+
+                {# Link maydoni (Link Field) #}
+                <div class="form-group">
+                    <label for="{{ form.link.id_for_label }}" class="block text-sm font-medium text-gray-700">{{ form.link.label }}</label>
+                    {% render_field form.link class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" placeholder="Masalan: https://youtube.com/..." %}
+                    {% if form.link.help_text %}<p class="mt-2 text-sm text-gray-500">{{ form.link.help_text }}</p>{% endif %}
+                    {% for error in form.link.errors %}<p class="mt-2 text-sm text-red-600">{{ error }}</p>{% endfor %}
+                </div>
+
+                {# Sarlavha maydoni (Title Field) #}
+                <div class="form-group">
+                    <label for="{{ form.title.id_for_label }}" class="block text-sm font-medium text-gray-700">{{ form.title.label }}</label>
+                    {% render_field form.title class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" placeholder="Masalan: 1-qism yoki Yechim fayli" %}
+                    {% if form.title.help_text %}<p class="mt-2 text-sm text-gray-500">{{ form.title.help_text }}</p>{% endif %}
+                    {% for error in form.title.errors %}<p class="mt-2 text-sm text-red-600">{{ error }}</p>{% endfor %}
+                </div>
+
+                {# Tartib raqami maydoni (Order Field) #}
+                <div class="form-group">
+                    <label for="{{ form.order.id_for_label }}" class="block text-sm font-medium text-gray-700">{{ form.order.label }}</label>
+                    {% render_field form.order class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" %}
+                    {% if form.order.help_text %}<p class="mt-2 text-sm text-gray-500">{{ form.order.help_text }}</p>{% endif %}
+                    {% for error in form.order.errors %}<p class="mt-2 text-sm text-red-600">{{ error }}</p>{% endfor %}
+                </div>
+
+                {# Yashirin maydonlar #}
+                {% for hidden in form.hidden_fields %}
+                    {{ hidden }}
+                {% endfor %}
+            </div>
+
+            <div class="flex justify-end pt-4 border-t border-gray-100">
+                <button type="submit" class="w-full sm:w-auto px-6 py-3 bg-indigo-600 text-white font-semibold rounded-lg shadow-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition duration-150">
+                    <i class="fas fa-plus mr-2"></i> Resursni Qo'shish
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock content %}

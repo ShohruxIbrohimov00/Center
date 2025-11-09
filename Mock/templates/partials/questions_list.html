@@ -1,0 +1,208 @@
+{# partials/questions_list.html #}
+{% load static i18n %}
+{% load custom_filters %}
+
+<div class="space-y-4">
+    {% if questions %}
+        <p class="text-sm text-gray-600 mb-3">{% trans "Pastdagi ro'yxatdan kerakli savollarni tanlang:" %}</p>
+        
+        {# YANGI: Grid tizimini 3 ustun qilib o'rnatildi #}
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"> 
+            
+            {% for question in questions reversed %} 
+                {# Savollarni teskari tartibda aylantiramiz (eng yangisi birinchi kelgan bo'lsa) #}
+                
+                {# Savol uchun asosiy card #}
+                <div class="question-item bg-white rounded-lg border border-gray-200 shadow-md transition-shadow duration-200 hover:shadow-lg">
+                    <div class="p-4 flex items-start space-x-4">
+                        
+                        {# 1. Checkbox (Tanlash uchun) #}
+                        <div class="flex-shrink-0 pt-1">
+                            <input type="checkbox" 
+                                   class="question-checkbox h-5 w-5 text-indigo-600 rounded border-gray-300 focus:ring-indigo-500 cursor-pointer" 
+                                   value="{{ question.id }}" 
+                                   id="question-{{ question.id }}">
+                        </div>
+                        
+                        {# 2. Asosiy ma'lumotlar va Metadata #}
+                        <div class="flex-1 min-w-0">
+                            <label for="question-{{ question.id }}" class="block text-sm font-medium text-gray-900 cursor-pointer mb-2">
+                                
+                                {# YANGI RAQAMLASH: Teskari raqamlash mantiqini qo'llaymiz #}
+                                <span class="text-indigo-600 font-extrabold text-base">
+                                    Savol {{ questions|length|add:"1"|sub:forloop.counter }}.
+                                </span> 
+                            </label>
+                            
+                            {# Metadata (Avvalgi partialdan saqlandi) #}
+                            <div class="mt-2 text-xs text-gray-500 space-x-3 flex flex-wrap">
+                                <span class="inline-flex items-center">
+                                    <i class="fas fa-sitemap mr-1 text-gray-400"></i> {{ question.subtopic.name }}
+                                </span>
+                                <span class="inline-flex items-center">
+                                    <i class="fas fa-tag mr-1 text-gray-400"></i> {{ question.answer_format|capfirst }}
+                                </span>
+                                {% if question.difficulty_level %}
+                                    <span class="inline-flex items-center">
+                                        <i class="fas fa-chart-line mr-1 text-gray-400"></i> {{ question.difficulty_level.name }}
+                                    </span>
+                                {% endif %}
+                                <span class="inline-flex items-center">
+                                    <i class="fas fa-star mr-1 text-yellow-500"></i> {{ question.difficulty|default:"N/A" }}
+                                </span>
+                                <span class="inline-flex items-center">
+                                    <i class="fas fa-cogs mr-1 text-red-500"></i> {{ question.status|capfirst }}
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+
+                    {# 3. Savol matnining to'liq ko'rinishi (Doim Ochiq) #}
+                    <div class="px-4 pb-4 pt-0">
+                        <hr class="mb-3">
+                        
+                        {# Savol Matni #}
+                        <div class="mb-4">
+                            <h4 class="font-semibold text-gray-700 mb-2 border-b pb-1">{% trans "Savol Matni:" %}</h4>
+                            <div class="prose max-w-none text-base border p-3 rounded-lg bg-gray-50">
+                                {{ question.text|safe }}
+                            </div>
+                        </div>
+                        
+                        {% if question.image %}
+                        <div class="mb-4 max-w-xs mx-auto">
+                            <img src="{{ question.image.url }}" alt="{% trans 'Savolga oid rasm' %}" class="w-full h-auto rounded-lg shadow-md border">
+                        </div>
+                        {% endif %}
+
+                        {% if question.passage %}
+                        <div class="mb-4 p-4 bg-yellow-50 rounded-lg border-l-4 border-yellow-400">
+                            <h4 class="font-semibold text-yellow-800 mb-2">{% trans "Matn:" %} {{ question.passage.title }}</h4>
+                            <div class="prose max-w-none text-sm">
+                                {{ question.passage.content|safe }}
+                            </div>
+                        </div>
+                        {% endif %}
+                        
+                        <div class="mt-4">
+                            <h4 class="font-semibold text-gray-700 mb-2 border-b pb-1">{% trans "Javob variantlari:" %}</h4>
+                            
+                            {# Javoblarni ko'rsatish mantiqi (o'zgarishsiz) #}
+                            {% if question.answer_format == 'short_answer' %}
+                            <div class="p-3 rounded-lg bg-green-100 text-green-800 font-semibold border border-green-200">
+                                {% trans "To'g'ri javob:" %} 
+                                <span class="font-extrabold text-green-900">{{ question.correct_short_answer }}</span>
+                            </div>
+                            {% elif question.options.all %}
+                            <div class="grid grid-cols-1 gap-2"> 
+                                {% for option in question.options.all %}
+                                <div class="flex items-start space-x-2 p-3 rounded-lg shadow-sm {% if option.is_correct %}bg-green-50 text-green-800 font-medium border border-green-200{% else %}bg-gray-50 text-gray-700 border border-gray-200{% endif %}">
+                                    
+                                    <span class="{% if option.is_correct %}text-green-600{% else %}text-gray-400{% endif %} flex-shrink-0 mt-1">
+                                        <i class="fas {% if option.is_correct %}fa-check-circle{% else %}fa-circle{% endif %}"></i>
+                                    </span>
+                                    <div class="prose max-w-none text-sm">
+                                        {% if option.text %}
+                                            {{ option.text|safe }}
+                                        {% else %}
+                                            <span class="text-gray-400 italic">{% trans "Javob matni mavjud emas." %}</span>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            </div>
+                            {% else %}
+                            <div class="p-3 text-gray-400 italic">
+                                {% trans "Javob variantlari mavjud emas." %}
+                            </div>
+                            {% endif %}
+                        </div>
+
+                        {% if question.solution %}
+                        <div class="mt-6 border-t border-gray-300 pt-4">
+                            {# Yechim uchun maslahat #}
+                            {% if question.solution.hint %}
+                            <div class="mb-4">
+                                <button
+                                    class="flex items-center justify-between w-full text-left text-gray-700 hover:text-blue-600 focus:outline-none py-1"
+                                    onclick="toggleSolution('hint-{{ question.pk }}', 'hint-icon-{{ question.pk }}')">
+                                    <span class="font-semibold text-lg flex items-center">
+                                        <i class="fas fa-lightbulb mr-2 text-yellow-500"></i>{% trans "Yechim uchun maslahat" %}
+                                    </span>
+                                    <i class="fas fa-chevron-down transform transition-transform duration-300" id="hint-icon-{{ question.pk }}"></i>
+                                </button>
+                                <div id="hint-{{ question.pk }}" class="mt-2 hidden prose max-w-none text-base p-2 border rounded-md bg-gray-50">
+                                    {{ question.solution.hint|safe }} 
+                                </div>
+                            </div>
+                            {% endif %}
+
+                            {# To'liq yechim #}
+                            {% if question.solution.detailed_solution %}
+                            <div>
+                                <button
+                                    class="flex items-center justify-between w-full text-left text-gray-700 hover:text-blue-600 focus:outline-none py-1"
+                                    onclick="toggleSolution('detailed-solution-{{ question.pk }}', 'detailed-solution-icon-{{ question.pk }}')">
+                                    <span class="font-semibold text-lg flex items-center">
+                                        <i class="fas fa-book-open mr-2 text-blue-500"></i>{% trans "To'liq yechim" %}
+                                    </span>
+                                    <i class="fas fa-chevron-down transform transition-transform duration-300" id="detailed-solution-icon-{{ question.pk }}"></i>
+                                </button>
+                                <div id="detailed-solution-{{ question.pk }}" class="mt-2 hidden prose max-w-none text-base p-2 border rounded-md bg-gray-50">
+                                    {{ question.solution.detailed_solution|safe }}
+                                </div>
+                            </div>
+                            {% endif %}
+                        </div>
+                        {% endif %}
+
+                        {# Teglar va Flashcardlar #}
+                        <div class="mt-4 border-t border-gray-100 pt-4 text-xs text-gray-500 space-y-2">
+                            {% if question.tags.all %}
+                            <div class="flex flex-wrap items-center">
+                                <span class="mr-2 font-semibold">{% trans "Teglar:" %}</span>
+                                {% for tag in question.tags.all %}
+                                <span class="px-2 py-1 bg-gray-200 rounded-full text-gray-600 text-xs mr-2 mb-1">{{ tag.name }}</span>
+                                {% endfor %}
+                            </div>
+                            {% endif %}
+                            
+                            {% if question.flashcards.all %}
+                            <div class="flex flex-wrap items-center">
+                                <span class="mr-2 font-semibold">{% trans "Flashcardlar:" %}</span>
+                                {% for flashcard in question.flashcards.all %}
+                                <span class="px-2 py-1 bg-blue-100 rounded-full text-blue-600 text-xs mr-2 mb-1">
+                                    {{ flashcard.english_content|clean_uzbek_text }} - {{ flashcard.uzbek_meaning|clean_uzbek_text }}
+                                </span>
+                                {% endfor %}
+                            </div>
+                            {% endif %}
+                        </div>
+                        
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+    {% else %}
+        <div class="text-center text-gray-500 p-8 border border-dashed rounded-lg">
+            <p class="text-lg">{% trans "Bu subtopic uchun nashr qilingan savollar topilmadi." %}</p>
+        </div>
+    {% endif %}
+</div>
+
+<script>
+    /**
+     * Yechim/Maslahatni yashiradi/ko'rsatadi
+     */
+    function toggleSolution(id, iconId) {
+        const solutionDiv = document.getElementById(id);
+        const icon = document.getElementById(iconId);
+        if (solutionDiv.classList.contains('hidden')) {
+            solutionDiv.classList.remove('hidden');
+            icon.classList.add('rotate-180');
+        } else {
+            solutionDiv.classList.add('hidden');
+            icon.classList.remove('rotate-180');
+        }
+    }
+</script>

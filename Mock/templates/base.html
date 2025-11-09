@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block title %}SAT Makon{% endblock %}</title>
+    <title>{% block title %}{{ CENTER_NAME }}{% endblock %}</title>
     
     <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
@@ -15,6 +15,7 @@
 </head>
 <body class="bg-gray-100 min-h-screen flex flex-col font-sans">
     
+    {# Toast Notification Container #}
     <div id="toast-container" class="fixed top-5 right-5 z-50 w-full max-w-sm space-y-3">
         {% if messages %}
             {% for message in messages %}
@@ -32,6 +33,7 @@
             {% endfor %}
         {% endif %}
     </div>
+    
     <div class="sat-wrapper flex flex-col min-h-screen">
         {% include 'header.html' %}
         
@@ -44,12 +46,15 @@
         {% include 'footer.html' %}
     </div>
 
+    {# JavaScript va kutubxonalar #}
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
-    
+    <script src="https://cdn.jsdelivr.net/npm/@alpinejs/collapse@3.x.x/dist/cdn.min.js" defer></script>
+    <script src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
     <script src="{% static 'ckeditor/ckeditor-init.js' %}"></script>
     <script src="{% static 'ckeditor/ckeditor/ckeditor.js' %}"></script>
 
+    {# MathJax sozlamalari #}
     <script>
         MathJax = {
             tex: {
@@ -76,6 +81,7 @@
     
     {% block extra_js %}{% endblock %}
 
+    {# Asosiy JavaScript Logikasi #}
     <script>
         document.addEventListener('DOMContentLoaded', function() {
             // Profil menyusi (Dropdown) uchun
@@ -110,7 +116,31 @@
                 });
             }
 
-            // Xabarlarni (toasts) boshqarish logikasi
+            // ✅ YANGI LOGIKA: Kontent Dropdown menyusi (Teacher uchun)
+            // Bu element 'header.html' ichida joylashgan 'relative group' diviga tegishli
+            const contentDropdownGroup = document.querySelector('.relative.group'); 
+            const contentDropdownButton = contentDropdownGroup ? contentDropdownGroup.querySelector('button') : null;
+            const contentDropdownMenu = contentDropdownGroup ? contentDropdownGroup.querySelector('.absolute') : null;
+
+            if (contentDropdownButton && contentDropdownMenu) {
+                // Hover funksiyasi Tailwind CSS orqali ishlashi kerak (group-hover:block)
+                // Lekin click uchun qo'shimcha xavfsizlik
+                contentDropdownButton.addEventListener('click', function (event) {
+                    event.preventDefault(); // Sahifa yangilanishining oldini olish
+                    event.stopPropagation();
+                    contentDropdownMenu.classList.toggle('hidden');
+                });
+
+                // Boshqa joyni bosishda yopish
+                document.addEventListener('click', function (event) {
+                    if (contentDropdownGroup && !contentDropdownGroup.contains(event.target) && !contentDropdownMenu.classList.contains('hidden')) {
+                        contentDropdownMenu.classList.add('hidden');
+                    }
+                });
+            }
+
+
+            // Xabarlarni (toasts) boshqarish logikasi (O'zgartirilmagan)
             const allToasts = document.querySelectorAll('.alert-toast');
             allToasts.forEach((toast, index) => {
                 const tag = toast.dataset.tag;

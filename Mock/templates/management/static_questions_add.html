@@ -1,0 +1,329 @@
+{% extends 'base.html' %}
+{% load static i18n %}
+
+{% block title %}Savollarni tanlash (2-Bosqich){% endblock %}
+
+{% block head %}
+<link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet">
+
+<script src="https://cdn.jsdelivr.net/npm/jquery@3.6.0/dist/jquery.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+<style>
+    .errorlist { color: #ef4444; font-size: 0.875rem; margin-top: 0.25rem; }
+    /* Select2 ni chiroyli ko'rinishga keltirish */
+    .select2-container .select2-selection--single { 
+        height: 2.5rem !important; 
+        border: 1px solid #d1d5db !important; 
+        border-radius: 0.375rem !important; 
+        line-height: 2.5rem;
+    }
+    .select2-container--default .select2-selection--single .select2-selection__rendered {
+        line-height: 2.5rem;
+        padding-left: 0.75rem;
+    }
+    .select2-container--default .select2-selection--single .select2-selection__arrow {
+        height: 2.5rem;
+    }
+
+    /* Tugmalar dizaynini yaxshilash */
+    .btn {
+        display: inline-flex; 
+        align-items: center; 
+        padding: 0.5rem 1rem;
+        font-weight: 600; 
+        border-radius: 0.5rem; 
+        transition: all 0.2s; 
+        font-size: 0.9rem;
+    }
+    .btn-primary { background-color: #4f46e5; color: white; }
+    .btn-primary:hover { background-color: #4338ca; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1); }
+    .btn-secondary { background-color: #6b7280; color: white; }
+    .btn-secondary:hover { background-color: #4b5563; }
+    
+    /* Savol ro'yxati uchun stil */
+    .question-item { 
+        padding: 1rem; 
+        border: 1px solid #e5e7eb; 
+        border-radius: 0.75rem; 
+        margin-bottom: 0.75rem; 
+        background-color: white;
+        transition: box-shadow 0.2s;
+        box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05);
+    }
+    .question-item:hover { 
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.06); 
+    }
+    /* Checkbox hajmini oshirish */
+    .question-checkbox {
+        width: 1.25rem;
+        height: 1.25rem;
+        cursor: pointer;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container mx-auto p-4 md:p-8 max-w-6xl">
+    <div class="bg-white shadow-2xl rounded-xl p-6 md:p-8 border border-gray-200">
+        
+        <h2 class="text-3xl font-extrabold text-gray-900 mb-2">{% trans "Savollarni tanlash" %} <span class="text-indigo-600">(2-Bosqich)</span></h2>
+        
+        <div class="flex flex-wrap items-center justify-start gap-x-6 gap-y-2 text-gray-700 mb-6 border-b pb-4">
+            <p class="text-lg font-semibold">
+                <i class="fas fa-list-alt text-indigo-500 mr-2"></i>
+                {% trans "Bo'lim nomi" %}: <span class="font-bold text-indigo-600">{{ section_name }}</span>
+            </p>
+            <p class="text-lg font-semibold">
+                <i class="fas fa-cubes text-indigo-500 mr-2"></i>
+                {% trans "Bo'lim Turi" %}: <span class="font-bold text-indigo-600">{{ section_type }}</span>
+            </p>
+            <p class="text-lg font-semibold">
+                <i class="fas fa-tasks text-indigo-500 mr-2"></i>
+                {% trans "Maksimal savollar soni" %}: <span class="font-bold text-red-500" id="max-q-count">{{ max_questions }}</span>
+            </p>
+            {# 🎯 Markaz slug'ini ko'rsatish (Tekshirish uchun) #}
+            <p class="text-lg font-semibold">
+                <i class="fas fa-school text-indigo-500 mr-2"></i>
+                {% trans "Markaz" %}: <span class="font-bold text-indigo-600">{{ center.slug|upper }}</span>
+            </p>
+        </div>
+
+        <div id="messages-container">
+        </div>
+
+        <div class="mb-8 flex items-center bg-indigo-50 p-4 rounded-lg border border-indigo-200 justify-between">
+            <p class="text-xl font-bold text-indigo-800 flex items-center">
+                <i class="fas fa-check-double text-indigo-500 mr-3"></i>
+                {% trans "Tanlangan savollar soni" %}:
+            </p>
+            <span id="selected-count" class="text-4xl font-extrabold text-indigo-600">0</span>
+        </div>
+
+        <p class="text-gray-600 mb-6 text-lg font-medium">
+            <i class="fas fa-filter text-gray-500 mr-2"></i>
+            {% trans "Mavzu va Ichki Mavzu bo'yicha savollarni tanlang." %}
+        </p>
+
+        <form id="question-filter-form" method="POST" class="space-y-4 md:space-y-0 md:flex md:gap-4 mb-8 items-end">
+            {% csrf_token %}
+            <div class="flex-1">
+                <label for="topic" class="block text-gray-700 font-medium mb-1">{% trans "Mavzu" %}</label>
+                <select id="topic" name="topic" class="w-full px-3 py-2 border rounded-md">
+                    <option value="">{% trans "Mavzu tanlang" %}</option>
+                    {% for topic in topics %}
+                    <option value="{{ topic.id }}" {% if request.POST.topic|add:"0" == topic.id|add:"0" %}selected{% endif %}>
+                        {{ topic.name }} {% if topic.created_by %} ({{ topic.created_by.get_full_name|default:topic.created_by.username }}) {% endif %}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="flex-1">
+                <label for="subtopic" class="block text-gray-700 font-medium mb-1">{% trans "Ichki Mavzu" %}</label>
+                <select id="subtopic" name="subtopic" class="w-full px-3 py-2 border rounded-md">
+                    <option value="">{% trans "Ichki mavzu tanlang" %}</option>
+                </select>
+            </div>
+            <button type="submit" class="btn btn-primary w-full md:w-auto h-10">
+                <i class="fas fa-search mr-2"></i>{% trans "Yuklash" %}
+            </button>
+        </form>
+
+        <div id="question-list" class="mt-6 border-t pt-6">
+            {% if questions %}
+            <h3 class="text-xl font-bold text-gray-800 mb-4">{{ questions|length }} ta {% trans "Savol ro'yxati" %}</h3>
+            
+            {% include 'partials/questions_list.html' %} 
+            
+            {% else %}
+            <div class="text-center py-8 bg-gray-50 rounded-lg border border-dashed">
+                <i class="fas fa-info-circle text-4xl text-gray-400 mb-3"></i>
+                <p class="text-lg text-gray-600">{% trans "Iltimos, Mavzu va Ichki Mavzu tanlang va 'Yuklash' tugmasini bosing." %}</p>
+            </div>
+            {% endif %}
+        </div>
+
+        <div class="flex justify-between mt-10 border-t pt-6">
+            {# 🎯 SLUG qo'shildi #}
+            <a href="{% url 'section_list' slug=center.slug %}" class="btn btn-secondary">
+                <i class="fas fa-arrow-left mr-2"></i>{% trans "Bo'limlar ro'yxatiga qaytish" %}
+            </a>
+            <button id="save-questions-btn" class="btn btn-primary px-6 py-2">
+                <i class="fas fa-save mr-2"></i>{% trans "Saqlash va yakunlash" %}
+            </button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    $(document).ready(function() {
+        // --- Boshlang'ich Sozlamalar ---
+        const slug = "{{ center.slug }}"; 
+        const SECTION_ID = {{ section_id }};
+        const MAX_QUESTIONS = parseInt($('#max-q-count').text()) || 0;
+        const initialIds = JSON.parse('{{ initial_questions_ids|safe|escapejs }}' || '[]'); 
+        let selectedQuestions = []; 
+
+        if (initialIds.length > 0) {
+            initialIds.forEach(id => {
+                selectedQuestions.push({ id: id }); 
+            });
+            updateSelectedCount();
+        }
+
+        // --- Helper funksiyalar ---
+        function updateSelectedCount() {
+            $('#selected-count').text(selectedQuestions.length);
+        }
+
+        function updateCheckboxStates() {
+            $('.question-checkbox').each(function() {
+                const questionId = parseInt($(this).val());
+                $(this).prop('checked', selectedQuestions.some(q => parseInt(q.id) === questionId));
+            });
+        }
+        
+        function showMessage(type, message) {
+            const html = `
+                <div class="p-4 mb-4 text-sm rounded-lg shadow-sm border-l-4 
+                    ${type === 'success' ? 'bg-green-100 text-green-800 border-green-400' : 'bg-red-100 text-red-800 border-red-400'}" role="alert">
+                    ${message}
+                </div>`;
+            $('#messages-container').html(html);
+        }
+
+        // --- Select2 ni ishga tushirish ---
+        $('#topic, #subtopic').select2({
+            theme: "classic",
+            width: '100%',
+            allowClear: true,
+            placeholder: "{% trans 'Tanlang...' %}"
+        });
+
+        // --- Subtopic yuklash (AJAX) - 🎯 SLUG Qo'shildi ---
+        $('#topic').on('change', function() {
+            const topicId = $(this).val();
+            if (!topicId) {
+                $('#subtopic').empty().append('<option value="">{% trans "Ichki mavzu tanlang" %}</option>').trigger('change.select2');
+                $('#question-list').html('<p class="text-gray-600">{% trans "Iltimos, Mavzu va Ichki Mavzu tanlang." %}</p>');
+                return;
+            }
+            $.ajax({
+                // 🎯 URL o'zgartirildi: slug ni qo'shish kerak
+                url: `{% url "get_subtopics" slug=center.slug %}`, 
+                type: 'GET',
+                data: { topic_id: topicId },
+                dataType: 'json',
+                success: function(data) {
+                    $('#subtopic').empty().append('<option value="">{% trans "Ichki mavzu tanlang" %}</option>');
+                    if (data.length === 0) {
+                        showMessage('error', '{% trans "Tanlangan Mavzuga oid Ichki Mavzular topilmadi." %}');
+                    } else {
+                        $('#messages-container').empty();
+                        data.forEach(function(subtopic) {
+                            $('#subtopic').append(`<option value="${subtopic.id}">${subtopic.name}</option>`);
+                        });
+                    }
+                    $('#subtopic').trigger('change.select2');
+                    $('#question-list').html('<p class="text-gray-600">{% trans "Ichki Mavzu tanlang va savollarni yuklang." %}</p>');
+                },
+                error: function(xhr) {
+                    const errorMsg = xhr.responseJSON ? xhr.responseJSON.error : '{% trans "Nomalum xato." %}';
+                    showMessage('error', `{% trans "Ichki Mavzularni yuklashda xato" %}: ${errorMsg}`);
+                }
+            });
+        });
+
+        // --- Savollarni yuklash (form submit bilan AJAX) - 🎯 SLUG Qo'shildi ---
+        $('#question-filter-form').on('submit', function(e) {
+            e.preventDefault();
+            const subtopicId = $('#subtopic').val();
+            if (!subtopicId) {
+                showMessage('error', '{% trans "Iltimos, Ichki Mavzu tanlang." %}');
+                return;
+            }
+            
+            // Savollarni AJAX yordamida yuklash
+            $.ajax({
+                // 🎯 URL o'zgartirildi: slug ni qo'shish kerak
+                url: `{% url "get_questions" slug=center.slug %}`, 
+                type: 'GET',
+                data: { subtopic_id: subtopicId },
+                success: function(response) {
+                    $('#question-list').html(response.html);
+                    updateCheckboxStates(); 
+                    $('#messages-container').empty();
+                },
+                error: function(xhr) {
+                    const errorMsg = xhr.responseJSON ? xhr.responseJSON.error : '{% trans "Nomalum xato." %}';
+                    showMessage('error', `{% trans "Savollarni yuklashda xato" %}: ${errorMsg}`);
+                }
+            });
+        });
+
+        // --- Savol tanlash/o'chirish (Checkbox change) ---
+        $(document).on('change', '.question-checkbox', function() {
+            const questionId = parseInt($(this).val());
+            
+            if ($(this).is(':checked')) {
+                if (MAX_QUESTIONS > 0 && selectedQuestions.length >= MAX_QUESTIONS) {
+                    showMessage('error', `{% trans "Maksimal savollar soni" %} (${MAX_QUESTIONS}) {% trans "ga yetdi. Yoki boshqa savolni tanlash uchun, avval tanlaganingizni o'chiring." %}`);
+                    $(this).prop('checked', false);
+                    return;
+                }
+                if (!selectedQuestions.some(q => parseInt(q.id) === questionId)) {
+                    selectedQuestions.push({ id: questionId });
+                }
+            } else {
+                selectedQuestions = selectedQuestions.filter(q => parseInt(q.id) !== questionId);
+            }
+            updateSelectedCount();
+            $('#messages-container').empty(); 
+        });
+
+        // --- Savollarni saqlash (Final Save AJAX) - 🎯 SLUG Qo'shildi ---
+        $('#save-questions-btn').on('click', function() {
+            if (MAX_QUESTIONS > 0 && selectedQuestions.length === 0) {
+                showMessage('error', '{% trans "Iltimos, kamida bitta savol tanlang." %}');
+                return;
+            }
+            
+            if (MAX_QUESTIONS > 0 && selectedQuestions.length > MAX_QUESTIONS) {
+                showMessage('error', `{% trans "Tanlangan savollar soni" %} (${selectedQuestions.length}) {% trans "maksimal son" %} (${MAX_QUESTIONS}) {% trans "dan oshib ketdi!" %}`);
+                return;
+            }
+
+            const questionIds = selectedQuestions.map(q => q.id).join(',');
+            
+            // 🎯 URL o'zgartirildi: slug va section_id ni qo'shish kerak
+            const saveUrl = `{% url 'save_static_questions' slug=center.slug section_id=section_id %}`;
+
+            $.ajax({
+                url: saveUrl, 
+                type: 'POST',
+                data: {
+                    csrfmiddlewaretoken: $('input[name="csrfmiddlewaretoken"]').val(),
+                    selected_questions_ids: questionIds
+                },
+                success: function(response) {
+                    showMessage('success', '{% trans "Savollar muvaffaqiyatli saqlandi!" %}');
+                    setTimeout(() => {
+                        window.location.href = response.redirect_url; 
+                    }, 1000);
+                },
+                error: function(xhr) {
+                    const errorMsg = xhr.responseJSON ? xhr.responseJSON.message : '{% trans "Nomalum xato yuz berdi." %}';
+                    showMessage('error', `{% trans 'Saqlashda xato' %}: ${errorMsg}`);
+                    console.error('Saqlashda xato:', xhr.responseText);
+                }
+            });
+        });
+        
+        // Sahifa yuklanganda boshlang'ich holatni tekshirish
+        updateCheckboxStates();
+    });
+</script>
+{% endblock %}

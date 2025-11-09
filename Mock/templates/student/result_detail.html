@@ -21,23 +21,47 @@
             <h1 class="text-3xl sm:text-4xl font-extrabold text-slate-800">{{ attempt.exam.title }}</h1>
             <p class="text-lg text-slate-500 mt-2">Natijalar Tahlili</p>
         </div>
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-center">
-            <div class="bg-indigo-50 border-2 border-indigo-200 p-4 rounded-xl">
-                <p class="text-sm font-bold text-indigo-800">UMUMIY BALL</p>
-                <p class="text-5xl font-extrabold text-indigo-600 my-1">{{ total_sat_score|default:"-" }}</p>
-                <p class="text-sm font-semibold text-slate-500">/ 1600</p>
+
+        <div class="grid grid-cols-1 gap-4 text-center">
+            
+            {% if is_subject_exam %}
+            <div class="bg-emerald-50 border-2 border-emerald-200 p-6 rounded-xl md:col-span-1">
+                <p class="text-sm font-bold text-emerald-800">BAJARILGANLIK FOIZI</p>
+                <p class="text-6xl sm:text-7xl font-extrabold text-emerald-600 my-1">{{ total_percentage }}%</p>
+                <p class="text-sm font-semibold text-slate-500">
+                    <span class="text-green-600 font-bold">{{ total_correct }}</span> to'g'ri / 
+                    <span class="font-bold">{{ total_questions }}</span> savol
+                </p>
             </div>
-            <div class="bg-sky-50 border-2 border-sky-200 p-4 rounded-xl">
-                <p class="text-sm font-bold text-sky-800">ENGLISH</p>
-                <p class="text-4xl font-extrabold text-sky-600 my-1">{{ ebrw_score|default:"-" }}</p>
-                <p class="text-sm font-semibold text-slate-500">/ 800</p>
+            {% else %}
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-center">
+                <div class="bg-indigo-50 border-2 border-indigo-200 p-4 rounded-xl">
+                    <p class="text-sm font-bold text-indigo-800">UMUMIY BALL</p>
+                    <p class="text-5xl font-extrabold text-indigo-600 my-1">{{ total_sat_score|default:"-" }}</p>
+                    <p class="text-sm font-semibold text-slate-500">/ 1600</p>
+                </div>
+                <div class="bg-sky-50 border-2 border-sky-200 p-4 rounded-xl">
+                    <p class="text-sm font-bold text-sky-800">ENGLISH</p>
+                    <p class="text-4xl font-extrabold text-sky-600 my-1">{{ ebrw_score|default:"-" }}</p>
+                    <p class="text-sm font-semibold text-slate-500">/ 800</p>
+                </div>
+                <div class="bg-rose-50 border-2 border-rose-200 p-4 rounded-xl">
+                    <p class="text-sm font-bold text-rose-800">MATH</p>
+                    <p class="text-4xl font-extrabold text-rose-600 my-1">{{ math_score|default:"-" }}</p>
+                    <p class="text-sm font-semibold text-slate-500">/ 800</p>
+                </div>
             </div>
-            <div class="bg-rose-50 border-2 border-rose-200 p-4 rounded-xl">
-                <p class="text-sm font-bold text-rose-800">MATH</p>
-                <p class="text-4xl font-extrabold text-rose-600 my-1">{{ math_score|default:"-" }}</p>
-                <p class="text-sm font-semibold text-slate-500">/ 800</p>
-            </div>
+            {% endif %}
+            
         </div>
+        
+        {% if is_subject_exam and not can_view_solution %}
+        <div class="mt-6 p-4 bg-red-100 border-l-4 border-red-500 text-red-700 rounded-md" role="alert">
+            <p class="font-bold"><i class="fas fa-exclamation-triangle mr-2"></i> Yechimlar yopiq!</p>
+            <p>Savollar tahlilini ko'rish uchun ushbu imtihonda **kamida 60%** to'g'ri javob to'plashingiz kerak. Hozirgi natijangiz: <strong>{{ total_percentage }}%</strong>. Qayta urinib ko'ring.</p>
+        </div>
+        {% endif %}
+
     </div>
     
     <div>
@@ -50,11 +74,11 @@
             </h3>
 
             <div class="p-4 bg-slate-100 rounded-lg mb-6">
-                <p class="text-sm font-semibold text-slate-600 mb-2">Savolni ko'rish:</p>
+                <p class="text-sm font-semibold text-slate-600 mb-2">Savolni ko'rish (To'g'ri: <span class="text-green-600">{{ section_analysis.correct_count }}</span> / Jami: <span class="text-indigo-600">{{ section_analysis.total_count }}</span>):</p>
                 <div class="flex flex-wrap gap-2">
                     {% for ua in section_analysis.user_answers_nav %}
                         <button data-user-answer-id="{{ ua.id }}" 
-                           class="question-nav-btn w-8 h-8 flex items-center justify-center rounded-md font-bold text-xs transition
+                            class="question-nav-btn w-8 h-8 flex items-center justify-center rounded-md font-bold text-xs transition
                                 {% if ua.is_correct %} bg-green-200 text-green-800 hover:bg-green-300
                                 {% elif ua.is_correct is None %} bg-yellow-200 text-yellow-800 hover:bg-yellow-300
                                 {% else %} bg-red-200 text-red-800 hover:bg-red-300 {% endif %}">
@@ -72,7 +96,7 @@
         {% endfor %}
 
         <div class="flex justify-end mt-10">
-            <a href="{% url 'exam_attempts' attempt.exam.id %}" class="btn btn-slate">
+            <a href="{% url 'exam_attempts' center.slug attempt.exam.id %}" class="btn btn-slate">
                 <i class="fas fa-list-alt mr-2"></i> Barcha urinishlarga qaytish
             </a>
         </div>
@@ -81,6 +105,11 @@
 
 {% block extra_js %}
 <script>
+    // JS da can_view_solution ni ishlatish uchun
+    const CAN_VIEW_SOLUTION = {{ can_view_solution|yesno:"true,false" }};
+    const IS_SUBJECT_EXAM = {{ is_subject_exam|yesno:"true,false" }};
+    const ATTEMPT_ID = {{ attempt.id }};
+
 document.addEventListener('DOMContentLoaded', () => {
     const navButtons = document.querySelectorAll('.question-nav-btn');
     let currentActiveButton = null;
@@ -102,7 +131,8 @@ document.addEventListener('DOMContentLoaded', () => {
             container.innerHTML = `<div class="text-center p-4 text-slate-500"><i class="fas fa-spinner fa-spin mr-2"></i>Yuklanmoqda...</div>`;
 
             try {
-                const response = await fetch(`{% url 'get_answer_detail_ajax' %}?user_answer_id=${userAnswerId}`);
+                // AJAX so'roviga mavzu imtihoni va yechim ruxsatini qo'shamiz
+                const response = await fetch(`{% url 'get_answer_detail_ajax' %}?user_answer_id=${userAnswerId}&is_subject_exam=${IS_SUBJECT_EXAM}&can_view_solution=${CAN_VIEW_SOLUTION}`);
                 const data = await response.json();
 
                 if (response.ok) {

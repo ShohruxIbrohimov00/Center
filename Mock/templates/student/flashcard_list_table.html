@@ -1,0 +1,136 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}{{ page_title }}{% endblock %}
+
+{% block content %}
+<div class="container mx-auto px-4 py-8">
+    <a href="{% url 'my_flashcards' center.slug %}" class="text-blue-600 hover:text-blue-800 flex items-center mb-6 font-semibold">
+        <i class="fas fa-arrow-left mr-2"></i> Statistikaga qaytish
+    </a>
+
+    <h1 class="text-3xl sm:text-4xl font-extrabold text-slate-800 mb-8">
+        {{ page_title }} 
+        <span class="text-indigo-600">({{ flashcards_list|length }} ta)</span>
+    </h1>
+
+    {% if flashcards_list %}
+        
+        <div class="hidden sm:block overflow-x-auto bg-white rounded-xl shadow-xl border border-slate-200">
+            <table class="min-w-full divide-y divide-slate-200">
+                <thead class="bg-slate-50">
+                    <tr>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider w-1/4">Inglizcha so'z / Formula</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider w-1/4">Ma'nosi</th>
+                        <th class="px-2 py-3 text-center text-xs font-medium text-slate-500 uppercase tracking-wider">Takr.</th>
+                        <th class="px-2 py-3 text-center text-xs font-medium text-slate-500 uppercase tracking-wider">EF</th>
+                        <th class="px-2 py-3 text-center text-xs font-medium text-slate-500 uppercase tracking-wider">Oxirgi Baho</th>
+                        {% if status_filter != 'new' %}
+                            <th class="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider w-1/4">Keyingi Takrorlash</th>
+                        {% endif %}
+                    </tr>
+                </thead>
+                <tbody class="bg-white divide-y divide-slate-200">
+                    {% for fc in flashcards_list %}
+                    <tr class="hover:bg-slate-50">
+                        {# Content tozalanganligi sababli, |safe yo'q, va MathJax o'zi ishlaydi #}
+                        <td class="px-4 py-3 text-sm font-medium text-slate-900">{{ fc.english_content }}</td>
+                        <td class="px-4 py-3 text-sm text-slate-600">{{ fc.uzbek_meaning }}</td>
+                        
+                        {# Takrorlash soni #}
+                        <td class="px-2 py-3 whitespace-nowrap text-center text-sm font-bold">
+                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium {% if fc.repetition_count >= 5 %}bg-green-100 text-green-800{% else %}bg-indigo-100 text-indigo-800{% endif %}">
+                                {{ fc.repetition_count }}
+                            </span>
+                        </td>
+                        
+                        {# Osonlik omili (EF) #}
+                        <td class="px-2 py-3 whitespace-nowrap text-center text-sm font-bold text-slate-700">{{ fc.ease_factor }}</td>
+
+                        {# Oxirgi Baho #}
+                        <td class="px-2 py-3 whitespace-nowrap text-center text-sm">
+                            {% if fc.last_rating == 0 %}
+                                <span class="text-red-500 font-bold">0</span>
+                            {% elif fc.last_rating >= 4 %}
+                                <span class="text-green-600 font-bold">{{ fc.last_rating }}</span>
+                            {% elif fc.last_rating >= 1 %}
+                                <span class="text-yellow-600 font-bold">{{ fc.last_rating }}</span>
+                            {% else %}
+                                -
+                            {% endif %}
+                        </td>
+
+                        {# Keyingi Takrorlash Vaqti #}
+                        {% if status_filter != 'new' %}
+                            <td class="px-4 py-3 whitespace-nowrap text-sm text-slate-500">
+                                {% if fc.next_review_at %}
+                                    <span class="block font-semibold text-slate-800">{{ fc.next_review_at|date:"M j, Y, H:i" }}</span>
+                                    <span class="text-xs text-indigo-500">{{ fc.next_review_time_until }}</span>
+                                {% else %}
+                                    -
+                                {% endif %}
+                            </td>
+                        {% endif %}
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <div class="sm:hidden space-y-4">
+            {% for fc in flashcards_list %}
+            <div class="bg-white p-4 rounded-xl shadow-md border-l-4 
+                {% if status_filter == 'learned' %}border-green-500{% elif status_filter == 'learning' %}border-blue-500{% else %}border-yellow-500{% endif %}">
+                
+                <p class="text-base font-bold text-slate-900 mb-1">
+                    <span class="text-slate-500">Word/Formula:</span> {{ fc.english_content }}
+                </p>
+                <p class="text-sm text-slate-600 border-b pb-2 mb-2">
+                    <span class="text-slate-500">Ma'nosi:</span> {{ fc.uzbek_meaning }}
+                </p>
+
+                <div class="grid grid-cols-2 gap-3 text-xs">
+                    <div>
+                        <span class="font-semibold text-slate-500">Takrorlash Soni:</span>
+                        <span class="block font-bold text-indigo-700">{{ fc.repetition_count }}</span>
+                    </div>
+                    <div>
+                        <span class="font-semibold text-slate-500">Osonlik Omili (EF):</span>
+                        <span class="block font-bold text-slate-800">{{ fc.ease_factor }}</span>
+                    </div>
+                    <div>
+                        <span class="font-semibold text-slate-500">Oxirgi Baho:</span>
+                        <span class="block font-bold 
+                            {% if fc.last_rating == 0 %}text-red-500{% elif fc.last_rating >= 4 %}text-green-600{% else %}text-yellow-600{% endif %}">
+                            {% if fc.last_rating != 0 %}{{ fc.last_rating }}{% else %}0{% endif %}
+                        </span>
+                    </div>
+                    {% if status_filter != 'new' %}
+                    <div class="col-span-2">
+                        <span class="font-semibold text-slate-500">Keyingi Takrorlash:</span>
+                        <span class="block font-bold text-slate-800">
+                            {% if fc.next_review_at %}
+                                {{ fc.next_review_at|date:"M j, Y, H:i" }} 
+                                <span class="text-indigo-500">{{ fc.next_review_time_until }}</span>
+                            {% else %}
+                                -
+                            {% endif %}
+                        </span>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+
+    {% else %}
+        <div class="text-center bg-white p-10 rounded-xl shadow-lg mt-10">
+            <i class="fas fa-box-open text-4xl text-slate-400 mb-4"></i>
+            <p class="text-xl text-slate-600">Bu guruhda hech qanday kartochka topilmadi.</p>
+            <a href="{% url 'all_exams' center.slug %}" class="btn btn-primary mt-6 inline-block">
+                Imtihonlarni Ko'rish
+            </a>
+        </div>
+    {% endif %}
+</div>
+{% endblock %}

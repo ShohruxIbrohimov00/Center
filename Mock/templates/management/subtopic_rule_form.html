@@ -1,0 +1,19 @@
+<div class="formset-row grid grid-cols-1 md:grid-cols-3 gap-4 mb-4 border-b pb-4">
+    <div>
+        <label for="{{ form.subtopic.id_for_label }}" class="block text-gray-700 font-medium mb-1">{{ form.subtopic.label }}</label>
+        {{ form.subtopic }}
+        {% if form.subtopic.errors %}<ul class="errorlist">{{ form.subtopic.errors }}</ul>{% endif %}
+    </div>
+    <div>
+        <label for="{{ form.questions_count.id_for_label }}" class="block text-gray-700 font-medium mb-1">{{ form.questions_count.label }}</label>
+        {{ form.questions_count }}
+        {% if form.questions_count.errors %}<ul class="errorlist">{{ form.questions_count.errors }}</ul>{% endif %}
+    </div>
+    <div class="flex items-center">
+        {{ form.id }}
+        <input type="checkbox" name="{{ form.DELETE.name }}" id="{{ form.DELETE.id_for_label }}" class="delete-rule hidden">
+        <button type="button" class="delete-rule-btn text-red-500 hover:text-red-700 p-2 rounded-full hover:bg-red-50 transition duration-150" title="{% trans 'O‘chirish' %}">
+            <i class="fas fa-trash-alt"></i>
+        </button>
+    </div>
+</div>

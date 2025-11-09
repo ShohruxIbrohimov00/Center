@@ -1,0 +1,176 @@
+{% extends 'base.html' %}
+{% load static i18n widget_tweaks %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block extra_css %}
+<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+<style>
+    /* Umumiy tugma uslublari (oldingi so'rovdan olingan) */
+    .btn { display: inline-flex; align-items: center; padding: 0.6rem 1.25rem; font-weight: 600; border-radius: 0.5rem; transition: all 0.3s; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -2px rgba(0,0,0,0.1); }
+    .btn-primary { background-color: #4f46e5; color: white; }
+    .btn-primary:hover { background-color: #4338ca; transform: translateY(-1px); }
+    .btn-secondary { background-color: #6b7280; color: white; }
+    .btn-secondary:hover { background-color: #4b5563; transform: translateY(-1px); }
+    
+    /* Forma boshqaruvi uslubi (oldindan aniqlangan) */
+    .form-control { 
+        border: 1px solid #d1d5db; 
+        border-radius: 0.375rem; 
+        padding: 0.6rem 0.75rem;
+        box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05); 
+        transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out; 
+    }
+    .form-control:focus { 
+        border-color: #4f46e5; 
+        box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.2); 
+        outline: none; 
+    }
+    
+    /* 💥 SELECT2 Uslublarini To'g'irlash (Muhim qism) */
+    
+    /* Asosiy Select2 Container (Input maydoni) */
+    .select2-container--default .select2-selection--multiple {
+        /* form-control uslublarini qo'llash */
+        border: 1px solid #d1d5db !important; 
+        border-radius: 0.375rem !important;
+        box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05) !important;
+        padding: 0.3rem 0.5rem !important; /* Ichidagi elementlarga joy qoldirish */
+        min-height: 40px; /* Minimal balandlik */
+        line-height: 1.5;
+        transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out; 
+    }
+
+    /* Fokuslangan holat */
+    .select2-container--default.select2-container--focus .select2-selection--multiple {
+        border-color: #4f46e5 !important; 
+        box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.2) !important;
+    }
+
+    /* Tanlangan yorliqlar (Tags) */
+    .select2-container--default .select2-selection--multiple .select2-selection__choice {
+        background-color: #eef2ff !important; /* Indigo rangi ochroq foni */
+        color: #4f46e5 !important; /* To'q indigo matn */
+        border: 1px solid #c7d2fe !important; /* Och indigo chegara */
+        border-radius: 0.25rem !important;
+        padding: 0.2rem 0.5rem !important;
+        margin-top: 0.15rem;
+        margin-right: 0.4rem;
+        font-size: 0.875rem;
+        font-weight: 500;
+    }
+
+    /* Tanlangan yorliqdagi o'chirish tugmasi (X) */
+    .select2-container--default .select2-selection--multiple .select2-selection__choice__remove {
+        color: #4f46e5 !important;
+        margin-right: 0.25rem !important;
+        font-weight: 700;
+    }
+    .select2-container--default .select2-selection--multiple .select2-selection__choice__remove:hover {
+        color: #ef4444 !important; /* X ni hoverda qizil qilish */
+    }
+
+    /* Dropdown uslubi (natijalar ro'yxati) */
+    .select2-container--default .select2-results__option--highlighted.select2-results__option--selectable {
+        background-color: #4f46e5 !important;
+        color: white !important;
+    }
+    .select2-container--default .select2-results__option {
+        padding: 8px 12px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container mx-auto p-4 md:p-8 max-w-xl">
+    <div class="bg-white shadow-2xl rounded-xl p-6 md:p-8 border border-gray-100">
+        <h2 class="text-3xl font-extrabold text-gray-900 mb-8 border-b pb-4">
+            <i class="fas fa-users-cog text-indigo-600 mr-3"></i> {{ title }}
+        </h2>
+
+        <form method="post" action="" class="space-y-6">
+            {% csrf_token %}
+
+            {# Guruh nomi maydoni #}
+            <div class="field-container">
+                <label for="{{ form.name.id_for_label }}" class="block text-sm font-medium text-gray-700">
+                    {{ form.name.label }} <span class="text-red-500">*</span>
+                </label>
+                {% render_field form.name class="form-control mt-1 block w-full" %}
+                {{ form.name.errors }}
+            </div>
+            
+            {# is_active maydoni - Ro'yxatdan pastda bo'lsin #}
+            <div class="field-container border-b pb-4">
+                <label for="{{ form.is_active.id_for_label }}" class="inline-flex items-center cursor-pointer text-sm font-medium text-gray-700">
+                    {% render_field form.is_active class="h-5 w-5 text-indigo-600 border-gray-300 rounded mr-2 focus:ring-indigo-500" %}
+                    {{ form.is_active.label }}
+                </label>
+                {{ form.is_active.errors }}
+            </div>
+
+            {# O'quvchilarni qo'shish maydoni (Select2) #}
+            <div class="field-container">
+                <label for="{{ form.students.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-1">
+                    {{ form.students.label }}
+                </label>
+                {# Select2 classini berish yetarli, CSS styles uni to'g'irlaydi #}
+                {% render_field form.students class="mt-1 block w-full select2-students" %}
+                <p class="mt-2 text-sm text-gray-500">{% trans "O'quvchining F.I.Sh, username yoki telefon raqami bo'yicha qidirib, guruhga qo'shing." %}</p>
+                {{ form.students.errors }}
+            </div>
+            
+            <div class="flex justify-between pt-4 border-t mt-8">
+                <a href="{% url 'group_list' slug=center.slug %}" class="btn btn-secondary shadow-md">
+                    <i class="fas fa-arrow-left mr-2"></i>{% trans "Orqaga" %}
+                </a>
+                <button type="submit" class="btn btn-primary shadow-md">
+                    {% if is_create %}
+                        <i class="fas fa-plus mr-2"></i>{% trans "Guruhni Yaratish" %}
+                    {% else %}
+                        <i class="fas fa-save mr-2"></i>{% trans "Saqlash" %}
+                    {% endif %}
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+
+<script>
+$(document).ready(function() {
+    $('.select2-students').select2({
+        placeholder: "{% trans 'Oquvchilarni qidirish va tanlash (F.I.Sh yoki Username)' %}",
+        allowClear: true,
+        multiple: true,
+        minimumInputLength: 2,
+        ajax: {
+            url: "{% url 'search_students_ajax' %}",
+            dataType: 'json',
+            delay: 250,
+            data: function(params) {
+                return {
+                    q: params.term, 
+                    page: params.page 
+                };
+            },
+            processResults: function(data, params) {
+                params.page = params.page || 1;
+                return {
+                    results: data.items,
+                    pagination: {
+                        // total_count ni AJAX funksiyangizdan oling
+                        more: data.total_count && (params.page * 20) < data.total_count 
+                    }
+                };
+            },
+            cache: true
+        }
+    });
+});
+</script>
+{% endblock %}

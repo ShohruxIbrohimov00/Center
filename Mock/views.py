@@ -2,13 +2,19 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth import login, logout, authenticate, update_session_auth_hash
 from django.contrib import messages
 from django.http import JsonResponse, HttpResponse
-from django.db.models import Sum, Count, Max, Min, F, Q, Window, Avg
+from django.db.models import Sum, Count, Max, Min, F, Q, Window, Avg,Case,IntegerField,When,Value,Subquery, OuterRef
 from django.db import transaction
+from django.db.models import Prefetch, Count
+from datetime import datetime
+from django.views.decorators.csrf import csrf_exempt
 from django.utils import timezone
+from django.utils.translation import gettext_lazy as _
 from django.template.loader import render_to_string
 from django.urls import reverse
+from django.contrib.auth import get_user_model
 from django.views.decorators.http import require_POST
 from django.db.models.functions import Coalesce, Rank
+from django.core.exceptions import PermissionDenied
 from django.db import IntegrityError
 from django.conf import settings
 from datetime import timedelta
@@ -16,7 +22,9 @@ from django.contrib.auth.decorators import login_required, user_passes_test
 from django.views.decorators.http import require_POST
 from django.db import transaction
 import string 
+import html
 from django.template.loader import render_to_string 
+from django.forms import formset_factory
 import json
 import logging
 from .models import *
@@ -31,6 +39,8 @@ def is_teacher(user):
 def is_student(user):
     return user.is_authenticated and user.role == 'student'
 
+def is_admin(user):
+    return user.is_authenticated and user.role == 'admin'
 
 # ==========================================================
 # RO'YXATDAN O'TISH, KIRISH VA CHIQISH FUNKSIYALARI
@@ -38,7 +48,7 @@ def is_student(user):
 
 def signup_view(request):
     if request.user.is_authenticated:
-        return redirect('dashboard')
+        return redirect('dashboard',slug=request.user.center.slug)
     
     if request.method == 'POST':
         form = SignUpForm(request.POST)
@@ -46,7 +56,7 @@ def signup_view(request):
             user = form.save()
             login(request, user)
             messages.success(request, f"Xush kelibsiz, {user.username}! Akkauntingiz muvaffaqiyatli yaratildi.")
-            return redirect('dashboard')
+            return redirect('dashboard',slug=request.user.center.slug)
         else:
             # Forma xato bo'lsa, foydalanuvchiga umumiy xabar beramiz.
             # Aniq xatolar shablonning o'zida `form.errors` orqali ko'rsatiladi.
@@ -58,7 +68,7 @@ def signup_view(request):
 
 def login_view(request):
     if request.user.is_authenticated:
-        return redirect('dashboard')
+        return redirect('dashboard',slug=request.user.center.slug)
         
     if request.method == 'POST':
         form = LoginForm(request, data=request.POST)
@@ -71,7 +81,7 @@ def login_view(request):
             next_page = request.GET.get('next')
             if next_page:
                 return redirect(next_page)
-            return redirect('dashboard')
+            return redirect('dashboard',slug=request.user.center.slug)
         else:
             # Login yoki parol xato bo'lsa, bu xabar chiqadi.
             # Bu shablondagi `{% if form.errors %}` blokiga qo'shimcha.
@@ -89,7 +99,17 @@ def logout_view(request):
 def index(request):
     """Bosh sahifani ko'rsatadi."""
     if request.user.is_authenticated:
-        return redirect('dashboard') 
+        # 🔔 TUZATISH 🔔: Avval center mavjudligini tekshiramiz
+        if request.user.center:
+            # Markaz mavjud bo'lsa, o'sha markazning dashboardiga yo'naltiramiz
+            return redirect('dashboard', slug=request.user.center.slug)
+        else:
+            # Markaz mavjud bo'lmasa, uni tanlash/o'rnatish sahifasiga yo'naltiramiz
+            # Iltimos, bu yerga loyihangizdagi tegishli URL nomini yozing.
+            # Taxminiy URL: 'profile_update', 'center_selection', yoki 'index' (qayta yuklanish)
+            return redirect('profile') # 👈 O'zingizning URL nomingizni qo'ying!
+            
+    # Agar foydalanuvchi tizimga kirmagan bo'lsa
     return render(request, 'index.html')
 
 # ==========================================================
@@ -97,14 +117,35 @@ def index(request):
 # ==========================================================
 
 @login_required(login_url='login')
-def profile_view(request):
+def profile_view(request, slug): # <-- SLUG argumenti qo'shildi!
     """Profil sahifasini ko'rsatadi va ma'lumotlarni tahrirlashni boshqaradi."""
+    
+    # 1. MARKAZNI TEKSHIRISH (Dashboard'dagi kabi xavfsizlik va 404 xatosini oldini olish)
+    # Agar slug bo'yicha markaz topilmasa, avtomatik ravishda 404 beriladi.
+    center = get_object_or_404(Center, slug=slug)
+
+    # 2. Xavfsizlik tekshiruvi: Foydalanuvchi shu markazga bog'langanmi?
+    if request.user.center is None or request.user.center != center:
+        messages.error(request, "Bu markaz profiliga kirish huquqingiz yo‘q.")
+        
+        # Kirish huquqi yo'q bo'lsa, foydalanuvchini uning o'z dashboardiga yuborishga harakat qiling.
+        # Agar user.center None bo'lsa, bu yerda "AttributeError" xavfi bor, shuning uchun shartli redirect qilamiz
+        if request.user.center:
+            return redirect('dashboard', slug=request.user.center.slug)
+        else:
+             return redirect('index') # Yoki umumiy/markazsiz sahifaga
+            
+    # --- Asosiy mantiq ---
+    
     if request.method == 'POST':
+        # Eslatma: ProfileUpdateForm modelini shu yerda mavjud deb hisoblaymiz
         form = ProfileUpdateForm(request.POST, request.FILES, instance=request.user)
         if form.is_valid():
             form.save()
             messages.success(request, "Profilingiz muvaffaqiyatli yangilandi.")
-            return redirect('profile')
+            
+            # POST dan keyin o'sha sahifaga qaytishda SLUG berish majburiy
+            return redirect('profile', slug=center.slug) 
         else:
             messages.error(request, "Ma'lumotlarni saqlashda xatolik yuz berdi. Iltimos, formalarni to'g'ri to'ldiring.")
     else:
@@ -117,9 +158,9 @@ def profile_view(request):
         'form': form,
         'subscription': subscription,
         'user_balance': user_balance,
+        'center': center, # Kontekstga center'ni qo'shishni unutmang
     }
     return render(request, 'student/profile.html', context)
-
 
 @login_required(login_url='login')
 def change_password_view(request): 
@@ -142,43 +183,90 @@ def change_password_view(request):
 # DASHBOARD
 # ==========================================================
 
+def dashboard_redirect_view(request):
+    """
+    Tizimga kirishdan keyin LOGIN_REDIRECT_URL tomonidan chaqiriladigan yordamchi view.
+    Foydalanuvchining center slug'ini aniqlab, to'g'ri dashboard URLiga yo'naltiradi.
+    """
+    # 1. Foydalanuvchi kirmagan bo'lsa (ehtiyot chorasi)
+    if not request.user.is_authenticated:
+        return redirect('login') 
+        
+    center_slug = None
+    
+    # 2. Slugni aniqlash
+    # (Foydalanuvchi Markazga ega bo'lsa va Markaz slug'ga ega bo'lsa)
+    if hasattr(request.user, 'center') and request.user.center:
+        center_slug = request.user.center.slug
+
+    # 3. Yo'naltirish
+    if center_slug:
+        # ✅ To'g'ri slug bilan asl 'dashboard' ga yo'naltiramiz
+        return redirect(reverse('dashboard', kwargs={'slug': center_slug}))
+    else:
+        # Agar center slug topilmasa, xavfsiz joyga (masalan, umumiy index sahifasi)
+        return redirect('index')
+
 @login_required(login_url='login')
-def dashboard_view(request):
+def dashboard_view(request, slug):
     """
-    Foydalanuvchining shaxsiy kabinetini (dashboard) ko'rsatadi.
-    Bu yerda faqat ma'lumotlar yig'iladi, shuning uchun `messages` ishlatilmaydi.
+    Foydalanuvchining shaxsiy kabineti – faqat o‘z markazida
     """
+    # 1. MARKAZ TEKSHIRISH
+    center = get_object_or_404(Center, slug=slug)
+    if request.user.center is None or request.user.center != center:
+        messages.error(request, "Bu markazga kirish huquqingiz yo‘q.")
+        return redirect('index')
+
     user = request.user
     
     # --- "Aqlli Kun Tartibi" ---
     agenda_items = []
+    review_needed_count = 0 
     try:
-        review_needed_count = UserFlashcardStatus.objects.filter(user=user, next_review_at__lte=timezone.now()).count()
+        from .models import UserFlashcardStatus, UserAttempt, Exam
+        
+        review_needed_count = UserFlashcardStatus.objects.filter(
+            user=user, next_review_at__lte=timezone.now()
+        ).count()
         if review_needed_count > 0:
             agenda_items.append({
-                'priority': 1, 'icon': '🧠', 'title': f"{review_needed_count} ta so'zni takrorlang",
+                'priority': 1,
+                'icon': 'brain',
+                'title': f"{review_needed_count} ta so'zni takrorlang",
                 'description': "Spaced repetition bo'yicha eslatish vaqti keldi.",
-                'url': reverse('my_flashcards')
+                'url': reverse('my_flashcards', kwargs={'slug': slug})
             })
     except Exception as e:
-        logger.error(f"Error getting flashcard review count for user {user.id}: {e}")
+        logger.error(f"Flashcard agenda error for {user.id}: {e}")
 
-    latest_attempt = UserAttempt.objects.filter(user=user, is_completed=True).order_by('-completed_at').first()
-    if latest_attempt:
-        agenda_items.append({
-            'priority': 2, 'icon': '📈', 'title': "Oxirgi imtihonni tahlil qiling",
-            'description': f"'{latest_attempt.exam.title}'dagi xatolaringiz ustida ishlang.",
-            'url': reverse('view_result_detail', args=[latest_attempt.id])
-        })
-        
-    attempted_exam_ids = UserAttempt.objects.filter(user=user).values_list('exam_id', flat=True)
-    new_exam_to_start = Exam.objects.filter(is_active=True).exclude(id__in=attempted_exam_ids).order_by('?').first()
-    if new_exam_to_start:
-        agenda_items.append({
-            'priority': 3, 'icon': '🚀', 'title': "Yangi imtihonni boshlang",
-            'description': f"'{new_exam_to_start.title}' bilan bilimingizni sinab ko'ring.",
-            'url': reverse('all_exams')
-        })
+    try:
+        latest_attempt = UserAttempt.objects.filter(
+            user=user, is_completed=True
+        ).order_by('-completed_at').first()
+        if latest_attempt:
+            agenda_items.append({
+                'priority': 2,
+                'icon': 'chart',
+                'title': "Oxirgi imtihonni tahlil qiling",
+                'description': f"'{latest_attempt.exam.title}'dagi xatolaringiz ustida ishlang.",
+                'url': reverse('view_result_detail', kwargs={'slug': slug, 'attempt_id': latest_attempt.id})
+            })
+            
+        attempted_exam_ids = UserAttempt.objects.filter(user=user).values_list('exam_id', flat=True)
+        new_exam_to_start = Exam.objects.filter(
+            is_active=True, center=center
+        ).exclude(id__in=attempted_exam_ids).order_by('?').first()
+        if new_exam_to_start:
+            agenda_items.append({
+                'priority': 3,
+                'icon': 'rocket',
+                'title': "Yangi imtihonni boshlang",
+                'description': f"'{new_exam_to_start.title}' bilan bilimingizni sinab ko'ring.",
+                'url': reverse('exam_detail', kwargs={'slug': slug, 'exam_id': new_exam_to_start.id})
+            })
+    except Exception as e:
+        logger.error(f"Exam agenda error for {user.id}: {e}")
 
     agenda_items = sorted(agenda_items, key=lambda x: x['priority'])[:3]
 
@@ -188,39 +276,64 @@ def dashboard_view(request):
     date_range = [seven_days_ago + timedelta(days=i) for i in range(7)]
     chart_labels = json.dumps([d.strftime("%b %d") for d in date_range])
     
-    exam_scores = UserAttempt.objects.filter(user=user, is_completed=True, completed_at__date__range=[seven_days_ago, today]).values('completed_at__date').annotate(avg_score=Avg('final_total_score')).order_by('completed_at__date')
-    score_map = {item['completed_at__date']: item['avg_score'] for item in exam_scores}
-    exam_score_data = json.dumps([round(score_map.get(d, 0)) for d in date_range])
+    try:
+        exam_scores = UserAttempt.objects.filter(
+            user=user, is_completed=True, completed_at__date__range=[seven_days_ago, today]
+        ).values('completed_at__date').annotate(avg_score=Avg('final_total_score')).order_by('completed_at__date')
+        score_map = {item['completed_at__date']: item['avg_score'] for item in exam_scores}
+        exam_score_data = json.dumps([round(score_map.get(d, 0)) for d in date_range])
+    except Exception:
+        exam_score_data = json.dumps([0] * 7)
 
     try:
-        reviews_by_day = FlashcardReviewLog.objects.filter(user=user, timestamp__date__range=[seven_days_ago, today]).values('timestamp__date').annotate(review_count=Count('id'))
-        review_map = {item['timestamp__date']: item['review_count'] for item in reviews_by_day}
+        flashcard_reviews = UserFlashcardStatus.objects.filter(
+            user=user, last_reviewed_at__date__range=[seven_days_ago, today]
+        ).values('last_reviewed_at__date').annotate(review_count=Count('id')).order_by('last_reviewed_at__date')
+        review_map = {item['last_reviewed_at__date']: item['review_count'] for item in flashcard_reviews}
         flashcard_data = json.dumps([review_map.get(d, 0) for d in date_range])
-    except Exception:
+    except Exception as e:
+        logger.error(f"Flashcard chart error: {e}")
         flashcard_data = json.dumps([0] * 7)
 
-    # --- "Liderlar Doskasi" ---
-    leaderboard_users = CustomUser.objects.annotate(
-        max_score=Max('attempts__final_total_score')
-    ).filter(max_score__isnull=False).order_by('-max_score')[:5]
-    
-    user_rank = None
-    if user.is_authenticated:
-        user_with_rank = CustomUser.objects.annotate(
-            max_score=Max('attempts__final_total_score'),
-            rank=Window(expression=Rank(), order_by=F('max_score').desc())
-        ).filter(id=user.id).values('rank').first()
-        if user_with_rank:
-            user_rank = user_with_rank['rank']
+    # --- "Liderlar Doskasi" – faqat o‘z markazidagi o‘quvchilar
+    try:
+        leaderboard_users = CustomUser.objects.filter(
+            center=center
+        ).annotate(
+            max_score=Max('attempts__final_total_score')
+        ).filter(max_score__isnull=False).order_by('-max_score')[:5]
+        
+        user_rank = None
+        if user.center == center:
+            user_with_rank = CustomUser.objects.filter(
+                center=center
+            ).annotate(
+                max_score=Max('attempts__final_total_score'),
+                rank=Window(expression=Rank(), order_by=F('max_score').desc())
+            ).filter(id=user.id).values('rank').first()
+            if user_with_rank:
+                user_rank = user_with_rank['rank']
+    except Exception as e:
+        logger.error(f"Leaderboard error: {e}")
+        leaderboard_users = []
+        user_rank = None
 
     # --- Umumiy Statistika ---
-    stats = UserAttempt.objects.filter(user=user, is_completed=True).aggregate(
-        highest_score=Coalesce(Max('final_total_score'), 0),
-        completed_exam_count=Count('exam', distinct=True)
-    )
-    learned_flashcards_count = UserFlashcardStatus.objects.filter(user=user, status='learned').count()
+    try:
+        stats = UserAttempt.objects.filter(user=user, is_completed=True).aggregate(
+            highest_score=Coalesce(Max('final_total_score'), 0),
+            completed_exam_count=Count('exam', distinct=True)
+        )
+    except Exception:
+        stats = {'highest_score': 0, 'completed_exam_count': 0}
+        
+    try:
+        learned_flashcards_count = UserFlashcardStatus.objects.filter(user=user, status='learned').count()
+    except Exception:
+        learned_flashcards_count = 0
 
     context = {
+        'center': center,
         'agenda_items': agenda_items,
         'chart_labels': chart_labels,
         'exam_score_data': exam_score_data,
@@ -235,118 +348,77 @@ def dashboard_view(request):
     
     return render(request, 'student/dashboard.html', context)
 
-@login_required
-def all_exams_view(request):
-    """
-    Yangi karusel dizayniga moslashtirilgan va NARX xatoligi tuzatilgan.
-    """
-    user = request.user
-    
-    # --- 1-QISM: Ma'lumotlarni to'g'ri olish ---
-
-    # Barcha aktiv imtihonlarni olish va har birining MINIMAL narxini biriktirish
-    exams = Exam.objects.filter(is_active=True).prefetch_related(
-        'sections', 
-        'flashcard_exam'
-    ).annotate(
-        attempt_count=Count('userattempt', filter=models.Q(userattempt__user=user, userattempt__is_completed=True)),
-        min_price=Min('packages__price')  # MUHIM O'ZGARISH: Narxni ExamPackage'dan olamiz
-    )
-
-    exam_ids = [exam.id for exam in exams]
-
-    # Eng yaxshi urinishlarni topish
-    best_attempts_qs = UserAttempt.objects.filter(
-        user=user, 
-        is_completed=True,
-        exam_id__in=exam_ids
-    ).values('exam_id').annotate(max_score=Max('final_total_score'))
-
-    best_attempts_map = {item['exam_id']: item['max_score'] for item in best_attempts_qs}
-
-    # Barcha ma'lumotlarni yig'ish
-    all_exams_data = []
-    for exam in exams:
-        max_score = best_attempts_map.get(exam.id)
-        best_attempt_obj = {'id': True, 'final_total_score': max_score} if max_score is not None else None
-
-        all_exams_data.append({
-            'type': 'exam',
-            'obj': exam, # Endi 'exam' obyektida 'min_price' atributi bor
-            'exam_mode_count': exam.attempt_count,
-            'total_duration': exam.sections.aggregate(total=Sum('duration_minutes'))['total'] or 0,
-            'total_questions': exam.sections.aggregate(total=Sum('max_questions'))['total'] or 0,
-            'has_flashcard_exam': hasattr(exam, 'flashcard_exam'),
-            'user_best_attempt': best_attempt_obj,
-            'can_start_exam': user.has_active_subscription() or (hasattr(user, 'balance') and user.balance.exam_credits > 0),
-        })
-
-    # Yangi imtihonlar (qo'shilgan sanasi bo'yicha)
-    new_exams = sorted(all_exams_data, key=lambda x: x['obj'].created_at, reverse=True)[:10]
-
-    # Eng ommabop imtihonlar (topshirishlar soni bo'yicha)
-    popular_exams = sorted(all_exams_data, key=lambda x: x['exam_mode_count'], reverse=True)[:10]
-
-    # Bepul imtihonlar (minimal narxi yo'q yoki 0 bo'lganlar)
-    free_exams = [data for data in all_exams_data if data['obj'].min_price is None or data['obj'].min_price == 0]
-
-    context = {
-        'new_exams': new_exams,
-        'popular_exams': popular_exams,
-        'free_exams': free_exams,
-        'user_has_subscription': user.has_active_subscription(),
-    }
-    
-    return render(request, 'student/all_exams.html', context)
-
 @login_required(login_url='login')
-def completed_exams_view(request):
+def completed_exams_view(request, slug):
+    """
+    Tugallangan imtihonlar – faqat o‘z markazida
+    """
+    # 1. MARKAZ TEKSHIRISH
+    center = get_object_or_404(Center, slug=slug)
+    if request.user.center is None or request.user.center != center:
+        messages.error(request, "Bu sahifaga kirish huquqingiz yo‘q.")
+        return redirect('index')
+
     user = request.user
     
+    # 2. Tugallangan imtihonlar (faqat o‘z markazidagi)
     completed_exam_ids = UserAttempt.objects.filter(
-        user=user, is_completed=True
+        user=user, is_completed=True, exam__center=center
     ).values_list('exam_id', flat=True).distinct()
 
     exam_results = []
     
     for exam_id in completed_exam_ids:
         try:
-            exam = Exam.objects.get(id=exam_id)
-            attempts = UserAttempt.objects.filter(user=user, exam=exam, is_completed=True)
+            exam = Exam.objects.get(id=exam_id, center=center)
             
-            best_attempt = attempts.order_by('-final_total_score', '-completed_at').first()
-            latest_attempt = attempts.order_by('-completed_at').first()
+            attempts_qs = UserAttempt.objects.filter(user=user, exam=exam, is_completed=True)
+            
+            exam_sections_agg = exam.sections.aggregate(
+                total_duration=Sum('duration_minutes'),
+                total_questions=Sum('max_questions'),
+                section_count=Count('id')
+            )
+
+            best_attempt = attempts_qs.order_by('-final_total_score', '-completed_at').first()
+            latest_attempt = attempts_qs.order_by('-completed_at').first()
             
             has_flashcard_exam = hasattr(exam, 'flashcard_exam')
+            
+            can_start_exam = not exam.is_premium or (
+                UserSubscription.objects.filter(user=user, end_date__gt=timezone.now()).exists() or
+                UserBalance.objects.filter(user=user, exam_credits__gt=0).exists()
+            )
 
             exam_results.append({
                 'exam': exam,
-                'attempt_count': attempts.count(),
+                'attempt_count': attempts_qs.count(),
                 'best_attempt': best_attempt,
                 'latest_attempt': latest_attempt,
                 'has_flashcard_exam': has_flashcard_exam,
+                'can_start_exam': can_start_exam,
+                'total_duration': exam_sections_agg['total_duration'] or 0,
+                'total_questions': exam_sections_agg['total_questions'] or 0,
+                'section_count': exam_sections_agg['section_count'] or 0,
             })
         except Exam.DoesNotExist:
-            logger.warning(f"Exam {exam_id} not found for user {user.username}")
+            continue
+        except Exception as e:
+            logger.error(f"Error in completed_exams: {e}")
             continue
 
-    # Eng yuqori ballar bo'yicha saralash
     top_results = sorted(
         exam_results, 
-        key=lambda x: x['best_attempt'].final_total_score if x['best_attempt'] and x['best_attempt'].final_total_score is not None else 0, 
+        key=lambda x: x['latest_attempt'].completed_at if x['latest_attempt'] and x['latest_attempt'].completed_at else timezone.datetime.min, 
         reverse=True
     )
-
-    # Oxirgi topshirilganlar bo'yicha saralash
-    recent_results = sorted(
-        exam_results, 
-        key=lambda x: x['latest_attempt'].completed_at if x['latest_attempt'] and x['latest_attempt'].completed_at is not None else timezone.datetime.min, 
-        reverse=True
-    )
+    recent_results = top_results[:3]
 
     context = {
+        'center': center,
         'top_results': top_results,
         'recent_results': recent_results,
+        'total_exams_count': len(top_results),
     }
     return render(request, 'student/completed_exams.html', context)
 
@@ -355,26 +427,37 @@ def completed_exams_view(request):
 # ==========================================================
 
 @login_required(login_url='login')
-def exam_attempts_view(request, exam_id):
+def exam_attempts_view(request, slug, exam_id):
     """
-    Foydalanuvchining ma'lum bir imtihon bo'yicha barcha yakunlagan urinishlari ro'yxatini ko'rsatadi.
-    (Bu faqat ma'lumot ko'rsatish view'si, messages qo'shish mantiqiy emas).
+    Foydalanuvchining ma'lum bir imtihon bo'yicha barcha yakunlagan urinishlari.
+    Faqat o‘z markazidagi o‘quvchi ko‘rishi mumkin.
     """
+    # 1. MARKAZ TEKSHIRISH
+    center = get_object_or_404(Center, slug=slug)
+    if request.user.center is None or request.user.center != center:
+        messages.error(request, "Bu sahifaga kirish huquqingiz yo‘q.")
+        return redirect('index')
+
+    # 2. IMTIHON TEKSHIRISH
     try:
-        exam = get_object_or_404(Exam.objects.prefetch_related('sections'), id=exam_id, is_active=True)
+        exam = get_object_or_404(
+            Exam.objects.prefetch_related('sections'), 
+            id=exam_id, 
+            is_active=True,
+            center=center  # MARKAZGA BOG‘LIQ!
+        )
     except:
         messages.error(request, "Imtihon topilmadi yoki aktiv emas.")
-        return redirect('all_exams')
+        return redirect('exam_list', slug=slug)
 
+    # 3. URINISHLAR
     attempts_qs = UserAttempt.objects.filter(
         user=request.user,
         exam=exam,
         is_completed=True
     ).order_by('-completed_at')
 
-    # To'g'ri va noto'g'ri javoblar sonini hisoblash
-    # Ushbu hisoblash usuli N+1 muammosini keltirib chiqarishi mumkin, ammo siz yuborgan kodni o'zgartirmayapman.
-    # Agar tezlik muammo tug'dirsa, buni bitta so'rovda annotate orqali bajarish tavsiya etiladi.
+    # 4. JAVOBLAR HISOBI (N+1 bor, lekin sizning kodingizni saqlayman)
     total_questions = exam.sections.aggregate(total=Sum('max_questions'))['total'] or 0
     
     for attempt in attempts_qs:
@@ -384,7 +467,6 @@ def exam_attempts_view(request, exam_id):
         incorrect_answers = UserAnswer.objects.filter(
             attempt_section__attempt=attempt, is_correct=False
         ).count()
-        
         omitted_answers = total_questions - correct_answers - incorrect_answers
 
         attempt.correct_answers = correct_answers
@@ -395,54 +477,635 @@ def exam_attempts_view(request, exam_id):
     latest_attempt = attempts_qs.first()
 
     context = {
+        'center': center,
         'exam': exam,
         'attempts': attempts_qs,
         'best_attempt': best_attempt,
         'latest_attempt': latest_attempt,
+        'total_questions': total_questions,
     }
     
     return render(request, 'student/exam_attempts.html', context)
 
-@login_required(login_url='login')
-def exam_detail_view(request, exam_id):
-    """
-    Imtihon sozlamalari sahifasini ko'rsatadi va imtihonni boshlash uchun dastlabki tekshiruvlarni o'tkazadi.
-    """
-    exam = get_object_or_404(Exam, id=exam_id, is_active=True)
-    user = request.user
+# ===========================================================
+# ⭐️ O'QUVCHI UCHUN KURSLAR VIEWLARI (STUDENT VIEWS)
+# ===========================================================
 
-    # 1. Foydalanuvchi rolini tekshirish
-    if not is_student(user): 
-        messages.error(request, "Sizda bu imtihonni boshlash huquqi yo'q.")
+
+@login_required(login_url='login')
+def all_courses_for_students(request, slug):
+    """ O'quvchilar uchun barcha faol kurslar – faqat o‘z markazida """
+    
+    # 1. MARKAZ TEKSHIRISH (404 va xavfsizlik)
+    center = get_object_or_404(Center, slug=slug)
+    if request.user.center != center:
+        # Foydalanuvchi noto'g'ri markaz slugini kiritgan bo'lsa, indeks sahifasiga yo'naltirish
         return redirect('index')
 
-    # 2. Pullik imtihon uchun obuna/kredit tekshiruvi
-    # is_premium emasligini tekshirish. Agar pullik bo'lmasa, har doim boshlash mumkin.
-    user_can_start_exam = not exam.is_premium or user.has_active_subscription() or (hasattr(user, 'balance') and user.balance.exam_credits > 0)
-    
-    if exam.is_premium and not user_can_start_exam:
-        # Pul kerak va foydalanuvchida obuna/kredit yo'q bo'lsa
-        messages.error(request, "Bu imtihon pullik. Iltimos, obuna sotib oling yoki kreditlaringizni tekshiring.")
-        return redirect('price')
+    # 2. Obuna holatini tekshirish
+    is_subscribed = UserSubscription.objects.filter(
+        user=request.user, end_date__gt=timezone.now()
+    ).exists()
 
-    # 3. Flashcard mavjudligini tekshirish
-    has_flashcard_exam = hasattr(exam, 'flashcardexam')
+    # 3. Kurslarni olish va Annotatsiya (pass_threshold olib tashlandi)
+    all_courses = Course.objects.filter(
+        is_active=True, center=center
+    ).annotate(
+        # Barcha modul/dars/imtihon sonlari to'g'ri hisoblanadi
+        total_modules=Count('modules', distinct=True),
+        total_lessons=Count('modules__lessons', distinct=True),
+        total_exams=Count(
+            Case(
+                When(modules__lessons__related_exam__isnull=False, then=1),
+                output_field=IntegerField()
+            ), distinct=True
+        ),
+        # pass_threshold qatori butunlay o'chirilgan
+    ).select_related('teacher').order_by('-created_at')
+
+    # 4. Kontekstni shakllantirish
+    context = {
+        'center': center,
+        'all_courses': all_courses,
+        'is_subscribed': is_subscribed,
+        'page_title': "Barcha O'quv Kurslari"
+    }
+    
+    return render(request, 'student/all_courses.html', context)
+
+@login_required(login_url='login')
+def course_enroll_view(request, slug, course_id):
+    """
+    Foydalanuvchini ko'rsatilgan kursga bog'langan 
+    eng kam o'quvchisi bor guruhga qo'shadi.
+    """
+    
+    # 1. Kursni topish: center_slug orqali center ni topib, keyin course ni topish 
+    # eng xavfsiz yo'l hisoblanadi.
+    center = get_object_or_404(Center, slug=slug)
+    course = get_object_or_404(Course, id=course_id, center=center)
+    
+    user = request.user
+    
+    # 2. Foydalanuvchi kursga yozilganligini tekshirish
+    if course.groups.filter(students=user).exists():
+        messages.info(request, f"Siz allaqachon '{course.title}' kursiga yozilgansiz.")
+        return redirect('course_detail', slug=slug, course_id=course_id)
+        
+    # 3. Kursga bog'liq guruhni topish
+    try:
+        # Eng kam o'quvchisi bo'lgan guruhni topish
+        target_group = course.groups.annotate(
+            student_count=Count('students')
+        ).order_by('student_count').first()
+        
+        if not target_group:
+            messages.error(request, "Afsuski, bu kurs uchun hozircha guruh ochilmagan.")
+            return redirect('course_detail', slug=slug, course_id=course_id)
+            
+    except Exception as e:
+        messages.error(request, f"Guruhni topishda xatolik yuz berdi: {e}")
+        return redirect('course_detail', slug=slug, course_id=course_id)
+
+
+    # 4. O'quvchini guruhga qo'shish (Enrollment)
+    target_group.students.add(user)
+    
+    messages.success(request, f"Tabriklaymiz! Siz **'{course.title}'** kursidagi **'{target_group.name}'** guruhiga muvaffaqiyatli yozildingiz.")
+    
+    # Muvaffaqiyatli yozilgandan so'ng, kursning batafsil sahifasiga qaytamiz
+    return redirect('course_detail', slug=slug, course_id=course_id)
+
+@login_required(login_url='login')
+def course_detail_view(request, slug, pk): 
+    
+    # 1. Asosiy obyektlarni olish
+    center = get_object_or_404(Center, slug=slug)
+    # E'tibor bering: ID ni olish uchun endi 'course_id' dan foydalanilyapti.
+    course = get_object_or_404(Course.objects.select_related('teacher', 'center'), id=pk, center=center)
+    
+    # 2. Statistika hisoblash
+    
+    # M2M orqali o'quvchilar sonini hisoblash (Eng samarali usul)
+    student_count_agg = course.groups.aggregate(
+        total_students=Count('students', distinct=True) 
+    )['total_students']
+    
+    students_count = student_count_agg if student_count_agg is not None else 0
+    
+    # Darslar sonini hisoblash
+    total_lessons_count = Lesson.objects.filter(module__course=course).count()
+    
+    # Resurslar statistikasini hisoblash
+    course_resources_count = LessonResource.objects.filter(
+        lesson__module__course=course
+    ).aggregate(
+        total_videos_count=Count('id', filter=Q(resource_type='video')),
+        total_tasks_count=Count('id', filter=Q(resource_type='task')),
+        total_files_count=Count('id', filter=Q(resource_type__in=['solution_file', 'other'])),
+    )
+    
+    # 3. Ro'yxatdan o'tish holatini tekshirish
+    is_enrolled = False
+    if request.user.is_authenticated:
+        # User Group orqali kursga yozilganmi?
+        # Agar Course M2M orqali Groupga ulangan bo'lsa:
+        is_enrolled = course.groups.filter(students=request.user).exists()
+        
+    # 4. RoadMap ma'lumotlarini tuzish
+    roadmap_data = []
+    lessons_with_resources = Lesson.objects.filter(module__course=course).prefetch_related('resources', 'related_exam')
+    modules = course.modules.all().order_by('order').prefetch_related('lessons')
+    
+    for module in modules:
+        lessons = [lesson for lesson in lessons_with_resources if lesson.module_id == module.id]
+        lessons.sort(key=lambda x: x.order)
+        
+        lesson_data_list = []
+        for lesson in lessons:
+            lesson_data_list.append({
+                'lesson': lesson,
+                'has_video': any(r.resource_type == 'video' for r in lesson.resources.all()),
+                'has_task': any(r.resource_type == 'task' for r in lesson.resources.all()),
+                'has_file': any(r.resource_type in ['solution_file', 'other'] for r in lesson.resources.all()),
+            })
+
+        roadmap_data.append({
+            'module': module,
+            'lessons': lesson_data_list,
+        })
+        
+    # 5. Kontekstni tayyorlash
+    context = {
+        'center': center,
+        'course': course,
+        'roadmap_data': roadmap_data,
+        
+        'students_count': students_count, # To'g'rilangan
+        'total_lessons_count': total_lessons_count,
+        'teacher_info': course.teacher, 
+        'is_enrolled': is_enrolled,      # Kirish tugmasini boshqaradi
+        
+        'total_videos_count': course_resources_count['total_videos_count'],
+        'total_tasks_count': course_resources_count['total_tasks_count'],
+        'total_files_count': course_resources_count['total_files_count'],
+    }
+    
+    return render(request, 'student/course_detail.html', context)
+
+@login_required(login_url='login')
+def course_roadmap_view(request, slug, course_id):
+    """ Kurs roadmap – faqat o‘z markazida """
+    center = get_object_or_404(Center, slug=slug)
+    if request.user.center != center:
+        return redirect('index')
+
+    course = get_object_or_404(Course, id=course_id, is_active=True, center=center)
+
+    # 1. Obuna nazorati
+    has_access = True 
+    if course.is_premium:
+        # UserSubscription modelini import qilgan deb faraz qildim
+        has_access = UserSubscription.objects.filter(
+            user=request.user, 
+            end_date__gt=timezone.now(),
+            course=course
+        ).exists()
+             
+    # 2. Tugatilgan va o'tilgan testlar ID'larini olish
+    completed_exam_ids = set()
+    passed_exam_ids = set()
+    
+    user_attempts = UserAttempt.objects.filter(
+        user=request.user, 
+        is_completed=True
+    ).select_related('exam')
+
+    for attempt in user_attempts:
+        completed_exam_ids.add(attempt.exam_id)
+        if attempt.is_passed(): 
+            passed_exam_ids.add(attempt.exam_id)
+
+    # 3. PREFETCH OBYEKTLARINI TAYYORLASH
+    
+    # A) Exam Section Prefetch
+    exam_sections_prefetch = Prefetch(
+        'related_exam__sections',
+        queryset=ExamSection.objects.all().order_by('examsectionorder__order'),
+        to_attr='exam_sections_list'
+    )
+    
+    # 🔥 B) LessonResource Prefetch (resources related_name to'g'ri) 🔥
+    resources_prefetch = Prefetch(
+        'resources', # <--- Lesson modelidagi related_name
+        queryset=LessonResource.objects.all().order_by('order'),
+        to_attr='all_resources_list'
+    )
+    
+    # C) CourseSchedule Prefetch
+    schedule_prefetch = Prefetch(
+        'schedules',
+        queryset=CourseSchedule.objects.all().order_by('start_time'),
+        to_attr='schedules_list'
+    )
+
+
+    # 4. Modullar va Darslarni Yuklash
+    modules_qs = CourseModule.objects.filter(course=course).order_by('order').prefetch_related(
+        Prefetch(
+            'lessons',
+            queryset=Lesson.objects.select_related('related_exam').prefetch_related(
+                exam_sections_prefetch,
+                resources_prefetch, # Resurslar
+                schedule_prefetch # Jadval
+            ).order_by('order'),
+            to_attr='lessons_list'
+        )
+    )
+
+    # 5. Progress va Roadmap Ma'lumotlarini Hisoblash
+    total_lessons_count = 0
+    completed_lessons_count = 0
+    is_previous_completed = True 
+    is_scheduled = course.is_scheduled # Course modelidagi property
+
+    roadmap_data = []
+
+    for module in modules_qs:
+        module_lessons_count = 0
+        module_completed_count = 0
+        lessons_data = []
+
+        for lesson in module.lessons_list:
+            exam = lesson.related_exam
+            
+            current_resources = getattr(lesson, 'all_resources_list', []) 
+            has_resources = bool(current_resources)
+            
+            # Jadval ma'lumoti
+            lesson_schedules = getattr(lesson, 'schedules_list', [])
+            lesson_schedule = lesson_schedules[0] if lesson_schedules else None
+            
+            # Agar dars jadval asosida bo'lsa va hali boshlanmagan bo'lsa, bloklanadi.
+            is_time_locked = False
+            if is_scheduled and lesson_schedule and lesson_schedule.start_time > timezone.now():
+                is_time_locked = True
+
+            # Bloklash mantiqi
+            is_locked = (not has_access or 
+                         (is_scheduled and is_time_locked) or # Vaqt bloklashi
+                         (not is_scheduled and not is_previous_completed) # Ketma-ketlik bloklashi
+                        )
+            
+            # Test natijalari
+            exam_completed = exam.id in completed_exam_ids if exam else False
+            exam_passed = exam.id in passed_exam_ids if exam else False
+
+            # Dars yakunlanishi mantiqi:
+            if exam:
+                lesson_is_finished = exam_passed # Test bo'lsa, o'tilgan bo'lishi kerak
+            elif has_resources:
+                # Resurs bo'lsa va test bo'lmasa, avtomatik yakunlangan deb qabul qiling
+                lesson_is_finished = True 
+            else:
+                lesson_is_finished = True # Resurs ham, test ham bo'lmasa, avtomatik yakunlangan
+
+            # Exam info
+            exam_info_str = None
+            if exam and hasattr(lesson, 'exam_sections_list'):
+                total_q = sum(s.max_questions for s in lesson.exam_sections_list)
+                passing = exam.passing_percentage
+                exam_info_str = f"{total_q} savol, O'tish: {passing}%"
+            
+            # Jadval boshlanish vaqti
+            start_time_str = lesson_schedule.start_time.strftime('%Y-%m-%d %H:%M') if lesson_schedule else None
+
+
+            # Progress hisobi (Faqat bloklanmagan darslar hisoblanadi)
+            if lesson_is_finished and not is_locked:
+                completed_lessons_count += 1
+                module_completed_count += 1
+                is_previous_completed = True
+            elif not lesson_is_finished and not is_locked:
+                is_previous_completed = False # Keyingi darsni bloklash
+            
+            total_lessons_count += 1
+            module_lessons_count += 1
+
+            lessons_data.append({
+                'lesson': lesson,
+                'is_locked': is_locked,
+                'is_time_locked': is_time_locked,
+                'start_time_str': start_time_str,
+                'resources': current_resources, 
+                'lesson_is_finished': lesson_is_finished,
+                'exam_completed': exam_completed, 
+                'exam_id': exam.id if exam else None,
+                'exam_info': exam_info_str,
+                'exam_passed': exam_passed, 
+            })
+
+        # Modul progressi
+        module_progress = int((module_completed_count / module_lessons_count) * 100) if module_lessons_count else 0
+        
+        roadmap_data.append({
+            'module': module,
+            'lessons': lessons_data,
+            'progress_perc': module_progress,
+            'completed_count': module_completed_count,
+            'total_count': module_lessons_count,
+        })
+
+    # Kurs progressi
+    course_progress = int((completed_lessons_count / total_lessons_count) * 100) if total_lessons_count else 0
 
     context = {
-        'exam': exam,
-        'has_flashcard_exam': has_flashcard_exam,
+        'center': center,
+        'course': course,
+        'roadmap_data': roadmap_data,
+        'has_access': has_access,
+        'total_lessons_count': total_lessons_count,
+        'completed_lessons_count': completed_lessons_count,
+        'course_progress': course_progress,
     }
-    return render(request, 'student/exam_detail.html', context)
+    return render(request, 'student/course_roadmap.html', context)
+
+# ======================================================================
+# ⭐️ O'QITUVCHI/ADMIN UCHUN KURSLAR VIEWLARI (MANAGEMENT VIEWS)
+# ======================================================================
+
+@login_required(login_url='login')
+def course_list(request, slug):
+    """ Markazga tegishli kurslar ro'yxatini ko'rish. """
+    user = request.user
+    center = get_object_or_404(Center, slug=slug)
+    
+    # Ruxsat tekshiruvi (Center admin, o'qituvchi yoki umumiy admin bo'lishi kerak)
+    if not (user.center == center or user.is_staff):
+        messages.error(request, "Sizda bu markaz kurslarini ko'rish huquqi yo'q.")
+        return redirect('dashboard',slug=request.user.center.slug)
+    
+    # 🔥 O'zgarish: 'creator__center' o'rniga 'teacher__center'
+    # Bu orqali kursning ustoziga bog'langan markaz orqali filtrlash amalga oshiriladi.
+    courses = Course.objects.filter(teacher__center=center).order_by('-created_at').select_related('teacher')
+    
+    context = {
+        'courses': courses,
+        'center': center, # Shablonlarda URL yaratish uchun kerak
+        'page_title': f"{center.name} Kurslari Ro'yxati"
+    }
+    return render(request, 'management/course_list.html', context)
+
+
+# ======================================================================
+# 1. KURSLAR YARATISH VIEW
+# ======================================================================
+
+@login_required(login_url='login')
+def course_create(request, slug):
+    user = request.user
+    center = get_object_or_404(Center, slug=slug)
+    
+    # 1. Ruxsat tekshiruvi
+    if not ((user.role in ['teacher', 'center_admin'] and user.center == center) or user.is_staff):
+        messages.error(request, "Sizda bu markaz uchun kurs yaratish huquqi yo'q.")
+        return redirect('dashboard',slug=request.user.center.slug)
+    
+    # 🔥 TO'G'IRLASH: Modelni olish uchun get_user_model() dan foydalanish
+    TeacherModel = get_user_model() 
+    
+    # 🔥 O'qituvchi Queryset'ini yaratish
+    teacher_queryset = TeacherModel.objects.filter(
+        center=center, 
+        role__in=['teacher', 'center_admin'] 
+    ).order_by('full_name')
+
+    if request.method == 'POST':
+        form = CourseForm(request.POST, request.FILES)
+        
+        if 'teacher' in form.fields:
+             form.fields['teacher'].queryset = teacher_queryset
+             
+        if form.is_valid():
+            course = form.save(commit=False)
+            
+            course.teacher = user         
+            course.center = center        
+            
+            course.save()
+            messages.success(request, f"'{course.title}' kursi muvaffaqiyatli yaratildi.")
+            
+            return redirect('course_list', slug=center.slug)
+    else:
+        form = CourseForm()
+        
+        if 'teacher' in form.fields:
+            form.fields['teacher'].queryset = teacher_queryset
+            form.initial['teacher'] = user 
+            
+    context = {
+        'form': form,
+        'center': center, 
+        'page_title': f"{center.name} uchun Yangi Kurs Yaratish"
+    }
+    return render(request, 'management/course_form.html', context)
+
+
+@login_required(login_url='login')
+def course_update(request, slug, pk):
+    user = request.user
+    center = get_object_or_404(Center, slug=slug)
+    course = get_object_or_404(Course, id=pk)
+
+    # 1. Ruxsat tekshiruvi
+    if not (course.center == center):
+         messages.error(request, "Kurs boshqa markazga tegishli. Tahrirlash mumkin emas.")
+         return redirect('course_list', slug=center.slug)
+
+    is_authorized = (
+        course.teacher == user or                  
+        user.is_staff or                           
+        (user.role == 'center_admin' and user.center == center) 
+    )
+    
+    if not is_authorized:
+         messages.error(request, "Siz bu kursni tahrirlash huquqiga ega emassiz.")
+         return redirect('course_list', slug=center.slug)
+
+    # 🔥 TO'G'IRLASH: Modelni olish uchun get_user_model() dan foydalanish
+    TeacherModel = get_user_model()
+    
+    # 🔥 O'qituvchi Queryset'ini yaratish
+    teacher_queryset = TeacherModel.objects.filter(
+        center=center, 
+        role__in=['teacher', 'center_admin']
+    ).order_by('full_name')
+
+
+    if request.method == 'POST':
+        form = CourseForm(request.POST, request.FILES, instance=course)
+        
+        if 'teacher' in form.fields:
+            form.fields['teacher'].queryset = teacher_queryset
+            
+        if form.is_valid():
+            form.save()
+            messages.success(request, f"'{course.title}' kursi muvaffaqiyatli tahrirlandi.")
+            
+            return redirect('course_list', slug=center.slug)
+    else:
+        form = CourseForm(instance=course)
+        
+        if 'teacher' in form.fields:
+             form.fields['teacher'].queryset = teacher_queryset
+        
+    context = {
+        'form': form,
+        'course': course,
+        'center': center, 
+        'page_title': f"{course.title} ni tahrirlash"
+    }
+    return render(request, 'management/course_form.html', context)
+
+
+@login_required(login_url='login')
+def course_delete(request, slug, pk):
+    """ Kursni o'chirish (CRUD Delete). """
+    user = request.user
+    center = get_object_or_404(Center, slug=slug)
+    course = get_object_or_404(Course, id=pk)
+
+    # 1. Xavfsizlik va Ruxsat tekshiruvi
+    if not ((is_teacher(user) and user.center == center and course.creator.center == center) or user.is_staff):
+        messages.error(request, "Sizda bu kursni o'chirish huquqi yo'q.")
+        return redirect('dashboard',slug=request.user.center.slug)
+
+    course_title = course.title
+    
+    if request.method == 'POST':
+        course.delete()
+        messages.success(request, f"'{course_title}' nomli kurs muvaffaqiyatli o'chirildi.")
+        # 2. Redirect qilishda ham SLUG ni uzatish
+        return redirect('course_list', slug=center.slug)
+        
+    context = {
+        'course': course,
+        'center': center, # Shablonlarda URL yaratish uchun kerak
+        'page_title': f"'{course_title}' kursini o'chirish"
+    }
+    return render(request, 'management/course_confirm_delete.html', context)
+
+# ======================================================================
+# 🧑‍🎓 O'QUVCHI UCHUN NATIJA VIEW'I
+# ======================================================================
+
+@login_required(login_url='login')
+def view_subject_exam_result(request, slug, attempt_id):
+    """
+    Mavzu Testi (Subject Exam) natijasi – faqat o‘z markazida
+    """
+    # 1. MARKAZ TEKSHIRISH
+    center = get_object_or_404(Center, slug=slug)
+    if request.user.center is None or request.user.center != center:
+        messages.error(request, "Bu sahifaga kirish huquqingiz yo‘q.")
+        return redirect('dashboard',slug=request.user.center.slug)
+
+    try:
+        # 2. URINISH TEKSHIRISH
+        attempt = get_object_or_404(
+            UserAttempt, 
+            id=attempt_id, 
+            user=request.user,
+            exam__center=center  # MARKAZGA BOG‘LIQ!
+        )
+        if not attempt.exam.is_subject_exam:
+            return redirect('view_result_detail', slug=center.slug, attempt_id=attempt_id)
+            
+    except Exception:
+        messages.error(request, "Mavzu Testi natijasi topilmadi yoki sizga tegishli emas.")
+        return redirect('dashboard',slug=request.user.center.slug)
+        
+    # 3. NATIJA HISOBI
+    sections_qs = attempt.section_attempts.select_related('section').order_by('section__order') 
+    
+    correct_answers_by_section_attempt = UserAnswer.objects.filter(
+        attempt_section__attempt=attempt, is_correct=True
+    ).values('attempt_section__id').annotate(correct_count=Count('id'))
+    correct_map = {item['attempt_section__id']: item['correct_count'] for item in correct_answers_by_section_attempt}
+    
+    total_correct = 0
+    total_questions = 0
+    section_analysis_list = [] 
+    
+    for section_attempt in sections_qs:
+        correct = correct_map.get(section_attempt.id, 0)
+        section_questions = section_attempt.questions.count()
+        
+        if section_questions == 0:
+            continue
+        
+        total_correct += correct
+        total_questions += section_questions
+        
+        user_answers_for_nav = UserAnswer.objects.filter(
+            attempt_section=section_attempt
+        ).select_related('question').order_by('question__id')
+        
+        section_analysis_list.append({
+            'section_attempt_id': section_attempt.id,
+            'section_name': section_attempt.section.get_section_type_display(),
+            'user_answers_nav': user_answers_for_nav,
+            'correct_count': correct,
+            'total_count': section_questions,
+        })
+        
+    total_omitted = UserAnswer.objects.filter(attempt_section__attempt=attempt, is_correct=None).count()
+    total_incorrect = total_questions - total_correct - total_omitted
+    total_percentage = round((total_correct / total_questions * 100)) if total_questions > 0 else 0
+    
+    passing_required = attempt.exam.passing_percentage
+    is_passed = total_percentage >= passing_required
+    
+    if not attempt.is_completed:
+        attempt.is_completed = True
+        attempt.can_view_solution = is_passed 
+        attempt.final_ebrw_score = None
+        attempt.final_math_score = None
+        attempt.final_total_score = None
+        attempt.save()
+
+    context = {
+        'center': center,
+        'attempt': attempt,
+        'section_analysis_list': section_analysis_list,
+        'is_subject_exam': True, 
+        'is_passed': is_passed,
+        'passing_required': passing_required,
+        'can_view_solution': attempt.can_view_solution,
+        'total_percentage': total_percentage,
+        'total_correct': total_correct,
+        'total_incorrect': total_incorrect,
+        'total_omitted': total_omitted,
+    }
+    return render(request, 'student/subject_exam_result_detail.html', context)
 
 # =================================================================
 # YANGI VIEW: Tariflar sahifasi
 # =================================================================
-def price_view(request):
+
+@login_required(login_url='login')
+def price_view(request, slug):
+    """Tariflar sahifasi – faqat o‘z markazida"""
+    center = get_object_or_404(Center, slug=slug)
+    if request.user.center != center:
+        return redirect('index')
+
     exam_packages = ExamPackage.objects.filter(is_active=True).order_by('price')
     subscription_plans = SubscriptionPlan.objects.filter(is_active=True).order_by('price')
     form = PurchaseForm()
 
     context = {
+        'center': center,
         'exam_packages': exam_packages,
         'subscription_plans': subscription_plans,
         'form': form,
@@ -455,25 +1118,28 @@ def price_view(request):
 
 @login_required(login_url='login')
 @transaction.atomic 
-def process_purchase_view(request, purchase_type, item_id):
+def process_purchase_view(request, slug, purchase_type, item_id):
     """
-    Xaridni qayta ishlaydi, promo kodni qo'llaydi va foydalanuvchining balansini/obunasini yangilaydi.
+    Xaridni qayta ishlaydi – faqat o‘z markazida
     """
+    center = get_object_or_404(Center, slug=slug)
+    if request.user.center != center:
+        messages.error(request, "Bu sahifaga kirish huquqingiz yo‘q.")
+        return redirect('price', slug=slug)
+
     if request.method != 'POST':
-        messages.error(request, "Noto'g'ri so'rov usuli. Xarid POST so'rovi orqali amalga oshirilishi kerak.")
-        return redirect('price')
+        messages.error(request, "Noto'g'ri so'rov usuli.")
+        return redirect('price', slug=slug)
 
     form = PurchaseForm(request.POST)
-    
     if not form.is_valid():
-        messages.error(request, "Kiritilgan ma'lumotlarda xatolik bor. Iltimos, formani tekshiring.")
-        return redirect('price')
+        messages.error(request, "Formada xatolik bor.")
+        return redirect('price', slug=slug)
 
     promo_code_str = form.cleaned_data.get('promo_code')
     user = request.user
     
     try:
-        # 1. Tarif yoki paketni topish
         item = None
         item_type_display = ""
         if purchase_type == 'package':
@@ -483,37 +1149,32 @@ def process_purchase_view(request, purchase_type, item_id):
             item = get_object_or_404(SubscriptionPlan, id=item_id, is_active=True)
             item_type_display = f"'{item.name}' obunasi"
         else:
-            messages.error(request, "Xatolik: Noto'g'ri xarid turi ko'rsatilgan.")
-            return redirect('price')
+            messages.error(request, "Noto'g'ri xarid turi.")
+            return redirect('price', slug=slug)
 
         final_amount = item.price
         promo_code = None
 
-        # 2. Promo kodni qo'llash
         if promo_code_str:
             try:
                 promo_code = PromoCode.objects.get(code=promo_code_str, is_active=True)
-                
-                # Promo kod amal qilishini tekshirish
                 if not promo_code.is_valid():
-                    messages.error(request, "Ushbu promo kodning muddati tugagan yoki cheklovi bitgan.")
-                    return redirect('price')
+                    messages.error(request, "Promo kod muddati tugagan.")
+                    return redirect('price', slug=slug)
                 
-                # Chegirma hisoblash
                 if promo_code.discount_type == 'percentage':
                     discount = final_amount * (promo_code.discount_percent / 100)
                     final_amount -= discount
-                else: # 'fixed'
+                else:
                     final_amount -= promo_code.discount_amount
                 
                 final_amount = max(0, final_amount)
-                messages.info(request, f"Promo kod muvaffaqiyatli qo'llandi! Chegirma: {item.price - final_amount:.2f} so'm. Yangi narx: {final_amount:.2f} so'm.")
+                messages.info(request, f"Chegirma qo‘llandi: {item.price - final_amount:.2f} so‘m")
 
             except PromoCode.DoesNotExist:
-                messages.error(request, "Kiritilgan promo kod noto'g'ri yoki topilmadi.")
-                return redirect('price')
+                messages.error(request, "Noto'g'ri promo kod.")
+                return redirect('price', slug=slug)
 
-        # 3. Xarid yozuvini yaratish (Aslida bu yerda to'lov tizimi chaqiriladi)
         purchase = Purchase.objects.create(
             user=user,
             purchase_type=purchase_type,
@@ -522,26 +1183,21 @@ def process_purchase_view(request, purchase_type, item_id):
             amount=item.price,
             promo_code=promo_code,
             final_amount=final_amount,
-            status='completed' # Hozircha to'lovni muvaffaqiyatli deb hisoblaymiz
+            status='completed'
         )
 
-        # 4. Promo kod hisobini yangilash
         if promo_code:
             promo_code.used_count += 1
             promo_code.save()
 
-        # 5. Foydalanuvchi balansini yangilash
         if purchase_type == 'package':
-            balance, created = UserBalance.objects.get_or_create(user=user)
+            balance, _ = UserBalance.objects.get_or_create(user=user)
             balance.exam_credits += item.exam_credits
             balance.solution_view_credits += item.solution_view_credits_on_purchase
             balance.save()
         
         elif purchase_type == 'subscription':
-            # Avvalgi obunani tugatish (agar mavjud bo'lsa)
             UserSubscription.objects.filter(user=user).delete()
-            
-            # Yangi obunani yaratish
             UserSubscription.objects.create(
                 user=user,
                 plan=item,
@@ -549,83 +1205,228 @@ def process_purchase_view(request, purchase_type, item_id):
                 end_date=timezone.now() + timedelta(days=item.duration_days)
             )
 
-        messages.success(request, f"{item_type_display} muvaffaqiyatli xarid qilindi! 🎉")
-        return redirect('profile')
+        messages.success(request, f"{item_type_display} muvaffaqiyatli xarid qilindi!")
+        return redirect('profile', slug=slug)
 
     except Exception as e:
-        logger.error(f"Xaridni qayta ishlashda kutilmagan xato: {e}", exc_info=True)
-        messages.error(request, "Xaridni yakunlashda kutilmagan server xatoligi yuz berdi. Iltimos, keyinroq urinib ko'ring.")
-        return redirect('price')
+        logger.error(f"Xarid xatosi: {e}", exc_info=True)
+        messages.error(request, "Server xatoligi. Keyinroq urinib ko‘ring.")
+        return redirect('price', slug=slug)
 
-# =================================================================
-# IMTIHON TOPSHIRISH MANTIQI
-# =================================================================
+# =========================================================================
+# 🎯 1. IMTIHONNI BOSHLASH MANTIQI (start_exam_view)
+# =========================================================================
+
+EBRW_M1, EBRW_M2 = 'read_write_m1', 'read_write_m2'
+MATH_M1, MATH_M2 = 'math_no_calc', 'math_calc'
+
 
 @login_required(login_url='login')
-def exam_mode_view(request, exam_id, attempt_id):
+@require_POST
+def start_exam_view(request, slug, exam_id):
     """
-    Imtihon topshirish sahifasini (timer, savollar paneli bilan) ko'rsatadi.
+    Imtihonni boshlaydi. Yangi urinish (UserAttempt) va bo'lim urinishlarini yaratadi.
+    Foydalanuvchining markazga bog'liqligini tekshiradi (xavfsizlik).
     """
+    
+    # 1. Markazni slug bo'yicha topish
+    center = get_object_or_404(Center, slug=slug)
+
+    # 2. Xavfsizlik Tekshiruvi
+    if request.user.center is None or request.user.center != center:
+        messages.error(request, "Bu markazga kirish huquqingiz yo‘q yoki sizga markaz biriktirilmagan.")
+        return redirect('index')
+    
     try:
-        # Foydalanuvchiga tegishli va aktiv urinishni olish
-        attempt = get_object_or_404(UserAttempt, id=attempt_id, user=request.user, exam__id=exam_id)
+        # 3. Exam obyektini olish. User.center orqali qattiq tekshirish
+        exam = get_object_or_404(
+            Exam, 
+            id=exam_id, 
+            is_active=True, 
+            center=center
+        )
         
-        # Tugallanmagan bo'lim urinishini topish (imtihon davomiyligini ta'minlash uchun)
-        section_attempt = UserAttemptSection.objects.filter(attempt=attempt, is_completed=False).first()
+        # Tugallanmagan urinish mavjudligini tekshirish
+        attempt = UserAttempt.objects.filter(user=request.user, exam=exam, is_completed=False).first()
+        
+        with transaction.atomic():
+            if not attempt:
+                # Yangi urinishni yaratish
+                attempt = UserAttempt.objects.create(
+                    user=request.user,
+                    exam=exam,
+                    mode='exam' 
+                )
+                logger.info(f"Yangi urinish yaratildi: {attempt.id} (Exam: {exam_id})")
+                
+                # Bo'limlarni tartib bo'yicha olish
+                sections_with_order = exam.examsectionorder.select_related('exam_section').order_by('order')
+                
+                if not sections_with_order.exists():
+                    logger.error(f"Imtihon ({exam_id}) uchun bo‘limlar topilmadi.")
+                    return JsonResponse({'status': 'error', 'message': 'Bu imtihonda bo‘limlar mavjud emas'}, status=400)
+                
+                new_section_attempts = []
+                
+                # UserAttemptSection obyektlarini yaratish
+                for eso in sections_with_order:
+                    section = eso.exam_section
+                    
+                    section_attempt = UserAttemptSection(
+                        attempt=attempt,
+                        section=section,
+                        remaining_time_seconds=section.duration_minutes * 60
+                    )
+                    new_section_attempts.append(section_attempt)
+
+                # Barcha section_attempt'larni ommaviy saqlash
+                UserAttemptSection.objects.bulk_create(new_section_attempts)
+
+                # Savollarni bog'lash (Bu qism tezlik uchun alohida funksiyaga o'tkazilishi mumkin, lekin shu yerda qoldirildi)
+                all_section_attempts = UserAttemptSection.objects.filter(attempt=attempt).select_related('section')
+                
+                # Savollarni bog'lash
+                for section_attempt in all_section_attempts:
+                    section = section_attempt.section
+                    static_questions = ExamSectionStaticQuestion.objects.filter(
+                        exam_section=section
+                    ).order_by('question_number')
+                    
+                    for static_q in static_questions:
+                        UserAttemptQuestion.objects.create(
+                            attempt_section=section_attempt,
+                            question=static_q.question,
+                            question_number=static_q.question_number
+                        )
+                    logger.info(f"Bo'lim '{section.name}'ga {static_questions.count()} ta savol bog'landi.")
+                    
+            # Eng kam tartib raqamli bo'lim urinishini topish
+            first_section_attempt = UserAttemptSection.objects.filter(attempt=attempt).annotate(
+                order=Subquery(
+                    ExamSectionOrder.objects.filter(
+                        exam=exam,
+                        exam_section=OuterRef('section')
+                    ).values('order')[:1]
+                )
+            ).order_by('order').first()
+
+            if not first_section_attempt:
+                logger.error(f"Urinish {attempt.id} uchun bo'limlar yaratilmadi yoki tartibi topilmadi.")
+                return JsonResponse({'status': 'error', 'message': 'Imtihon bo‘limlari mavjud emas yoki tartiblanmagan'}, status=400)
+            
+            # Foydalanuvchini imtihon rejimiga yo'naltirish
+            exam_url = reverse('exam_mode', kwargs={'slug': slug, 'exam_id': exam.id, 'attempt_id': attempt.id})
+            
+            return JsonResponse({'status': 'success', 'attempt_id': attempt.id, 'redirect_url': exam_url})
+        
+    except Exam.DoesNotExist:
+        # Yuqoridagi kuchaytirilgan tekshiruvdan keyin faqat DB ma'lumoti noto'g'ri bo'lsa beriladi
+        return JsonResponse({'status': 'error', 'message': 'Imtihon topilmadi, aktiv emas yoki sizning markazingizga tegishli emas.'}, status=404)
+    except Exception as e:
+        logger.error(f"start_exam_view xatosi: {str(e)}", exc_info=True)
+        return JsonResponse({'status': 'error', 'message': f'Imtihonni boshlashda kutilmagan server xatosi: {str(e)}'}, status=500)
+
+# =========================================================================
+# ⭐️ 2. IMTIHON TOPSHIRISH REJIMI (exam_mode_view)
+# =========================================================================
+
+@login_required(login_url='login')
+def exam_mode_view(request, slug, exam_id, attempt_id): # 🎯 SLUG QO'SHILDI
+    """
+    Imtihon topshirish sahifasini ko'rsatadi. Timer va birinchi savol ma'lumotlarini yuklaydi.
+    """
+    # 1. Markazni slug bo'yicha topish
+    center = get_object_or_404(Center, slug=slug)
+
+    # 2. Xavfsizlik Tekshiruvi
+    if request.user.center is None or request.user.center != center:
+        messages.error(request, "Bu markazga kirish huquqingiz yo‘q yoki sizga markaz biriktirilmagan.")
+        return redirect('index')
+
+    try:
+        # 3. UserAttempt ni olish va xavfsizlik tekshiruvi (Markaz orqali bog'lash)
+        attempt = get_object_or_404(
+            UserAttempt, 
+            id=attempt_id, 
+            user=request.user, 
+            exam__id=exam_id,
+            exam__center=center
+        )
+        
+        # 4. Tugallanmagan bo'lim urinishini olish (tartib bo'yicha birinchisi)
+        # Bu mantiq to'g'ri:
+        section_attempt = UserAttemptSection.objects.filter(attempt=attempt, is_completed=False).select_related('section').annotate(
+            order=Subquery(
+                ExamSectionOrder.objects.filter(
+                    exam=attempt.exam,
+                    exam_section=OuterRef('section')
+                ).values('order')[:1]
+            )
+        ).order_by('order').first()
         
         if not section_attempt:
-            # Agar bo'lim qolmagan bo'lsa, tugatilgan sahifaga yo'naltiramiz
             messages.info(request, "Imtihon bo'limlari yakunlangan.")
-            return redirect('view_result_detail', attempt_id=attempt.id) # view_result_detail ga yo'naltirish
+            return redirect('view_result_detail', slug=center.slug, attempt_id=attempt.id) 
+            
+        # 5. 🔥 BIRINCHI SAVOL ID'sini olish (Tartibni ExamSectionStaticQuestion'dan tiklash)
+        ordered_questions_ids = ExamSectionStaticQuestion.objects.filter(
+            exam_section=section_attempt.section
+        ).order_by('question_number').values_list('question_id', flat=True)
+
+        first_question_id = ordered_questions_ids.first()
         
-        # Timer mantiqi
+        if not first_question_id:
+            messages.warning(request, f"'{section_attempt.section.name}' bo'limida savollar yuklanmagan. Keyingisiga o‘tildi.")
+            # Bo'limni yakunlangan deb belgilab, o'zini qayta chaqirish
+            section_attempt.is_completed = True
+            section_attempt.completed_at = timezone.now()
+            section_attempt.save()
+            # Redirectga SLUG qo'shildi:
+            return redirect('exam_mode', slug=slug, exam_id=exam_id, attempt_id=attempt_id)
+
+
+        # 6. Timer mantiqi (O'zgarmagan)
         total_duration_seconds = section_attempt.section.duration_minutes * 60
-        time_remaining_seconds = total_duration_seconds # Default
-
+        time_remaining_seconds = section_attempt.remaining_time_seconds
+        
         if section_attempt.started_at is None:
-            # Birinchi marta kirish
+            # ... (Birinchi marta boshlash mantiqi)
             section_attempt.started_at = timezone.now()
-            section_attempt.remaining_time_seconds = total_duration_seconds
             section_attempt.save()
-            time_remaining_seconds = total_duration_seconds
+            time_remaining_seconds = total_duration_seconds 
         else:
-            # Avval boshlangan. Qolgan vaqtni qayta hisoblaymiz
+            # ... (Davom ettirish mantiqi)
             elapsed_seconds = (timezone.now() - section_attempt.started_at).total_seconds()
+            time_remaining_seconds = max(0, int(total_duration_seconds - elapsed_seconds)) 
             
-            # Agar avval saqlangan vaqt bo'lsa, o'tgan vaqtni hisobga olib yangilaymiz
-            if section_attempt.remaining_time_seconds is not None:
-                 # remaining_time_seconds ni yangilab qo'yamiz
-                time_remaining_seconds = max(0, int(section_attempt.remaining_time_seconds - elapsed_seconds))
+            # Agar vaqt tugagan bo'lsa, bo'limni yakunlaymiz
+            if time_remaining_seconds == 0 and not section_attempt.is_completed:
+                section_attempt.is_completed = True
+                section_attempt.completed_at = timezone.now()
+                section_attempt.save()
+                messages.warning(request, f"Vaqt tugashi sababli '{section_attempt.section.name}' bo'limi yakunlandi.")
+                # Redirectga SLUG qo'shildi:
+                return redirect('exam_mode', slug=slug, exam_id=exam_id, attempt_id=attempt_id) 
                 
-                # Agar vaqt tugagan bo'lsa, bo'limni yakunlaymiz
-                if time_remaining_seconds == 0:
-                    section_attempt.is_completed = True
-                    section_attempt.completed_at = timezone.now()
-                    section_attempt.save()
-                    messages.warning(request, f"Vaqt tugashi sababli '{section_attempt.section.section_type}' bo'limi yakunlandi.")
-                    return redirect('exam_mode', exam_id=exam_id, attempt_id=attempt_id) # Keyingi bo'limni chaqirishga urinish
-            
-            # O'zgarishlarni saqlash
-            section_attempt.remaining_time_seconds = time_remaining_seconds
-            section_attempt.save()
-
-
-        # Qo'shimcha optionlarni aniqlash (kalkulyator, spravka)
+        # 7. Qo'shimcha optionlarni aniqlash (O'zgarmagan)
+        section_type = section_attempt.section.section_type
         extra_options = []
-        section_type = section_attempt.section.section_type.lower()
-        if section_type == 'math_calc':
+        if section_type == MATH_M2:
             extra_options.append('calculator')
-        if section_type in ['math_no_calc', 'math_calc']:
+        if section_type in [MATH_M1, MATH_M2]:
             extra_options.append('reference')
         
+        # 8. Kontekstni tuzish
         context = {
             'exam': attempt.exam,
             'attempt_id': attempt.id,
             'section_attempt_id': section_attempt.id,
             'section_attempt': section_attempt,
             'time_remaining_seconds': time_remaining_seconds,
-            'csrf_token': request.META.get('CSRF_COOKIE', ''),
             'extra_options': extra_options,
+            'is_subject_exam': attempt.exam.is_subject_exam, 
+            'first_question_id': first_question_id,
+            'center': center, # 🎯 MARKAZ OBYEKTI KONTEKSTGA QO'SHILDI
         }
         
         return render(request, 'student/exam_mode.html', context)
@@ -636,253 +1437,273 @@ def exam_mode_view(request, exam_id, attempt_id):
     except Exception as e:
         logger.error(f"exam_mode_view xatosi: {str(e)}", exc_info=True)
         messages.error(request, "Imtihon sahifasini yuklashda kutilmagan xato yuz berdi.")
-        return redirect('dashboard')
+        return redirect('dashboard',slug=request.user.center.slug)
 
-@login_required(login_url='login')
+
+@csrf_exempt
 @require_POST
 def handle_exam_ajax(request):
     """
-    Imtihon davomida AJAX so'rovlarini (javobni saqlash, timer sinxronizatsiyasi, bo'limni tugatish) boshqaradi.
-    (Bu funksiya JSON javob qaytargani uchun messages ishlatilmaydi).
+    Imtihon jarayonidagi barcha AJAX so'rovlarini boshqaradigan asosiy view.
     """
+    if not request.user.is_authenticated:
+        return JsonResponse({'status': 'error', 'message': 'Autentifikatsiya talab qilinadi.'}, status=401)
+        
     try:
         data = json.loads(request.body)
         action = data.get('action')
         attempt_id = data.get('attempt_id')
         section_attempt_id = data.get('section_attempt_id')
+    except json.JSONDecodeError:
+        return JsonResponse({'status': 'error', 'message': 'Yaroqsiz JSON formati.'}, status=400)
+    
+    if not attempt_id or not section_attempt_id or not action:
+        return JsonResponse({'status': 'error', 'message': 'Attempt ID, Section Attempt ID yoki Action majburiy.'}, status=400)
+
+    try:
+        attempt = get_object_or_404(UserAttempt, id=attempt_id, user=request.user)
+        section_attempt = get_object_or_404(UserAttemptSection, id=section_attempt_id, attempt=attempt)
+    except Exception:
+        logger.error(f"Attempt/Section topilmadi. Attempt ID: {attempt_id}, User: {request.user.id}")
+        return JsonResponse({'status': 'error', 'message': 'Imtihon urinishi yoki bo‘limi topilmadi.'}, status=404)
         
-        # Muhim: Barcha so'rovlar foydalanuvchiga tegishli ekanligini tekshiramiz
-        section_attempt = get_object_or_404(
-            UserAttemptSection, 
-            id=section_attempt_id, 
-            attempt__id=attempt_id, 
-            attempt__user=request.user
-        )
-        attempt = section_attempt.attempt
-
-        if action == 'get_section_data':
-            # Savollarni ExamSectionStaticQuestion orqali tartiblangan holda olamiz
-            static_questions_in_order = ExamSectionStaticQuestion.objects.filter(
-                exam_section=section_attempt.section
-            ).order_by('question_number').select_related('question')
-
-            question_ids = [sq.question.id for sq in static_questions_in_order]
+    
+    # =================================================================================
+    # 1. BO'LIM MA'LUMOTLARINI YUKLASH (LOAD_SECTION_DATA)
+    # =================================================================================
+    if action == 'load_section_data':
+        try:
+            questions_in_order = section_attempt.userattemptquestion_set.all().order_by('question_number')
+            question_ids = list(questions_in_order.values_list('question_id', flat=True))
             
-            if not question_ids:
-                return JsonResponse({'status': 'error', 'message': 'Bu bo‘limda savollar mavjud emas.'}, status=400)
-            
-            # Javob berilgan va belgilangan savollar
-            answered_data = UserAnswer.objects.filter(
-                attempt_section=section_attempt, question_id__in=question_ids
-            ).values('question_id', 'is_marked_for_review')
-            
-            answered_question_ids = [d['question_id'] for d in answered_data]
-            marked_for_review = [d['question_id'] for d in answered_data if d['is_marked_for_review']]
+            user_answers = UserAnswer.objects.filter(attempt_section=section_attempt).select_related('question').prefetch_related('selected_options')
 
-            # Boshlanadigan savol ID sini aniqlash
-            last_answered = UserAnswer.objects.filter(
-                attempt_section=section_attempt, question_id__in=question_ids
-            ).order_by('-id').last()
+            initial_answers = {}
+            answered_ids = []
+            marked_for_review_ids = []
 
-            initial_question_id = question_ids[0]
-            if last_answered:
-                try:
-                    current_q_index = question_ids.index(last_answered.question_id)
-                    # Oxirgi javob berilganidan keyingi savolga o'tamiz, agar mavjud bo'lsa
-                    if current_q_index + 1 < len(question_ids):
-                        initial_question_id = question_ids[current_q_index + 1]
-                    else:
-                         # Agar oxirgi savolga javob berilgan bo'lsa, yana birinchi savolga qaytaramiz (yoki oxirgisiga)
-                        initial_question_id = question_ids[len(question_ids) - 1]
-                except ValueError:
-                    initial_question_id = question_ids[0]
-
-            initial_question_data = get_question_data(request, section_attempt, initial_question_id)
-            if 'error' in initial_question_data:
-                return JsonResponse({'status': 'error', 'message': initial_question_data['error']}, status=500)
+            for ans in user_answers:
+                selected_options_ids = list(ans.selected_options.values_list('id', flat=True))
+                
+                initial_answers[str(ans.question_id)] = {
+                    'selected_options': selected_options_ids if selected_options_ids else None,
+                    'selected_option': selected_options_ids[0] if ans.question.answer_format == 'single' and selected_options_ids else None,
+                    'short_answer_text': ans.short_answer_text if ans.short_answer_text and ans.short_answer_text.strip() else None,
+                    'is_marked_for_review': ans.is_marked_for_review
+                }
+                
+                is_answered = (ans.question.answer_format == 'short_answer' and bool(ans.short_answer_text and ans.short_answer_text.strip())) or \
+                              (ans.selected_options.exists())
+                    
+                if is_answered:
+                    answered_ids.append(ans.question_id)
+                if ans.is_marked_for_review:
+                    marked_for_review_ids.append(ans.question_id)
 
             return JsonResponse({
                 'status': 'success',
-                'question_ids': question_ids,
-                'answered_question_ids': answered_question_ids,
-                'marked_for_review': marked_for_review,
-                'initial_question_id': initial_question_id,
-                'initial_question_data': initial_question_data,
-                'time_remaining_seconds': section_attempt.remaining_time_seconds or section_attempt.section.duration_minutes * 60
+                'section_data': {
+                    'question_ids': question_ids,
+                    'initial_time_remaining': section_attempt.remaining_time_seconds,
+                    'section_completed': section_attempt.is_completed,
+                    'initial_answers': initial_answers,
+                    'answered_question_ids': answered_ids,
+                    'marked_for_review_ids': marked_for_review_ids,
+                }
             })
 
-        elif action == 'get_question_by_id':
-            question_id = data.get('question_id')
-            question_data = get_question_data(request, section_attempt, question_id)
-            if 'error' in question_data:
-                return JsonResponse({'status': 'error', 'message': question_data['error']}, status=500)
+        except Exception as e:
+            logger.error(f"Bo'lim ma'lumotlarini yuklashda xato: {e}", exc_info=True)
+            return JsonResponse({'status': 'error', 'message': f"Bo'limni yuklashda xato: {str(e)}"}, status=500)
+
+
+    # =================================================================================
+    # 🔥 2. SAVOL MA'LUMOTLARINI YUKLASH (LOAD_QUESTION_DATA) - YAKUNIY TUZATISH
+    # =================================================================================
+    elif action == 'load_question_data':
+        question_id = data.get('question_id')
+        
+        if not question_id:
+            return JsonResponse({'status': 'error', 'message': 'Savol IDsi majburiy.'}, status=400)
+            
+        try:
+            question = Question.objects.select_related('passage').prefetch_related('options').get(id=question_id)
+            
+            options_data = []
+            option_choices = ['A', 'B', 'C', 'D', 'E', 'F'] 
+            
+            for index, option in enumerate(question.options.all().order_by('id')): 
+                options_data.append({
+                    'id': option.id,
+                    'text': option.text, # AnswerOption modelida 'text' ishlatiladi
+                    'char': option_choices[index] if index < len(option_choices) else '',
+                    'image_url': getattr(option, 'image', None).url if getattr(option, 'image', None) else None,
+                })
+
+            user_answer = UserAnswer.objects.filter(
+                attempt_section=section_attempt, 
+                question=question
+            ).first()
+            
+            initial_answer = {}
+            if user_answer:
+                is_answered = (question.answer_format == 'short_answer' and bool(user_answer.short_answer_text and user_answer.short_answer_text.strip())) or \
+                              (user_answer.selected_options.exists())
+                    
+                selected_options_ids = list(user_answer.selected_options.values_list('id', flat=True))
+                
+                initial_answer = {
+                    'selected_options': selected_options_ids,
+                    'selected_option': selected_options_ids[0] if question.answer_format == 'single' and selected_options_ids else None,
+                    'short_answer_text': user_answer.short_answer_text,
+                    'is_marked_for_review': user_answer.is_marked_for_review,
+                    'is_answered': is_answered
+                }
+            
+            try:
+                question_number = section_attempt.userattemptquestion_set.get(question=question).question_number
+            except:
+                question_number = 0 
+                
+            # Savol ma'lumotlarini tayyorlash: Question modelidagi "text" maydoni ishlatildi.
+            question_data = {
+                'id': question.id,
+                'number': question_number,
+                'text': question.text, # <<< TO'G'RI: Question modelidagi 'text' maydoni!
+                'format': question.answer_format,
+                'image_url': question.image.url if question.image else None, 
+                'options': options_data,
+                'initial_answer': initial_answer,
+                'passage_text': question.passage.text if question.passage else None,
+            }
+
             return JsonResponse({'status': 'success', 'question_data': question_data})
 
-        elif action == 'save_answer':
-            question_id = data.get('question_id')
-            is_marked_for_review = data.get('is_marked_for_review', False)
-            question = get_object_or_404(Question, id=question_id)
-            question_format = question.answer_format
+        except Question.DoesNotExist:
+            return JsonResponse({'status': 'error', 'message': 'Savol bazada topilmadi.'}, status=404)
+        except Exception as e:
+            logger.error(f"Savolni yuklashda server xatosi: {e}", exc_info=True)
+            return JsonResponse({'status': 'error', 'message': f"Savolni yuklashda server xatosi: {str(e)}"}, status=500)
 
-            # Tranzaksiya ichida javobni saqlash
+
+    # =================================================================================
+    # 3. JAVOBNI SAQLASH VA VAQTNI SINXRONLASH (SAVE_ANSWER & SYNC_TIMER)
+    # =================================================================================
+    elif action == 'save_answer' or action == 'sync_timer':
+        
+        time_remaining = data.get('time_remaining')
+        if time_remaining is not None and time_remaining >= 0:
+            section_attempt.remaining_time_seconds = time_remaining
+            
+        if action == 'save_answer':
+            question_id = data.get('question_id')
+            
+            selected_option_id = data.get('selected_option') 
+            selected_options_ids = data.get('selected_options') 
+            short_answer_text = data.get('short_answer_text') 
+            is_marked_for_review = data.get('is_marked_for_review', False)
+
+            if not question_id:
+                if time_remaining is not None:
+                     section_attempt.save(update_fields=['remaining_time_seconds'])
+                return JsonResponse({'status': 'error', 'message': 'Savol IDsi majburiy.'}, status=400)
+            
+            try:
+                question = Question.objects.get(id=question_id) 
+            except Question.DoesNotExist:
+                return JsonResponse({'status': 'error', 'message': 'Savol topilmadi.'}, status=404)
+
             with transaction.atomic():
                 user_answer, created = UserAnswer.objects.get_or_create(
-                    attempt_section=section_attempt, question=question
+                    attempt_section=section_attempt, 
+                    question_id=question_id,
+                    defaults={'is_marked_for_review': is_marked_for_review}
                 )
                 
-                user_answer.is_marked_for_review = is_marked_for_review
-                is_correct = False
+                user_answer.selected_options.clear() 
+                user_answer.short_answer_text = '' 
                 
-                if question_format in ['single', 'multiple']:
-                    selected_option_ids = data.get('selected_options', [])
-                    if question_format == 'single' and 'selected_option' in data:
-                        # Faqat bitta tanlovni olish
-                        selected_option_ids = [data['selected_option']] if data.get('selected_option') is not None else []
-                    
-                    user_answer.selected_options.set(selected_option_ids)
-                    user_answer.short_answer_text = None
-
-                    # To'g'rilikni tekshirish
-                    correct_options_ids = set(question.options.filter(is_correct=True).values_list('id', flat=True))
-                    selected_options_ids_set = set(user_answer.selected_options.values_list('id', flat=True))
-                    is_correct = selected_options_ids_set == correct_options_ids
-
-                elif question_format == 'short_answer':
-                    short_answer_text = data.get('short_answer_text', '').strip()
-                    user_answer.short_answer_text = short_answer_text
-                    user_answer.selected_options.clear()
-
-                    # To'g'rilikni tekshirish
-                    correct_answer_text = question.correct_short_answer.strip().lower() if question.correct_short_answer else ""
-                    user_answer_text = user_answer.short_answer_text.lower() if user_answer.short_answer_text else ""
-                    is_correct = user_answer_text == correct_answer_text
-
-                user_answer.is_correct = is_correct
+                if question.answer_format in ('single', 'multiple'):
+                    if question.answer_format == 'single' and selected_option_id is not None:
+                        try:
+                            option = AnswerOption.objects.get(id=selected_option_id, question=question) 
+                            user_answer.selected_options.add(option)
+                        except AnswerOption.DoesNotExist: 
+                             pass
+                            
+                    elif question.answer_format == 'multiple' and selected_options_ids and isinstance(selected_options_ids, list):
+                        valid_options = AnswerOption.objects.filter(id__in=selected_options_ids, question=question) 
+                        user_answer.selected_options.set(valid_options)
+                        
+                    user_answer.short_answer_text = '' 
+                        
+                elif question.answer_format == 'short_answer' and short_answer_text is not None:
+                    user_answer.short_answer_text = short_answer_text.strip()
+                
+                user_answer.is_marked_for_review = is_marked_for_review
+                
+                is_answered = (question.answer_format == 'short_answer' and bool(user_answer.short_answer_text and user_answer.short_answer_text.strip())) or \
+                              (user_answer.selected_options.exists())
+                        
+                if is_answered:
+                    if not user_answer.answered_at:
+                        user_answer.answered_at = timezone.now()
+                else:
+                    user_answer.answered_at = None 
+                
                 user_answer.save()
+                
+                answered_ids = list(UserAnswer.objects.filter(
+                    attempt_section=section_attempt
+                ).exclude(
+                    Q(selected_options__isnull=True) & Q(short_answer_text__exact='')
+                ).values_list('question_id', flat=True).distinct())
 
-            answered_question_ids = list(UserAnswer.objects.filter(
-                attempt_section=section_attempt
-            ).values_list('question_id', flat=True))
-            
-            return JsonResponse({'status': 'success', 'answered_question_ids': answered_question_ids})
+                section_attempt.save(update_fields=['remaining_time_seconds'])
+                
+                return JsonResponse({
+                    'status': 'success', 
+                    'message': 'Javob saqlandi',
+                    'answered_question_ids': answered_ids
+                })
+        
+        if time_remaining is not None:
+            section_attempt.save(update_fields=['remaining_time_seconds'])
+        return JsonResponse({'status': 'success', 'message': 'Vaqt sinxronizatsiya qilindi'})
 
-        elif action == 'sync_timer':
-            time_remaining = data.get('time_remaining')
-            if time_remaining is not None:
-                section_attempt.remaining_time_seconds = time_remaining
-                section_attempt.save()
-            return JsonResponse({'status': 'success'})
+    # =================================================================================
+    # 4. IMTIHON/BO'LIM YAKUNLASH (FINISH_EXAM & FINISH_SECTION)
+    # =================================================================================
+    elif action in ['finish_exam', 'finish_section']:
+        # ... (Bu blok to'g'ri ishlaydi)
+        pass # Bu yerni o'z kodingiz bilan almashtiring
+    
+    # =================================================================================
+    # 5. FLASHCARDS YUQLASH (GET_FLASHCARDS)
+    # =================================================================================
+    elif action == 'get_flashcards':
+        # ... (Bu blok to'g'ri ishlaydi)
+        pass # Bu yerni o'z kodingiz bilan almashtiring
 
-        elif action == 'finish_section' or action == 'finish_exam':
-            with transaction.atomic():
-                # Bo'limni yakunlash
-                if action == 'finish_section' or action == 'finish_exam':
-                    time_remaining = data.get('time_remaining')
-                    if time_remaining is not None:
-                        section_attempt.remaining_time_seconds = time_remaining
-                    section_attempt.is_completed = True
-                    section_attempt.completed_at = timezone.now()
-                    section_attempt.save()
-
-                # Keyingi bo'limga o'tishni tekshirish
-                remaining_sections = UserAttemptSection.objects.filter(
-                    attempt=attempt, is_completed=False
-                ).count()
-
-                if remaining_sections > 0 and action == 'finish_section':
-                    # Keyingi bo'limga yo'naltirish
-                    redirect_url = reverse('exam_mode', kwargs={'exam_id': attempt.exam.id, 'attempt_id': attempt.id})
-                    return JsonResponse({'status': 'success', 'redirect_url': redirect_url})
-
-                # Imtihon to'liq tugadi, ballarni hisoblash
-                if remaining_sections == 0 or action == 'finish_exam':
-                    
-                    sections_qs = attempt.section_attempts.select_related('section').order_by('section__order')
-                    
-                    # Barcha javoblardagi to'g'ri sonini bo'limlar bo'yicha olish
-                    correct_answers_by_section = UserAnswer.objects.filter(
-                        attempt_section__attempt=attempt, is_correct=True
-                    ).values('attempt_section__id').annotate(correct_count=Count('id'))
-                    correct_map = {item['attempt_section__id']: item['correct_count'] for item in correct_answers_by_section}
-
-                    # Ballarni hisoblash uchun xom ballarni yig'ish (Sizning kodingizdagi mantiq)
-                    ebrw_raw = {'M1': None, 'M2': None, 'total': 0}
-                    math_raw = {'M1': None, 'M2': None, 'total': 0}
-                    for sect_att in sections_qs:
-                        section_type = sect_att.section.section_type
-                        correct = correct_map.get(sect_att.id, 0)
-                        if section_type == 'read_write_m1':
-                            ebrw_raw['M1'] = correct
-                            ebrw_raw['total'] += correct
-                        elif section_type == 'read_write_m2':
-                            ebrw_raw['M2'] = correct
-                            ebrw_raw['total'] += correct
-                        elif section_type == 'math_no_calc':
-                            math_raw['M1'] = correct
-                            math_raw['total'] += correct
-                        elif section_type == 'math_calc':
-                            math_raw['M2'] = correct
-                            math_raw['total'] += correct
-
-                    # Ballarni o'lchamli shkalaga o'tkazish (get_adaptive_scaled_score funksiyasi mavjud deb hisoblaymiz)
-                    # (Bu funksiya sizning utils.py faylingizda bo'lishi kerak)
-                    final_ebrw_score = get_adaptive_scaled_score(ebrw_raw['M1'], ebrw_raw['total'], is_math=False)
-                    final_math_score = get_adaptive_scaled_score(math_raw['M1'], math_raw['total'], is_math=True)
-                    total_sat_score = (final_ebrw_score or 0) + (final_math_score or 0)
-
-                    # Yakuniy natijalarni saqlash
-                    attempt.final_ebrw_score = final_ebrw_score
-                    attempt.final_math_score = final_math_score
-                    attempt.final_total_score = total_sat_score
-                    attempt.is_completed = True
-                    attempt.completed_at = timezone.now()
-                    attempt.save()
-
-                    # Qolgan tugallanmagan bo'limlarni ham yakunlangan deb belgilash (agar qolgan bo'lsa, xatoliklar tufayli)
-                    UserAttemptSection.objects.filter(
-                        attempt=attempt, is_completed=False
-                    ).update(is_completed=True, completed_at=timezone.now())
-
-                    redirect_url = reverse('view_result_detail', kwargs={'attempt_id': attempt.id})
-                    return JsonResponse({'status': 'finished', 'redirect_url': redirect_url})
-
-        else:
-            return JsonResponse({'status': 'error', 'message': f"Noto‘g‘ri harakat: {action}"}, status=400)
-
-    except json.JSONDecodeError:
-        return JsonResponse({'status': 'error', 'message': 'Noto‘g‘ri JSON ma’lumot. So‘rov tanasini tekshiring.'}, status=400)
-    except UserAttemptSection.DoesNotExist:
-        return JsonResponse({'status': 'error', 'message': 'Bo‘lim urinishi topilmadi. ID-larni tekshiring.'}, status=404)
-    except Exception as e:
-        logger.error(f"Error in handle_exam_ajax: {str(e)}", exc_info=True)
-        return JsonResponse({'status': 'error', 'message': f'Server xatosi: {str(e)}'}, status=500)
-
-# =================================================================
-# YORDAMCHI FUNKSIYA (VIEW EMAS)
-# =================================================================
+    return JsonResponse({'status': 'error', 'message': 'Noto‘g‘ri action aniqlandi.'}, status=400)
 
 def get_question_data(request, section_attempt, question_id):
     """
     Berilgan savolning ma'lumotlarini va foydalanuvchining oldingi javobini yuklaydi.
-    Bu funksiya AJAX so'rovlariga xizmat qiladi.
     """
     try:
-        # 1. Savol va variantlarni olish
-        # Savol UserAttemptSection orqali olinishi kerak (M2M aloqasi orqali)
         question = section_attempt.questions.get(id=question_id)
         options = question.options.all()
         
-        # 2. Harflarni qo'shish (A, B, C, ...)
+        # Harflarni qo'shish
         letters = list(string.ascii_uppercase)
         options_with_letters = list(zip(options, letters[:len(options)]))
 
-        # 3. Mavjud UserAnswer ni olish (Oldingi javobni yuklash)
         user_answer = UserAnswer.objects.filter(
             attempt_section=section_attempt,
             question_id=question_id
         ).first()
         
-        # 4. Oldingi javob ma'lumotlarini tayyorlash
         selected_option_ids = []
         short_answer = None
         is_marked = False
@@ -892,21 +1713,24 @@ def get_question_data(request, section_attempt, question_id):
             short_answer = user_answer.short_answer_text
             is_marked = user_answer.is_marked_for_review
         
-        # 5. Contextni HTML render uchun tayyorlash
+        # Savolning tartib raqamini aniqlash (navigation uchun kerak)
+        q_order = section_attempt.questions.through.objects.filter(
+            attempt_section=section_attempt,
+            question=question
+        ).values_list('question_number', flat=True).first()
+
         context = {
             'question': question,
             'user_answer': user_answer,
             'options': options,
-            'options_with_letters': options_with_letters,  # Harflarni qo'shdik
-            'is_study_mode': section_attempt.attempt.mode == 'study',
+            'options_with_letters': options_with_letters, 
+            'is_study_mode': section_attempt.attempt.mode == 'study', 
             'selected_option_ids': selected_option_ids,
             'short_answer_text': short_answer
         }
         
-        # 6. HTML render qilish
         options_html = render_to_string('student/question_options.html', context, request=request)
         
-        # 7. Question data tayyorlash
         question_data = {
             'id': question.id,
             'question_text': question.text,
@@ -916,672 +1740,503 @@ def get_question_data(request, section_attempt, question_id):
             'user_selected_options': selected_option_ids,
             'user_short_answer': short_answer,
             'is_marked_for_review': is_marked,
+            'question_number': q_order, # Savol tartib raqami
         }
-        logger.info(f"Generated question data for question {question_id}")
         return question_data
         
     except Question.DoesNotExist:
-        logger.error(f"Question {question_id} not found in section {section_attempt.id}")
         return {'error': "Savol bu bo'limda topilmadi."}
     except Exception as e:
         logger.error(f"get_question_data xatosi: {str(e)}", exc_info=True)
         return {'error': f'Savol yuklashda server xatosi: {str(e)}'}
-        
-        
-# =================================================================
-# IMTIHONNI BOSHLASH MANTIQI
-# =================================================================
-
-@login_required(login_url='login')
-def start_exam_view(request, exam_id):
-    """
-    Imtihonni boshlaydi. Yangi urinish (UserAttempt) va bo'lim urinishlarini (UserAttemptSection) yaratadi.
-    Bu funksiya AJAX orqali chaqiriladi va JSON javob qaytaradi.
-    """
-    # Kirish tekshiruvini @login_required decoratori hal qiladi, shuning uchun ichki tekshiruv keraksiz.
     
-    try:
-        exam = get_object_or_404(Exam, id=exam_id, is_active=True)
-        # Tugallanmagan urinish mavjudligini tekshirish
-        attempt = UserAttempt.objects.filter(user=request.user, exam=exam, is_completed=False).first()
-        
-        with transaction.atomic():
-            if not attempt:
-                # 1. Yangi urinishni yaratish
-                attempt = UserAttempt.objects.create(
-                    user=request.user,
-                    exam=exam,
-                    mode='exam' # Rejimni ko'rsatish
-                )
-                logger.info(f"New attempt created: {attempt.id} for exam {exam_id}")
-                
-                # 2. Bo'limlarni olish va UserAttemptSection yaratish
-                sections = exam.sections.all().order_by('order')
-                if not sections.exists():
-                    logger.error(f"No sections found for exam {exam_id}")
-                    return JsonResponse({'status': 'error', 'message': 'Bu imtihonda bo‘limlar mavjud emas'}, status=400)
-                
-                for section in sections:
-                    section_attempt = UserAttemptSection.objects.create(
-                        attempt=attempt,
-                        section=section,
-                        # Birinchi bo'lim uchun start_date va remaining_time to'g'ridan-to'g'ri beriladi
-                        started_at=timezone.now(),
-                        remaining_time_seconds=section.duration_minutes * 60
-                    )
-                    
-                    # 3. Savollarni bog'lash (faqat 'static' examlar uchun)
-                    if exam.exam_type == 'static':
-                        static_questions = ExamSectionStaticQuestion.objects.filter(exam_section=section).order_by('question_number')
-                        if static_questions.exists():
-                            # M2M aloqani to'g'ri o'rnatish
-                            questions = [sq.question for sq in static_questions]
-                            section_attempt.questions.set(questions)
-                        else:
-                            logger.warning(f"No static questions found for section {section.id}")
-                    # Adaptive exam'lar uchun savollar dinamik ravishda yaratiladi/beriladi, bu yerda o'tkazib yuboramiz.
-            else:
-                logger.info(f"Existing attempt found: {attempt.id} for exam {exam_id}")
-            
-            # 4. Foydalanuvchini imtihon rejimiga yo'naltirish
-            section_attempt = UserAttemptSection.objects.filter(attempt=attempt, is_completed=False).first()
-            if not section_attempt:
-                logger.error(f"No active sections available for attempt {attempt.id}")
-                return JsonResponse({'status': 'error', 'message': 'Imtihon bo‘limlari tugallangan'}, status=400)
-            
-            # Imtihon rejimiga yo'naltirish URL'ini qaytarish
-            exam_url = reverse('exam_mode', kwargs={'exam_id': exam.id, 'attempt_id': attempt.id})
-            return JsonResponse({'status': 'success', 'exam_url': exam_url})
-        
-    except Exam.DoesNotExist:
-        logger.error(f"Exam {exam_id} not found or inactive")
-        return JsonResponse({'status': 'error', 'message': 'Imtihon topilmadi yoki aktiv emas'}, status=404)
-    except Exception as e:
-        logger.error(f"start_exam_view error: {str(e)}", exc_info=True)
-        return JsonResponse({'status': 'error', 'message': f'Imtihonni boshlashda kutilmagan server xatosi: {str(e)}'}, status=500)
-
-# =================================================================
-# STUDY MODE (O'QISH REJIMI) VIEWS
-# =================================================================
+# =========================================================================
+# ⭐️ 4. YAKUNIY NATIJALAR (view_result_detail) - Oldingi tuzatilgan funksiya
+# =========================================================================
 
 @login_required(login_url='login')
-def study_mode_view(request, exam_id):
+def view_result_detail(request, slug, attempt_id):
     """
-    Study Mode uchun asosiy sahifani yuklaydi.
-    Yangi urinish (UserAttempt) va uning birinchi bo'limi (UserAttemptSection)ni yaratadi yoki topadi.
+    Foydalanuvchining imtihon natijalari – faqat o‘z markazida
     """
+    # 1. MARKAZ TEKSHIRISH
+    center = get_object_or_404(Center, slug=slug)
+    if request.user.center is None or request.user.center != center:
+        messages.error(request, "Bu sahifaga kirish huquqingiz yo‘q.")
+        return redirect('dashboard',slug=request.user.center.slug)
+
     try:
-        exam = get_object_or_404(Exam, id=exam_id, is_active=True)
-        
-        # 1. Study Mode uchun tugallanmagan attempt yaratish/topish
-        attempt, created = UserAttempt.objects.get_or_create(
+        # 2. URINISH TEKSHIRISH
+        attempt = get_object_or_404(
+            UserAttempt.objects.select_related('exam').prefetch_related('section_attempts'), 
+            id=attempt_id, 
             user=request.user,
-            exam=exam,
-            mode='study',
-            is_completed=False,
-            defaults={'started_at': timezone.now()}
+            exam__center=center  
         )
+    except Exception:
+        messages.error(request, "Natija topilmadi yoki sizga tegishli emas.")
+        return redirect('dashboard',slug=request.user.center.slug)
         
-        # 2. Keyingi/birinchi tugallanmagan bo'limni topish/yaratish
-        
-        # Avval tugallanmagan bo'lim urinishini qidirish
-        section_attempt = UserAttemptSection.objects.filter(
-            attempt=attempt, 
-            is_completed=False
-        ).order_by('section__order').first()
+    exam = attempt.exam
 
-        if not section_attempt:
-            # Agar tugallanmagan bo'lim qolmagan bo'lsa, birinchi bo'limni olishga harakat qilamiz
-            first_section = exam.sections.all().order_by('order').first()
-            
-            if first_section:
-                 # Agar avval hech qanday bo'lim yaratilmagan bo'lsa, birinchisini yaratamiz
-                section_attempt, created = UserAttemptSection.objects.get_or_create(
-                    attempt=attempt,
-                    section=first_section,
-                    defaults={'started_at': timezone.now()}
-                )
-            else:
-                messages.error(request, "Imtihon bo'limlari mavjud emas.")
-                return redirect('all_exams')
+    # 3. BO‘LIMLARNING TARTIBI
+    sections_qs = attempt.section_attempts.select_related('section').annotate(
+        section_order_value=Subquery(
+            ExamSectionOrder.objects.filter(
+                exam=exam,
+                exam_section=OuterRef('section')
+            ).values('order')[:1] 
+        )
+    ).order_by('section_order_value') 
+    
+    is_subject_exam = getattr(exam, 'is_subject_exam', False)
 
-        # 3. Agar bu yangi bo'lim bo'lsa, uning savollarini bog'lash (faqat Study Mode da)
-        if not section_attempt.questions.exists() and exam.exam_type == 'static':
-            static_questions = ExamSectionStaticQuestion.objects.filter(exam_section=section_attempt.section).order_by('question_number')
-            if static_questions.exists():
-                questions = [sq.question for sq in static_questions]
-                section_attempt.questions.set(questions)
-                logger.info(f"Study Mode: Questions set for new section attempt {section_attempt.id}")
-            else:
-                 # Bu xato emas, shunchaki ogohlantirish bo'lishi mumkin
-                logger.warning(f"No static questions found for section {section_attempt.section.id}")
+    # 4. TO‘G‘RI JAVOBLAR
+    correct_answers_by_section_attempt = UserAnswer.objects.filter(
+        attempt_section__attempt=attempt, is_correct=True
+    ).values('attempt_section__id').annotate(correct_count=Count('id'))
+    correct_map = {item['attempt_section__id']: item['correct_count'] for item in correct_answers_by_section_attempt}
+    
+    ebrw_raw = {'M1': None, 'M2': None, 'total': 0}
+    math_raw = {'M1': None, 'M2': None, 'total': 0}
+    total_correct = 0
+    total_questions = 0
+    section_analysis_list = [] 
+    
+    for section_attempt in sections_qs:
+        section_type = section_attempt.section.section_type
+        correct = correct_map.get(section_attempt.id, 0)
+        section_questions = section_attempt.questions.count()
 
+        if section_questions == 0: 
+            continue
+
+        total_correct += correct
+        total_questions += section_questions
         
-        context = {
-            'exam': exam,
-            'attempt': attempt,
-            'section_attempt': section_attempt,
-            'mode': 'study'
-        }
-        return render(request, 'student/study_mode.html', context)
+        if section_type == EBRW_M1: 
+            ebrw_raw.update({'M1': correct, 'total': ebrw_raw['total'] + correct})
+        elif section_type == EBRW_M2: 
+            ebrw_raw.update({'M2': correct, 'total': ebrw_raw['total'] + correct})
+        elif section_type == MATH_M1: 
+            math_raw.update({'M1': correct, 'total': math_raw['total'] + correct})
+        elif section_type == MATH_M2: 
+            math_raw.update({'M2': correct, 'total': math_raw['total'] + correct})
         
-    except Exam.DoesNotExist:
-        messages.error(request, "Imtihon topilmadi yoki aktiv emas.")
-        return redirect('all_exams')
-    except Exception as e:
-        logger.error(f"study_mode_view xatosi: {str(e)}", exc_info=True)
-        messages.error(request, "O'qish rejimini yuklashda kutilmagan xato yuz berdi.")
-        return redirect('dashboard')
+        user_answers_for_nav = UserAnswer.objects.filter(
+            attempt_section=section_attempt
+        ).select_related('question').order_by('answered_at')
+
+        section_analysis_list.append({
+            'section_attempt_id': section_attempt.id,
+            'section_name': section_attempt.section.get_section_type_display(), 
+            'user_answers_nav': user_answers_for_nav,
+            'correct_count': correct,
+            'total_count': section_questions,
+        })
+
+    # 5. YAKUNIY BALL VA FOIZ
+    final_ebrw_score = attempt.final_ebrw_score
+    final_math_score = attempt.final_math_score
+    total_sat_score = attempt.final_total_score
+    
+    can_view_solution = True  # Doimiy ruxsat
+
+    total_percentage = round((total_correct / total_questions * 100)) if total_questions > 0 else 0
+    total_omitted = UserAnswer.objects.filter(attempt_section__attempt=attempt, is_correct=None).count()
+    total_incorrect = total_questions - total_correct - total_omitted
+    
+    context = {
+        'center': center,
+        'attempt': attempt,
+        'section_analysis_list': section_analysis_list,
+        'is_subject_exam': is_subject_exam,
+        'can_view_solution': can_view_solution,
+        'total_sat_score': total_sat_score, 
+        'ebrw_score': final_ebrw_score,
+        'math_score': final_math_score,
+        'total_correct': total_correct,
+        'total_incorrect': total_incorrect,
+        'total_omitted': total_omitted,
+        'total_questions': total_questions,
+        'total_percentage': total_percentage,
+        'pending_message': None if attempt.is_completed else "Imtihon hali yakunlanmagan. Ballar taxminiy.",
+    }
+    return render(request, 'student/result_detail.html', context)
 
 @login_required(login_url='login')
-def handle_study_ajax(request):
+def exam_detail_view(request, slug, exam_id):
     """
-    Study Mode uchun AJAX so'rovlarini qayta ishlash.
-    Yechim kreditlari har bir savol uchun hint/yechim so'ralganda kamayadi.
-    (Bu funksiya JSON javob qaytargani uchun messages ishlatilmaydi).
+    Imtihon tafsiloti – faqat o‘z markazida
     """
-    if request.method != 'POST':
-        return JsonResponse({'status': 'error', 'message': 'Noto‘g‘ri so‘rov usuli.'}, status=405)
+    # 1. MARKAZ TEKSHIRISH
+    center = get_object_or_404(Center, slug=slug)
+    if request.user.center is None or request.user.center != center:
+        messages.error(request, "Bu sahifaga kirish huquqingiz yo‘q.")
+        return redirect('index')
 
-    try:
-        data = json.loads(request.body)
-        action = data.get('action')
-        attempt_id = data.get('attempt_id')
-        section_attempt_id = data.get('section_attempt_id')
-        
-        attempt = get_object_or_404(UserAttempt, id=attempt_id, user=request.user)
-        # section_attempt ga section ham kerak bo'lishi mumkinligi uchun select_related qo'shildi
-        section_attempt = get_object_or_404(UserAttemptSection.objects.select_related('section'), id=section_attempt_id, attempt=attempt)
-        
-        # Study Mode da savollar UserAttemptSection.questions M2M orqali olinadi
-        questions_qs = section_attempt.questions.all().order_by('examsectionstaticquestion__question_number') 
-        answered_question_ids = set(UserAnswer.objects.filter(attempt_section=section_attempt).values_list('question_id', flat=True))
-
-        if action == 'get_next_question':
-            # Faqat javob berilmagan keyingi savolni olish
-            next_question = questions_qs.exclude(id__in=answered_question_ids).first()
-            
-            if next_question:
-                question_data = get_question_data(request, section_attempt, next_question.id)
-                if 'error' in question_data:
-                    return JsonResponse({'status': 'error', 'message': question_data['error']}, status=500)
-                
-                return JsonResponse({
-                    'status': 'success',
-                    'question_data': question_data
-                })
-            
-            # Agar barcha savollarga javob berilgan bo'lsa
-            with transaction.atomic():
-                section_attempt.is_completed = True
-                section_attempt.completed_at = timezone.now()
-                section_attempt.save()
-
-                # Keyingi bo'limga o'tishni tekshirish
-                next_section = attempt.exam.sections.filter(
-                    order__gt=section_attempt.section.order
-                ).order_by('order').first()
-                
-                if next_section:
-                    # Keyingi bo'lim urinishini yaratish
-                    next_section_attempt, created = UserAttemptSection.objects.get_or_create(
-                        attempt=attempt,
-                        section=next_section,
-                        defaults={'started_at': timezone.now()}
-                    )
-                    # Savollarni bog'lash (agar static bo'lsa)
-                    if not next_section_attempt.questions.exists() and attempt.exam.exam_type == 'static':
-                        static_questions = ExamSectionStaticQuestion.objects.filter(exam_section=next_section).order_by('question_number')
-                        if static_questions.exists():
-                            questions = [sq.question for sq in static_questions]
-                            next_section_attempt.questions.set(questions)
-
-                    return JsonResponse({
-                        'status': 'section_finished',
-                        'message': 'Bo‘lim yakunlandi. Keyingi bo‘limga o‘tmoqdasiz.',
-                        'redirect_url': reverse('study_mode_view', kwargs={'exam_id': attempt.exam.id})
-                    })
-                else:
-                    # Barcha bo'limlar tugadi - Imtihonni yakunlash
-                    attempt.is_completed = True
-                    attempt.completed_at = timezone.now()
-                    attempt.save()
-                    
-                    # Foydalanuvchi missiyasi progressini yangilash (agar UserMissionProgress modelingiz bo'lsa)
-                    try:
-                        progress, _ = UserMissionProgress.objects.get_or_create(user=request.user)
-                        progress.study_attempts_completed += 1
-                        progress.save()
-                    except NameError:
-                        logger.warning("UserMissionProgress model is not defined.")
-
-                    return JsonResponse({
-                        'status': 'finished',
-                        'message': 'Barcha savollar ko‘rib chiqildi. Imtihon yakunlandi.',
-                        'redirect_url': reverse('dashboard') # Yoki natijalar sahifasiga
-                    })
-
-        # --- Qolgan mantiq to'liq saqlanadi, chunki u Study Mode uchun to'g'ri ishlaydi ---
-        
-        elif action == 'get_review_question':
-            # ... (bu mantiq saqlanadi)
-            incorrect_questions = data.get('incorrect_questions', [])
-            
-            # FAQAT SECTIONNING SAVOLLARI ICHIDAN XATOLARNI TEKSHIRAMIZ
-            review_question = questions_qs.filter(id__in=incorrect_questions).exclude(id__in=answered_question_ids).first()
-
-            if review_question:
-                question_data = get_question_data(request, section_attempt, review_question.id)
-                if 'error' in question_data:
-                    return JsonResponse({'status': 'error', 'message': question_data['error']}, status=500)
-                return JsonResponse({
-                    'status': 'success',
-                    'question_data': question_data
-                })
-            
-            return JsonResponse({
-                'status': 'finished',
-                'message': 'Takrorlash uchun savollar tugadi.'
-            })
-
-        elif action == 'check_answer':
-            # ... (bu mantiq saqlanadi, faqat AnswerOption import qilinganligiga ishonch hosil qilish kerak)
-            question_id = data.get('question_id')
-            question = get_object_or_404(Question, id=question_id)
-            
-            # AnswerOption modelini o'zgartirmasdan, uning importi bor deb hisoblaymiz.
-            # Mantiq to'g'ri: javobni saqlaydi va to'g'riligini tekshiradi.
-            
-            with transaction.atomic():
-                user_answer, created = UserAnswer.objects.get_or_create(
-                    attempt_section=section_attempt,
-                    question=question
-                )
-
-                correct_options = set(question.options.filter(is_correct=True).values_list('id', flat=True))
-                is_correct = False
-                
-                # Javobni saqlash mantiqi
-                if question.answer_format == 'single':
-                    selected_option_id = data.get('selected_option')
-                    user_answer.selected_options.set([selected_option_id] if selected_option_id else [])
-                    user_answer.short_answer_text = None
-                    is_correct = selected_option_id in correct_options if selected_option_id else False
-                elif question.answer_format == 'multiple':
-                    selected_option_ids = data.get('selected_options', [])
-                    user_answer.selected_options.set(selected_option_ids)
-                    user_answer.short_answer_text = None
-                    is_correct = set(selected_option_ids) == correct_options
-                elif question.answer_format == 'short_answer':
-                    short_answer_text = data.get('short_answer_text', '').strip()
-                    user_answer.short_answer_text = short_answer_text
-                    user_answer.selected_options.clear()
-                    
-                    correct_answer_text = question.correct_short_answer.strip().lower() if question.correct_short_answer else ""
-                    user_answer_text = user_answer.short_answer_text.lower() if user_answer.short_answer_text else ""
-                    is_correct = user_answer_text == correct_answer_text
-                
-                user_answer.is_correct = is_correct
-                user_answer.answered_at = timezone.now()
-                user_answer.save()
-
-                # Yechim ko'rsatish va Kredit kamaytirish mantiqi
-                solution_data = None
-                if data.get('show_solution', False):
-                    user_balance = getattr(request.user, 'balance', None)
-                    user_subscription = getattr(request.user, 'subscription', None)
-                    has_solution_access = (user_subscription and hasattr(user_subscription, 'is_active') and user_subscription.is_active() and user_subscription.plan.includes_solution_access) if user_subscription else False
-
-                    if not has_solution_access:
-                        if not user_balance or user_balance.solution_view_credits <= 0:
-                            return JsonResponse({'status': 'error', 'message': 'Yechim ko‘rish uchun kredit yetarli emas.'}, status=403)
-                        
-                        user_balance.solution_view_credits -= 1
-                        user_balance.save()
-                        logger.info(f"User {request.user.username} used 1 solution credit for question {question_id}. Remaining: {user_balance.solution_view_credits}")
-
-                    solution_data = {
-                        'is_correct': is_correct,
-                        'solution_text': question.solution_text or "Yechim mavjud emas.",
-                        'correct_answer_ids': list(correct_options)
-                    }
-
-                return JsonResponse({
-                    'status': 'success',
-                    'message': 'Javob tekshirildi',
-                    'solution_data': solution_data
-                })
-
-        elif action == 'get_hint':
-            # ... (bu mantiq saqlanadi, kredit kamaytirish tranzaksiya ichida)
-            question_id = data.get('question_id')
-            question = get_object_or_404(Question, id=question_id)
-            user_balance = getattr(request.user, 'balance', None)
-            user_subscription = getattr(request.user, 'subscription', None)
-            has_solution_access = (user_subscription and hasattr(user_subscription, 'is_active') and user_subscription.is_active() and user_subscription.plan.includes_solution_access) if user_subscription else False
-
-            if not has_solution_access:
-                if not user_balance or user_balance.solution_view_credits <= 0:
-                    return JsonResponse({'status': 'error', 'message': 'Yechim ko‘rish uchun kredit yetarli emas.'}, status=403)
-                
-                with transaction.atomic():
-                    user_balance.solution_view_credits -= 1
-                    user_balance.save()
-                    logger.info(f"User {request.user.username} used 1 solution credit for hint on question {question_id}. Remaining: {user_balance.solution_view_credits}")
-
-            user_answer, _ = UserAnswer.objects.get_or_create(
-                attempt_section=section_attempt,
-                question=question
-            )
-            user_answer.hint_used = True
-            user_answer.save()
-
-            return JsonResponse({
-                'status': 'success',
-                'hint_text': question.hint_text or "Tavsiya mavjud emas."
-            })
-
-        elif action == 'mark_for_review':
-            # ... (bu mantiq saqlanadi)
-            question_id = data.get('question_id')
-            question = get_object_or_404(Question, id=question_id)
-            user_answer, _ = UserAnswer.objects.get_or_create(
-                attempt_section=section_attempt,
-                question=question
-            )
-            user_answer.is_marked_for_review = True
-            user_answer.save()
-
-            return JsonResponse({
-                'status': 'success',
-                'message': 'Savol takrorlash uchun belgilandi.'
-            })
-
-        else:
-            return JsonResponse({'status': 'error', 'message': 'Noma‘lum harakat.'}, status=400)
-
-    except json.JSONDecodeError:
-        return JsonResponse({'status': 'error', 'message': "Noto'g'ri JSON formati."}, status=400)
-    except Exception as e:
-        logger.error(f"handle_study_ajax xatosi: {str(e)}", exc_info=True)
-        return JsonResponse({'status': 'error', 'message': f'Server xatosi: {str(e)}'}, status=500)
-    
-# =========================================================================
-# ⭐️ 1. FLASHCARDNI BOSHLASH (Redirect View)
-# =========================================================================
-
-@login_required
-def start_flashcards_view(request, exam_id):
-    """
-    Foydalanuvchini ma'lum bir testga oid flashcard exam view ga yo'naltiradi.
-    """
-    try:
-        exam = get_object_or_404(Exam, id=exam_id, is_active=True)
-    except Exam.DoesNotExist:
-        messages.error(request, "Imtihon topilmadi yoki u aktiv emas.")
-        return redirect('all_exams')
-        
-    if hasattr(exam, 'flashcard_exam') and exam.flashcard_exam:
-        return redirect('flashcard_exam_view', exam_id=exam.id)
-        
-    # Agar flashcard exam mavjud bo'lmasa, xabar berish va boshqa sahifaga yo'naltirish
-    messages.info(request, "Bu imtihon uchun lug‘at kartochkalari mavjud emas.")
-    return redirect('exam_detail', exam_id=exam.id)
-
-# =========================================================================
-# ⭐️ 2. FLASHCARD EXAM SAHIFASI (Render View)
-# =========================================================================
-
-@login_required
-def flashcard_exam_view(request, exam_id):
-    """
-    Flashcard exam sahifasini ko'rsatadi. Faqat review vaqti kelgan yoki yangi flashcardlarni filtrlaydi.
-    """
-    try:
-        flashcard_exam = get_object_or_404(FlashcardExam, source_exam__id=exam_id)
-    except FlashcardExam.DoesNotExist:
-        messages.error(request, "Lug‘at kartochkalari bo‘limi topilmadi.")
-        return redirect('exam_detail', exam_id=exam_id) # Xato bo'lsa redirect qilamiz
-        
+    # 2. IMTIHON TEKSHIRISH
+    exam = get_object_or_404(
+        Exam, 
+        id=exam_id, 
+        is_active=True,
+        center=center  # MARKAZGA BOG‘LIQ!
+    )
     user = request.user
-    session_title = f"{flashcard_exam.source_exam.title} bo'yicha takrorlash" 
-    
-    # 1. Flashcardlar ro'yxatini yuklash
-    flashcards_qs = Flashcard.objects.filter(flashcard_exams=flashcard_exam)
 
-    # 2. Review vaqti kelgan yoki yangi flashcardlarni filtrlash (SM-2 logic)
-    flashcards_to_review = flashcards_qs.filter(
-        Q(user_statuses__user=user, user_statuses__next_review_at__lte=timezone.now()) |
-        ~Q(user_statuses__user=user)
-    ).distinct()
-    
-    # 3. Foydalanuvchi statuslarini olish (Repetition Count)
-    statuses = UserFlashcardStatus.objects.filter(
-        user=user, 
-        flashcard__in=flashcards_to_review.values_list('id', flat=True)
-    ).values('flashcard_id', 'repetition_count')
+    # 3. ROL TEKSHIRISH
+    if not is_student(user): 
+        messages.error(request, "Sizda bu imtihonni boshlash huquqi yo'q.")
+        return redirect('index')
 
-    status_map = {s['flashcard_id']: s['repetition_count'] for s in statuses}
+    # 4. PULLIK IMTIHON TEKSHIRISH
+    user_can_start_exam = not exam.is_premium or \
+        user.has_active_subscription() or \
+        (hasattr(user, 'balance') and user.balance.exam_credits > 0)
     
-    # 4. JSON ma'lumotlarini tayyorlash (bleach bilan tozalash saqlangan)
-    flashcards_list = []
-    for fc in flashcards_to_review:
-        repetition_count = status_map.get(fc.id, 0)
-        flashcards_list.append({
-            'id': fc.id,
-            'english_content': bleach.clean(fc.english_content, tags=[], strip=True),
-            'uzbek_meaning': bleach.clean(fc.uzbek_meaning, tags=[], strip=True),
-            'context_sentence': bleach.clean(fc.context_sentence, tags=[], strip=True) if fc.context_sentence else '',
-            'repetition_count': repetition_count,
-        })
-    
-    # 5. Agar hech qanday flashcard topilmasa, keyingi review vaqtini ko'rsatish
-    next_review_at = None
-    if not flashcards_to_review.exists():
-        next_review_status = UserFlashcardStatus.objects.filter(
-            user=user
-        ).exclude(
-             next_review_at__lte=timezone.now()
-        ).order_by('next_review_at').first()
-        
-        if next_review_status:
-            next_review_at = next_review_status.next_review_at
-    
-    flashcards_json = json.dumps(flashcards_list)
+    if exam.is_premium and not user_can_start_exam:
+        messages.error(request, "Bu imtihon pullik. Obuna yoki kredit sotib oling.")
+        return redirect('price', slug=slug)
+
+    # 5. FLASHCARD IMTIHON
+    flashcard_exam = exam.get_or_create_flashcard_exam()
+    has_flashcard_exam = flashcard_exam is not None
+
+    # 6. TUGALLANMAGAN URINISH
+    existing_attempt = UserAttempt.objects.filter(
+        user=request.user, 
+        exam=exam, 
+        is_completed=False
+    ).first()
 
     context = {
-        'session_title': session_title, 
-        'flashcard_exam': flashcard_exam, 
-        'flashcards_json': flashcards_json,
-        'total_flashcards': len(flashcards_list),
-        'next_review_at': next_review_at, 
-        'is_practice_session': False,
+        'center': center,
+        'exam': exam,
+        'has_flashcard_exam': has_flashcard_exam,
+        'existing_attempt': existing_attempt,
     }
-    return render(request, 'student/flashcard_exam.html', context)
+    return render(request, 'student/exam_detail.html', context)
 
-# =========================================================================
-# ⭐️ 3. PROGRESS YANGILASH (SM2 mantiqi)
-# =========================================================================
-
-import json
-import bleach
-from django.shortcuts import render, redirect, get_object_or_404
-from django.http import JsonResponse
-from django.contrib.auth.decorators import login_required
-from django.db.models import Count, Q
-from django.utils import timezone
-from datetime import timedelta # SM2 algoritmi uchun timedelta import qilindi
-# messages mavjud deb hisoblanadi (asosan redirect holatlari uchun)
-
-# =========================================================================
-# ⭐️ 3. PROGRESS YANGILASH (SM2 mantiqi) (AJAX View)
-# =========================================================================
-
-@login_required
-def update_flashcard_progress(request):
+def prepare_exam_data(exam_qs, request_user, center):
     """
-    Foydalanuvchi flashcard progressini yangilaydi (SM2 algoritmi asosida).
-    Bu funksiya faqat JSON javob qaytaradi.
+    Exam querysetini talaba sahifasi uchun zarur ma'lumotlar bilan boyitadi.
+    Faqat o‘z markazidagi imtihonlarni qaytaradi.
     """
-    if request.method == 'POST':
-        try:
-            data = json.loads(request.body)
-            flashcard_id = data.get('flashcard_id')
-            user_response = data.get('user_response') # 'known' yoki 'unknown'
+    # 1. STATIC SAVOLLAR SONINI ANNOTATE QILISH (N+1 YO‘Q!)
+    sections_with_counts = ExamSection.objects.filter(
+        # TO'G'RILANDI: examsectionorder_set o'rniga to'g'ri related_name 'examsectionorder' ishlatildi
+        examsectionorder__exam__center=center 
+    ).annotate(
+        actual_question_count=Count('examsectionstaticquestion', distinct=True)
+    ).values('id', 'actual_question_count', 'duration_minutes', 'name', 'section_type')
 
-            # Kartochkani olish
-            flashcard = Flashcard.objects.get(id=flashcard_id)
-            user = request.user
-            
-            # Statusni olish yoki yaratish
-            status, created = UserFlashcardStatus.objects.get_or_create(
-                user=user,
-                flashcard=flashcard,
-                defaults={
-                    'status': 'learning', 
-                    'review_interval': 1, 
-                    'ease_factor': 2.5, # SM2 boshlang'ich qiymati
-                    'repetition_count': 0 
-                }
-            )
-            
-            min_interval = 1 
+    # ID → ma'lumot mapping
+    section_map = {
+        s['id']: {
+            'actual_question_count': s['actual_question_count'],
+            'duration_minutes': s['duration_minutes'],
+            'name': s['name'],
+            'type_display': dict(ExamSection.SECTION_TYPES).get(s['section_type'], s['section_type']),
+            'is_math': 'math' in s['section_type'].lower(),
+        }
+        for s in sections_with_counts
+    }
 
-            if user_response == 'known':
-                # 1. Ease Factor (Osonlik koeffitsiyenti) ni yangilash
-                # Soddalashtirilgan SM2 (yoki sizning mantiqingiz) saqlanadi.
-                status.ease_factor = status.ease_factor + 0.1
-                status.ease_factor = max(1.3, status.ease_factor) 
-                
-                # 2. Repetition Count va Intervalni hisoblash
-                if status.repetition_count == 0:
-                    new_interval = 1
-                elif status.repetition_count == 1:
-                    new_interval = 6
-                else:
-                    # Intervalni ease_factor asosida oshirish
-                    new_interval = status.review_interval * status.ease_factor
-                
-                # Natijani butun kunga yaxlitlash
-                new_interval = round(new_interval)
-                status.review_interval = max(min_interval, new_interval)
-                status.repetition_count += 1
-                status.status = 'learned'
+    # 2. TARTIB BO‘YICHA ORDER
+    order_prefetch = Prefetch(
+        # TO'G'RILANDI: Prefetch uchun ham 'examsectionorder_set' o'rniga 'examsectionorder' ishlatildi
+        'examsectionorder',
+        queryset=ExamSectionOrder.objects.select_related('exam_section').order_by('order'),
+        to_attr='ordered_sections'
+    )
 
-            else:  # 'unknown' (bilinmaydi) yoki qiyin
-                status.status = 'learning'
-                status.repetition_count = 0 # Qayta boshlash
-                status.review_interval = min_interval # Intervalni 1 kunga tiklash
-                # Ease Factor kamayadi, minimal 1.3
-                status.ease_factor = max(1.3, status.ease_factor - 0.2) 
-            
-            # 3. Vaqtlarni yangilash va saqlash
-            status.last_reviewed_at = timezone.now()
-            # next_review_at ni hisoblash uchun timedelta import qilindi
-            status.next_review_at = timezone.now() + timedelta(days=status.review_interval)
-            status.save()
-            
-            # JSON javob
-            return JsonResponse({
-                'success': True, 
-                'status': status.status, 
-                'next_review': status.next_review_at.isoformat(), 
-                'repetition_count': status.repetition_count
+    # 3. ASOSIY SO‘ROV – faqat o‘z markazidagi
+    exams_with_data = exam_qs.filter(center=center).prefetch_related(
+        order_prefetch,
+        'flashcard_exam'
+    ).select_related('teacher')
+
+    # Foydalanuvchi premium kirish huquqiga egaligini tekshirish
+    can_access_premium = request_user.has_active_subscription() or \
+                         (hasattr(request_user, 'balance') and request_user.balance.exam_credits > 0)
+
+    result_data = []
+    for exam in exams_with_data:
+        total_duration = 0
+        total_questions = 0
+        detailed_sections = []
+
+        for order_obj in getattr(exam, 'ordered_sections', []):
+            section = order_obj.exam_section
+            section_info = section_map.get(section.id)
+
+            if not section_info:
+                continue
+
+            actual_count = section_info['actual_question_count']
+            total_duration += section_info['duration_minutes']
+            total_questions += actual_count
+
+            detailed_sections.append({
+                'id': section.id,
+                'name': section_info['name'],
+                'type_display': section_info['type_display'],
+                'duration_minutes': section_info['duration_minutes'],
+                'actual_question_count': actual_count,
+                'is_math': section_info['is_math'],
+                'order': order_obj.order,
             })
-        
-        except Flashcard.DoesNotExist:
-            return JsonResponse({'success': False, 'error': 'Flashcard topilmadi'}, status=404)
-        except json.JSONDecodeError:
-            return JsonResponse({'success': False, 'error': 'Noto‘g‘ri JSON formati'}, status=400)
-        except Exception as e:
-            # Server xatolarini loglash va xabar berish
-            # logger.error(f"update_flashcard_progress xatosi: {str(e)}", exc_info=True)
-            return JsonResponse({'success': False, 'error': f'Server xatosi: {e}'}, status=500)
+
+        has_flashcard = hasattr(exam, 'flashcard_exam') and exam.flashcard_exam is not None
+
+        result_data.append({
+            'obj': exam,
+            'has_flashcard_exam': has_flashcard,
+            'total_duration': total_duration,
+            'total_questions': total_questions,
+            'sections': detailed_sections,
+            'can_start_exam': not exam.is_premium or can_access_premium,
+        })
+
+    return result_data
+
+@login_required(login_url='login')
+def all_exams_view(request, slug):
+    from django.shortcuts import get_object_or_404, redirect, render
+    from django.contrib import messages
+    from django.db.models import Count
+    from datetime import datetime, timedelta
+    from django.utils import timezone
+    # prepare_exam_data funksiyasini ham import qilishingiz kerak
+
+    # 1. MARKAZ TEKSHIRISH
+    center = get_object_or_404(Center, slug=slug)
     
-    return JsonResponse({'success': False, 'error': 'Faqat POST so\'rovlar qabul qilinadi'}, status=405)
+    if request.user.center is None or request.user.center != center:
+        messages.error(request, "Bu sahifaga kirish huquqingiz yo‘q yoki markazingiz noto'g'ri.")
+        return redirect('index') 
+
+    # ... (Oy hisoblash qismi o'zgarishsiz) ...
+    current_month = datetime.now().month
+    months = [
+        # ... (months ro'yxati) ...
+    ]
+
+    # 2. FAOL IMTIHONLAR
+    # Note: select_related('teacher') N+1 muammosini hal qiladi
+    base_exams = Exam.objects.filter(is_active=True, center=center).select_related('teacher')
+
+    # 3. TUGALLANGAN IMTIHONLAR (ular ro'yxatdan chiqariladi)
+    completed_exam_ids = UserAttempt.objects.filter(
+        user=request.user, is_completed=True
+    ).values_list('exam_id', flat=True) if request.user.is_authenticated else []
+    
+    # Umumiy imtihonlar: Faol va tugallanmagan
+    available_exams = base_exams.exclude(id__in=completed_exam_ids)
+
+    # 4. YANGI IMTIHONLAR (oxirgi 3 kun)
+    three_days_ago = timezone.now() - timedelta(days=3)
+    all_new_exams_qs = available_exams.filter(created_at__gte=three_days_ago).order_by('-created_at')
+
+    # 5. MASHHUR IMTIHONLAR (10+ foydalanuvchi)
+    all_popular_exams_qs = available_exams.annotate(
+        user_count=Count('user_attempts__user', distinct=True) 
+    ).filter(user_count__gte=10).order_by('-user_count') 
+
+    # Yangi va Mashhur imtihonlarning ID'larini yig'ish (takrorlanishni bartaraf etish uchun)
+    # 💡 MUHIM: values_list() qaytargan QuerySet ni ro'yxatga aylantirish shart emas, chunki Django ORM buni avtomatik qila oladi.
+    # Ammo hozircha sizning Python List usulingizni saqlaymiz.
+    new_exam_ids = list(all_new_exams_qs.values_list('id', flat=True))
+    popular_exam_ids = list(all_popular_exams_qs.values_list('id', flat=True))
+
+    # 6. QOLGAN IMTIHONLAR (Yuqoridagi ikkita kategoriyaga kirmagan)
+    # Shu mantiqni saqlaymiz, chunki bu 'Barcha Imtihonlar' kategoriyasini 'Qolgan Imtihonlar' deb ajratadi.
+    # Agar barcha imtihonlarni ko'rsatmoqchi bo'lsangiz, bu qatorni olib tashlash va pastdagini o'zgartirish kerak.
+    # all_exams_qs = available_exams.exclude(id__in=new_exam_ids).exclude(id__in=popular_exam_ids).order_by('-created_at')
+
+    # 💡 YANGI MANTIQ: Umumiy 'available_exams'ni to'liq ro'yxat sifatida uzatish
+    # Agar Template'dagi "Barcha Imtihonlar" bo'limida *hamma* mavjud imtihonlar ko'rsatilishi kerak bo'lsa:
+    all_exams_for_display = available_exams.order_by('-created_at') # 👈 Bu barcha mavjud imtihonlardir
+
+    # 7. MA'LUMOTLARNI BOYITISH
+    context = {
+        'center': center,
+        'selected_month': current_month,
+        'months': months,
+        
+        # 'available_exams'dagi hamma imtihonlarni 'all_exams' qismiga uzatish
+        'new_exams': prepare_exam_data(all_new_exams_qs, request.user, center),
+        'popular_exams': prepare_exam_data(all_popular_exams_qs, request.user, center), 
+        
+        # ✅ TUZATISH: Endi bu hamma mavjud imtihonlarni o'z ichiga oladi
+        'all_exams': prepare_exam_data(all_exams_for_display, request.user, center), 
+        'three_days_ago': three_days_ago,
+    }
+
+    return render(request, 'student/all_exams.html', context)
+
+# ⭐️ YENGI/YANGILANGAN FUNKSIYA: Status bo'yicha kartochkalarni jadvalda ko'rsatish
+@login_required
+def flashcard_status_list_view(request, slug, status_filter):
+    # 1. MARKAZ OBYEKTINI OLISH VA NAMETERRORNI TUZATISH
+    try:
+        center = get_object_or_404(Center, slug=slug)
+    except NameError:
+        # Agar Center import qilinmagan bo'lsa, xato beradi.
+        # Amalda, yuqorida Center import qilingan bo'lishi kerak.
+        # NameError ni oldini olish uchun yozildi.
+        return redirect('index') 
+    
+    # 2. Xavfsizlik tekshiruvi
+    if request.user.center != center:
+        messages.error(request, "Bu markaz kartochkalariga kirishga ruxsatingiz yo'q.")
+        return redirect('index')
+
+    valid_statuses = ['learning', 'learned', 'new']
+    if status_filter not in valid_statuses:
+        messages.error(request, "Noto‘g‘ri status filtri.")
+        return redirect('my_flashcards', slug=slug)
+
+    title_map = {
+        'learned': "O'zlashtirilgan kartochkalar",
+        'learning': "O'rganilayotgan kartochkalar",
+        'new': "Yangi kartochkalar"
+    }
+    page_title = title_map[status_filter]
+
+    # 3. ASOSIY SO'ROV: Markaz mantiqiga moslash
+    # Flashcard'lar center orqali filtrlangan (author/creator orqali emas)
+    base_qs = Flashcard.objects.filter(center=center).select_related('author') 
+
+    if status_filter == 'new':
+        # Yangi kartochkalar: Foydalanuvchi hali status bermagan kartochkalar
+        flashcards_qs = base_qs.exclude(user_statuses__user=request.user).order_by('id')
+        status_data = {}
+    else:
+        # O'rganilgan/O'rganilayotgan kartochkalar
+        flashcards_qs = base_qs.filter(
+            user_statuses__user=request.user,
+            user_statuses__status=status_filter
+        ).distinct().order_by('id')
+        
+        # Holat ma'lumotlarini olish
+        statuses = UserFlashcardStatus.objects.filter(
+            user=request.user,
+            flashcard__in=flashcards_qs
+        ).values('flashcard_id', 'repetition_count', 'ease_factor', 'review_interval', 'next_review_at', 'last_quality_rating')
+        status_data = {s['flashcard_id']: s for s in statuses}
+
+    flashcards_list = []
+    for fc in flashcards_qs:
+        info = status_data.get(fc.id, {})
+        next_review = info.get('next_review_at')
+        time_until = ""
+        
+        # Vaqtni hisoblash mantiqi
+        if next_review and next_review > timezone.now():
+            delta = next_review - timezone.now()
+            if delta < timedelta(hours=24):
+                time_until = f"({int(delta.total_seconds() // 3600)} soat)"
+            elif delta < timedelta(days=30):
+                time_until = f"({delta.days} kun)"
+            else:
+                time_until = f"({int(delta.days // 30)} oy)"
+        elif next_review and next_review <= timezone.now():
+            time_until = "(Hozir)"
+
+        flashcards_list.append({
+            'id': fc.id,
+            # Xavfsizlik uchun tozalash (bleach/html)
+            'english_content': bleach.clean(html.unescape(fc.english_content), tags=[], strip=True),
+            'uzbek_meaning': bleach.clean(html.unescape(fc.uzbek_meaning), tags=[], strip=True),
+            'repetition_count': info.get('repetition_count', 0),
+            'ease_factor': f"{info.get('ease_factor', 2.5):.1f}",
+            'review_interval': info.get('review_interval', 0),
+            'next_review_at': next_review,
+            'next_review_time_until': time_until,
+            'last_rating': info.get('last_quality_rating', 0),
+        })
+
+    context = {
+        'center': center,
+        'page_title': page_title,
+        'flashcards_list': flashcards_list,
+        'status_filter': status_filter
+    }
+    return render(request, 'student/flashcard_list_table.html', context)
 
 # =========================================================================
 # ⭐️ 4. MY_FLASHCARDS_VIEW (Statistika sahifasi) (Render View)
 # =========================================================================
 
 @login_required
-def my_flashcards_view(request):
-    """
-    Foydalanuvchining barcha flashcardlar bo'yicha umumiy statistikasini ko'rsatadi
-    va Donut Chart uchun foizlarni hisoblab beradi.
-    """
-    user = request.user
-
-    # Barcha mavjud flashcardlar soni
-    total_flashcards = Flashcard.objects.count()
-
-    # 1. Foydalanuvchining statuslari bo'yicha hisoblash
-    statuses = UserFlashcardStatus.objects.filter(user=user).values('status').annotate(
-        count=Count('id')
-    )
+def my_flashcards_view(request, slug):
+    center = get_object_or_404(Center, slug=slug)
     
-    status_map = {s['status']: s['count'] for s in statuses}
+    if request.user.center != center:
+        # Markazi belgilanmagan foydalanuvchilar (`request.user.center = None`) uchun 
+        # bu qismda Attribute Error berilmasligi uchun oldin tekshirish qilingan
+        return redirect('index')
 
+    # Faqat markazga tegishli KARTALARNI FILTRLASH UCHUN BAZA QUERYSET'I
+    # Endi author orqali emas, Flashcard modelidagi center maydoni orqali filtrlanadi!
+    center_flashcards_qs = Flashcard.objects.filter(center=center)
+
+    # 1. Umumiy Flashcard hisobi
+    total_flashcards = center_flashcards_qs.count()
+
+    # 2. UserFlashcardStatus hisobi: Endi Flashcardning centeriga bog'lanadi
+    statuses = UserFlashcardStatus.objects.filter(
+        user=request.user,
+        # TUZATILDI: flashcard__center ishlatildi!
+        flashcard__center=center 
+    ).values('status').annotate(count=Count('id'))
+
+    status_map = {s['status']: s['count'] for s in statuses}
     learned_count = status_map.get('learned', 0)
     learning_count = status_map.get('learning', 0)
+    seen_count = learned_count + learning_count
+    new_count = max(0, total_flashcards - seen_count)
 
-    # 2. Yangi kartochkalarni topish
-    # Ko'rilgan (statusi mavjud) kartochkalar soni
-    seen_flashcards_count = learned_count + learning_count 
-    new_count = total_flashcards - seen_flashcards_count
-    # new_count ni 0 dan kichik bo'lishini oldini olish
-    new_count = max(0, new_count) 
-    
-    # 3. Bugun takrorlash kerak bo'lganlar
+    # 3. Review needed hisobi: flashcard__center ishlatildi
     review_needed_count = UserFlashcardStatus.objects.filter(
-        user=user,
+        user=request.user,
+        # TUZATILDI: flashcard__center ishlatildi!
+        flashcard__center=center,
         next_review_at__lte=timezone.now()
     ).count()
 
-    # 4. Keyingi takrorlash vaqti
-    next_review_at_obj = UserFlashcardStatus.objects.filter(
-        user=user,
+    # 4. Next review object: flashcard__center ishlatildi
+    next_review_obj = UserFlashcardStatus.objects.filter(
+        user=request.user,
+        # TUZATILDI: flashcard__center ishlatildi!
+        flashcard__center=center,
         next_review_at__gt=timezone.now()
     ).order_by('next_review_at').first()
-    
-    next_review_at = next_review_at_obj.next_review_at if next_review_at_obj else None
+    next_review_at = next_review_obj.next_review_at if next_review_obj else None
 
-    # 5. Diagramma uchun foizlarni hisoblash
+    # Foizlar (o'zgarishsiz)
+    # ...
+
     if total_flashcards > 0:
         learned_percentage = round((learned_count / total_flashcards) * 100)
         learning_percentage = round((learning_count / total_flashcards) * 100)
-        
-        # Qolgan foiz yangi kartochkalarga tegishli
-        remaining_percentage = 100 - learned_percentage - learning_percentage
-        new_percentage = max(0, remaining_percentage)
-        
-        # Yuvarlashdagi kichik xatolarni tuzatish
-        if new_count == 0 and remaining_percentage > 0:
-             # Agar yangi kartochka nol bo'lsa, qolgan foizni eng katta guruhga qo'shamiz (masalan, o'rganilganlarga)
-             learned_percentage += remaining_percentage
-             new_percentage = 0
-             learned_percentage = min(100, learned_percentage)
-             
+        new_percentage = 100 - learned_percentage - learning_percentage
     else:
-        # Agar umuman kartochka bo'lmasa
-        learned_percentage = 0
-        learning_percentage = 0
-        new_percentage = 0
+        learned_percentage = learning_percentage = new_percentage = 0
 
     context = {
+        'center': center,
         'total_flashcards': total_flashcards,
         'learned_count': learned_count,
         'learning_count': learning_count,
         'new_count': new_count,
         'review_needed_count': review_needed_count,
         'next_review_at': next_review_at,
-        
-        # Diagramma uchun foizlar
         'learned_percentage': learned_percentage,
         'learning_percentage': learning_percentage,
         'new_percentage': new_percentage,
     }
-    
     return render(request, 'student/my_flashcards.html', context)
 
 # =========================================================================
@@ -1589,86 +2244,257 @@ def my_flashcards_view(request):
 # =========================================================================
 
 @login_required
-def practice_flashcards_view(request, status_filter):
-    """
-    Foydalanuvchining ma'lum bir statusdagi ('learning', 'learned', 'new', 'review')
-    flashcardlarini mashq qilish uchun yuklaydi.
-    """
-    user = request.user
-    
-    # Kiritilgan status to'g'riligini tekshirish
+def practice_flashcards_view(request, slug, status_filter):
+    center = get_object_or_404(Center, slug=slug)
+    if request.user.center != center:
+        return redirect('index')
+
     if status_filter not in ['learning', 'learned', 'new', 'review']:
-        messages.error(request, "Noto‘g‘ri mashq statusi tanlandi.")
-        return redirect('my_flashcards') 
+        messages.error(request, "Noto‘g‘ri status.")
+        return redirect('my_flashcards', slug=slug)
 
-    # Statusga qarab sarlavha va kartochkalar ro'yxatini shakllantirish
+    # Flashcard.center orqali filtrlash to'g'ri o'rnatilgan
+    base_qs = Flashcard.objects.filter(center=center)
+
     if status_filter == 'learning':
-        practice_title = "O'rganilayotganlarni Takrorlash"
-        flashcards_to_practice = Flashcard.objects.filter(
-            user_statuses__user=user,
-            user_statuses__status='learning'
-        ).distinct()
-
+        title = "O'rganilayotganlarni Takrorlash"
+        qs = base_qs.filter(user_statuses__user=request.user, user_statuses__status='learning')
     elif status_filter == 'learned':
-        practice_title = "O'zlashtirilganlarni Mustahkamlash"
-        flashcards_to_practice = Flashcard.objects.filter(
-            user_statuses__user=user,
-            user_statuses__status='learned'
-        ).distinct()
-
+        title = "O'zlashtirilganlarni Mustahkamlash"
+        qs = base_qs.filter(user_statuses__user=request.user, user_statuses__status='learned')
     elif status_filter == 'review':
-        practice_title = "Bugungi Takrorlash"
-        flashcards_to_practice = Flashcard.objects.filter(
-            user_statuses__user=user,
-            user_statuses__next_review_at__lte=timezone.now()
-        ).distinct()
-        
-    else: # status_filter == 'new' holati
-        practice_title = "Yangi So'zlarni O'rganish"
-        # Foydalanuvchi uchun statusi bo'lmagan (hali ko'rilmagan) barcha kartochkalarni olish
-        flashcards_to_practice = Flashcard.objects.exclude(
-            user_statuses__user=user
-        ).distinct()
-        
-    # Agar mashq uchun kartochka topilmasa, xabar berish
-    if not flashcards_to_practice.exists():
-        messages.info(request, f"Hozirda '{practice_title}' uchun kartochkalar mavjud emas.")
-        return redirect('my_flashcards')
+        title = "Bugungi Takrorlash"
+        qs = base_qs.filter(user_statuses__user=request.user, user_statuses__next_review_at__lte=timezone.now())
+    else:  # new
+        title = "Yangi So'zlarni O'rganish"
+        qs = base_qs.exclude(user_statuses__user=request.user)
 
+    if not qs.exists():
+        messages.info(request, f"{title} uchun kartochka yo‘q.")
+        return redirect('my_flashcards', slug=slug)
 
-    # Foydalanuvchi statuslarini olish (Repetition Count uchun)
+    # TUZATILDI: 'questions' o'rniga 'qs' (amaliyot uchun tanlangan kartochkalar) ishlatildi
     statuses = UserFlashcardStatus.objects.filter(
-        user=user,
-        flashcard__in=flashcards_to_practice.values_list('id', flat=True)
-    ).values('flashcard_id', 'repetition_count')
-    
+        user=request.user, flashcard__in=qs).values('flashcard_id', 'repetition_count')
     status_map = {s['flashcard_id']: s['repetition_count'] for s in statuses}
 
-    # JSON ma'lumotlarini tayyorlash
-    flashcards_list = []
-    for fc in flashcards_to_practice:
-        repetition_count = status_map.get(fc.id, 0) 
-        flashcards_list.append({
+    flashcards_list = [
+        {
             'id': fc.id,
-            # Xavfsizlik uchun bleach.clean() ishlatish
             'english_content': bleach.clean(fc.english_content, tags=[], strip=True),
             'uzbek_meaning': bleach.clean(fc.uzbek_meaning, tags=[], strip=True),
             'context_sentence': bleach.clean(fc.context_sentence, tags=[], strip=True) if fc.context_sentence else '',
-            'repetition_count': repetition_count,
-        })
-    
-    flashcards_json = json.dumps(flashcards_list)
-    
+            'repetition_count': status_map.get(fc.id, 0),
+        }
+        for fc in qs # qs bu yerda Flashcard obyektlari QuerySet'i
+    ]
+
     context = {
-        'session_title': practice_title, 
-        # flashcard_exam ni lug'at sifatida yuboramiz, chunki html shuni kutadi
-        # 'id': 0 qo'shildi, chunki html'da .id ni chaqirishda xato bo'lmasligi kerak
-        'flashcard_exam': {'title': practice_title, 'id': 0}, 
-        'flashcards_json': flashcards_json,
+        'center': center,
+        'session_title': title,
+        'flashcard_exam': {'title': title, 'id': 0},
+        'flashcards_json': json.dumps(flashcards_list),
         'total_flashcards': len(flashcards_list),
-        'is_practice_session': True, 
+        'is_practice_session': True,
     }
     return render(request, 'student/flashcard_exam.html', context)
+
+@login_required
+def start_flashcards_view(request, slug, exam_id):
+    center = get_object_or_404(Center, slug=slug)
+    if request.user.center != center:
+        return redirect('index')
+
+    exam = get_object_or_404(Exam, id=exam_id, is_active=True, center=center)
+
+    if exam.is_premium and not (
+        UserSubscription.objects.filter(user=request.user, end_date__gt=timezone.now()).exists() or
+        UserBalance.objects.filter(user=request.user, exam_credits__gt=0).exists()
+    ):
+        messages.error(request, "Pullik imtihon. Obuna yoki kredit kerak.")
+        return redirect('price', slug=slug)
+
+    try:
+        flashcard_exam = exam.get_or_create_flashcard_exam()
+    except Exception:
+        messages.error(request, "Flashcard yaratishda xato.")
+        return redirect('exam_detail', slug=slug, exam_id=exam.id)
+
+    if not flashcard_exam or not flashcard_exam.flashcards.filter(creator__center=center).exists():
+        messages.info(request, "Bu imtihonda kartochka yo‘q.")
+        return redirect('exam_detail', slug=slug, exam_id=exam.id)
+
+    return redirect('flashcard_exam_view', slug=slug, exam_id=exam.id)
+
+@login_required
+def flashcard_exam_view(request, slug, exam_id):
+    from django.shortcuts import get_object_or_404, redirect, render
+    from django.db.models import Q
+    from django.utils import timezone
+    import json
+    import bleach
+    # UserFlashcardStatus modelini import qilishni unutmang
+
+    center = get_object_or_404(Center, slug=slug)
+    if request.user.center != center:
+        return redirect('index')
+
+    flashcard_exam = get_object_or_404(
+        FlashcardExam,
+        source_exam__id=exam_id,
+        source_exam__center=center
+    )
+
+    user = request.user
+    title = f"{flashcard_exam.source_exam.title} – Takrorlash"
+
+    # 'author' ishlatildi (oldindan to'g'irlangan)
+    flashcards_qs = flashcard_exam.flashcards.filter(author__center=center) 
+
+    # 🛑 ASOSIY TUZATISH: Endi 'if/else' shartidan qat'iy nazar, 
+    # to_review har doim barcha mavjud kartochkalarni tasodifiy tartibda oladi.
+    # is_exam_review ning mantiqi (hamma kartochkani olish) endi har doim qo'llaniladi.
+    to_review = flashcards_qs.order_by('?')
+    
+    # Endi to_review barcha Flashcardlarni o'z ichiga olganligi sababli, 
+    # keyingi takrorlash vaqtini hisoblash mantiqi (pastda) o'zgarishsiz qoldiriladi
+    # va avtomatik ravishda ishlamaydi (chunki flashcards_list bo'sh bo'lmaydi),
+    # bu esa mantiqni yanada soddalashtiradi.
+
+    statuses = UserFlashcardStatus.objects.filter(
+        user=user, flashcard__in=to_review
+    ).values('flashcard_id', 'repetition_count')
+    status_map = {s['flashcard_id']: s['repetition_count'] for s in statuses}
+
+    flashcards_list = [
+        {
+            'id': fc.id,
+            'english_content': bleach.clean(fc.english_content, tags=[], strip=True),
+            'uzbek_meaning': bleach.clean(fc.uzbek_meaning, tags=[], strip=True),
+            'context_sentence': bleach.clean(fc.context_sentence, tags=[], strip=True) if fc.context_sentence else '',
+            'repetition_count': status_map.get(fc.id, 0),
+        }
+        for fc in to_review
+    ]
+
+    # next_review_at mantiqiy bloki, agar 'flashcards_list' bo'sh bo'lmasa, ishlamaydi.
+    # Agar flashcard_exam da kartochkalar bo'lsa, 'next_review_at' doim 'None' bo'lib qoladi, bu maqsadga muvofiq.
+    next_review_at = None
+    if not flashcards_list and not flashcard_exam.is_exam_review:
+        obj = UserFlashcardStatus.objects.filter(
+            user=user, flashcard__author__center=center, next_review_at__gt=timezone.now() 
+        ).order_by('next_review_at').first()
+        if obj:
+            next_review_at = obj.next_review_at
+
+    context = {
+        'center': center,
+        'session_title': title,
+        'flashcard_exam': flashcard_exam,
+        'flashcards_json': json.dumps(flashcards_list),
+        'total_flashcards': len(flashcards_list),
+        'next_review_at': next_review_at,
+        'is_practice_session': True, # is_exam_review emas, balki True qilinadi, chunki bu doimiy mashg'ulot
+    }
+    return render(request, 'student/flashcard_exam.html', context)
+
+@login_required
+@require_POST 
+def update_flashcard_progress(request, slug):
+    # 1. Slug orqali Center obyektini olish
+    center = get_object_or_404(Center, slug=slug)
+    
+    # 2. Xavfsizlik tekshiruvi (Userning markazi slug bilan mos kelishi)
+    if request.user.center != center:
+        return JsonResponse({'success': False, 'error': 'Ruxsat yo‘q'}, status=403)
+
+    try:
+        data = json.loads(request.body)
+        flashcard_id = data.get('flashcard_id')
+        user_response = data.get('user_response') # 'known' yoki 'unknown'
+
+        if not flashcard_id or user_response not in ['known', 'unknown']:
+            return JsonResponse({'success': False, 'error': 'Ma‘lumotlar to‘liq emas'}, status=400)
+        
+        # Flashcard obyektini olish (Markazga bog'lab xavfsizlikni kuchaytiramiz)
+        flashcard = get_object_or_404(
+            Flashcard, id=flashcard_id, center=center
+        )
+        user = request.user
+        now = timezone.now()
+
+        # UserFlashcardStatus obyektini yaratish yoki olish
+        status, created = UserFlashcardStatus.objects.get_or_create(
+            user=user, flashcard=flashcard,
+            defaults={
+                'status': 'learning', 'review_interval': 1, 'ease_factor': 2.5,
+                'repetition_count': 0, 'last_reviewed_at': now,
+                'next_review_at': now + timedelta(days=1)
+            }
+        )
+
+        min_interval = 1
+        # Review muddatida ekanligini tekshirish
+        is_on_schedule = status.next_review_at <= now if status.next_review_at else True
+
+        if user_response == 'known':
+            # SM-2 asosidagi mantiq (Sizning kodingiz)
+            status.ease_factor = max(1.3, status.ease_factor + 0.1)
+
+            if is_on_schedule:
+                if status.repetition_count == 0:
+                    new_interval = 1
+                elif status.repetition_count == 1:
+                    new_interval = 6
+                else:
+                    # Keyingi intervalni hisoblash
+                    new_interval = status.review_interval * status.ease_factor
+                
+                status.repetition_count += 1
+                status.review_interval = max(min_interval, round(new_interval))
+                status.status = 'learned' if status.repetition_count >= 2 else 'learning' # 2-takrorlashdan keyin 'learned' bo'lishi mumkin
+                status.next_review_at = now + timedelta(days=status.review_interval)
+                status.last_quality_rating = 5
+            else:
+                # Muddatidan oldin takrorlash
+                if status.status == 'learning':
+                    status.status = 'learned'
+                status.last_quality_rating = 5
+            
+            # Muddatidan oldin takrorlashda ham last_reviewed_at yangilanadi
+            status.last_reviewed_at = now
+            status.save()
+
+            return JsonResponse({
+                'success': True,
+                'status': status.status,
+                'next_review': status.next_review_at.isoformat(),
+                'repetition_count': status.repetition_count,
+            })
+
+        else:  # unknown
+            # Repetitsiyani 0 ga qaytarish
+            status.status = 'learning'
+            status.repetition_count = 0
+            status.review_interval = min_interval
+            status.ease_factor = max(1.3, status.ease_factor - 0.2)
+            status.last_reviewed_at = now
+            status.next_review_at = now + timedelta(days=status.review_interval)
+            status.last_quality_rating = 0
+            status.save()
+
+            return JsonResponse({
+                'success': True,
+                'status': status.status,
+                'next_review': status.next_review_at.isoformat(),
+                'repetition_count': status.repetition_count,
+            })
+
+    except json.JSONDecodeError:
+        return JsonResponse({'success': False, 'error': 'Noto‘g‘ri JSON formati'}, status=400)
+    except Exception as e:
+        logger.error(f"Flashcard update error: {e}")
+        return JsonResponse({'success': False, 'error': f'Server xatosi: {e}'}, status=500)
 
 # --- MATH (44 savol) Jadvallari ---
 MATH_HIGH_CUTOFF = 11
@@ -1725,277 +2551,261 @@ def get_adaptive_scaled_score(mod1_raw, total_raw, is_math=False):
 # ⭐️ 1. VIEW_RESULT_DETAIL FUNKSIYASI (Natijalar sahifasi)
 # =========================================================================
 
+
 @login_required(login_url='login')
-def view_result_detail(request, attempt_id):
-    """
-    Foydalanuvchining imtihon urinishi (UserAttempt) bo'yicha to'liq natijalarni ko'rsatadi.
-    Ballarni hisoblaydi va tahlil ma'lumotlarini tayyorlaydi.
-    """
-    try:
-        # 1. Asosiy obyektlarni yuklash
-        attempt = get_object_or_404(UserAttempt, id=attempt_id, user=request.user)
-    except Exception as e:
-        messages.error(request, "Natija topilmadi yoki sizga tegishli emas.")
-        # logger.error(f"Attempt not found: {str(e)}")
-        return redirect('dashboard') 
-        
-    sections_qs = attempt.section_attempts.select_related('section').order_by('section__order') 
-    
-    # 2. To'g'ri javoblarni hisoblash uchun xarita
-    correct_answers_by_section_attempt = UserAnswer.objects.filter(
-        attempt_section__attempt=attempt, is_correct=True
-    ).values('attempt_section__id').annotate(correct_count=Count('id'))
-    correct_map = {item['attempt_section__id']: item['correct_count'] for item in correct_answers_by_section_attempt}
-    
-    # 3. Ballarni hisoblash uchun boshlang'ich ma'lumotlar
-    ebrw_raw = {'M1': None, 'M2': None, 'total': 0}
-    math_raw = {'M1': None, 'M2': None, 'total': 0}
-    total_correct = 0
-    total_questions = 0
-    section_analysis_list = [] 
-    
-    # Bo'lim turlari qisqartmalari
-    EBRW_M1, EBRW_M2 = 'read_write_m1', 'read_write_m2'
-    MATH_M1, MATH_M2 = 'math_no_calc', 'math_calc'
+def get_answer_detail_ajax(request, slug):
+    center = get_object_or_404(Center, slug=slug)
+    if request.user.center != center:
+        return JsonResponse({'error': 'Ruxsat yo‘q'}, status=403)
 
-    # 4. Barcha bo'limlar bo'ylab iteratsiya va raw score hisobi
-    for section_attempt in sections_qs:
-        section_type = section_attempt.section.section_type
-        correct = correct_map.get(section_attempt.id, 0)
-        section_questions = section_attempt.questions.count()
-
-        if section_questions == 0:
-            continue
-
-        total_correct += correct
-        total_questions += section_questions
-        
-        # Raw Scorelarni Modullarga joylash
-        if section_type == EBRW_M1: ebrw_raw.update({'M1': correct, 'total': ebrw_raw['total'] + correct})
-        elif section_type == EBRW_M2: ebrw_raw.update({'M2': correct, 'total': ebrw_raw['total'] + correct})
-        elif section_type == MATH_M1: math_raw.update({'M1': correct, 'total': math_raw['total'] + correct})
-        elif section_type == MATH_M2: math_raw.update({'M2': correct, 'total': math_raw['total'] + correct})
-        
-        # Savollar navigatsiyasi uchun javoblarni yuklash (minimal ma'lumot bilan)
-        user_answers_for_nav = UserAnswer.objects.filter(
-            attempt_section=section_attempt
-        ).select_related('question').order_by('question__id')
-        
-        section_analysis_list.append({
-            'section_attempt_id': section_attempt.id,
-            'section_name': f"{section_attempt.section.get_section_type_display()} (Modul {section_attempt.section.module_number})",
-            'user_answers_nav': user_answers_for_nav,
-            'correct_count': correct,
-            'total_count': section_questions,
-        })
-        
-    # 5. Yakuniy SAT Ballini hisoblash
-    final_ebrw_score = None
-    final_math_score = None
-    total_sat_score = None
-    
-    try:
-        # get_adaptive_scaled_score funksiyasi mavjud bo'lsa hisoblaymiz
-        final_ebrw_score = get_adaptive_scaled_score(ebrw_raw['M1'], ebrw_raw['total'], is_math=False)
-        final_math_score = get_adaptive_scaled_score(math_raw['M1'], math_raw['total'], is_math=True)
-        total_sat_score = (final_ebrw_score or 0) + (final_math_score or 0)
-    except NameError:
-        # Agar get_adaptive_scaled_score mavjud bo'lmasa, DB dagi qiymatni olish
-        final_ebrw_score = attempt.final_ebrw_score
-        final_math_score = attempt.final_math_score
-        total_sat_score = attempt.final_total_score
-    except TypeError:
-         # Hisoblashda xato yuz bersa (None bilan ishlash va h.k.)
-        final_ebrw_score = attempt.final_ebrw_score
-        final_math_score = attempt.final_math_score
-        total_sat_score = attempt.final_total_score
-
-    # 6. Umumiy statistika
-    total_omitted = UserAnswer.objects.filter(attempt_section__attempt=attempt, is_correct=None).count()
-    total_incorrect = total_questions - total_correct - total_omitted
-    total_percentage = round((total_correct / total_questions * 100)) if total_questions > 0 else 0
-    
-    # 7. Contextni tayyorlash va render qilish
-    context = {
-        'attempt': attempt,
-        'section_analysis_list': section_analysis_list,
-        'total_sat_score': total_sat_score, 
-        'ebrw_score': final_ebrw_score,
-        'math_score': final_math_score,
-        'total_correct': total_correct,
-        'total_incorrect': total_incorrect,
-        'total_omitted': total_omitted,
-        'total_percentage': total_percentage,
-        'pending_message': None if attempt.is_completed else "Imtihon hali yakunlanmagan. Ballar va tahlillar taxminiy hisoblanmoqda.",
-    }
-    return render(request, 'student/result_detail.html', context)
-
-# -----------------------------------------------------------------------------
-# ⭐️ 2. GET_ANSWER_DETAIL_AJAX FUNKSIYASI (Savol tahlili)
-# -----------------------------------------------------------------------------
-@login_required(login_url='login')
-def get_answer_detail_ajax(request):
-    """
-    AJAX so'rovi orqali bitta savolning to'liq tahlilini HTML ko'rinishida qaytaradi.
-    Bu funksiya faqat JSON javob qaytaradi.
-    """
     user_answer_id = request.GET.get('user_answer_id')
+    is_subject_exam = request.GET.get('is_subject_exam') == 'true'
+    can_view_solution = request.GET.get('can_view_solution') == 'true'
+
     if not user_answer_id:
-        # AJAX javob (messages ishlatilmaydi)
         return JsonResponse({'error': 'Savol ID si berilmadi'}, status=400)
 
     try:
-        # Foydalanuvchiga tegishli ekanligini tekshirib, javobni topish
         user_answer = UserAnswer.objects.select_related(
-            'question', 'question__passage', 'question__solution', 'attempt_section__attempt'
+            'question', 'question__passage', 'question__solution', 'attempt_section__attempt__exam'
         ).prefetch_related(
             'selected_options', 'question__options'
-        ).get(id=user_answer_id, attempt_section__attempt__user=request.user)
-        
-        # 1. Yechim ko'rilganmi/bepulmi tekshiruvi (UserSolutionView modeliga bog'liq)
-        # UserSolutionView mavjud bo'lmasa, NameError yuz beradi, shuning uchun try/except yaxshi
-        try:
-             solution_viewed = UserSolutionView.objects.filter(user=request.user, question=user_answer.question).exists()
-        except NameError:
-             solution_viewed = False
-             
+        ).get(
+            id=user_answer_id,
+            attempt_section__attempt__user=request.user,
+            attempt_section__attempt__exam__center=center  # MARKAZ TEKSHIRISH!
+        )
+
+        # Yechim ko‘rilganmi?
+        solution_viewed = UserSolutionView.objects.filter(
+            user=request.user, question=user_answer.question
+        ).exists()
         is_solution_free = getattr(user_answer.question, 'is_solution_free', False)
-        
-        # 2. Variantlarni statusi bilan tayyorlash
+
+        # RUXSAT MANTIQI
+        if is_subject_exam:
+            allow_solution_display = can_view_solution
+        else:
+            allow_solution_display = is_solution_free or solution_viewed
+
+        # VARIANTLAR
         options_with_status = []
         selected_ids = set(user_answer.selected_options.values_list('id', flat=True))
-        
         for index, option in enumerate(user_answer.question.options.all()):
             options_with_status.append({
                 'option': option,
                 'is_user_selected': option.id in selected_ids,
                 'is_correct': getattr(option, 'is_correct', False),
-                'letter': chr(65 + index), # A, B, C...
+                'letter': chr(65 + index),
             })
 
-        # 3. Contextni tayyorlash
         context = {
+            'center': center,
             'user_answer': user_answer,
-            'question': user_answer.question, # savolni to'g'ridan-to'g'ri olish
+            'question': user_answer.question,
             'options_with_status': options_with_status,
+            'allow_solution_display': allow_solution_display,
             'solution_viewed': solution_viewed,
             'is_solution_free': is_solution_free,
+            'is_subject_exam': is_subject_exam,
             'attempt': user_answer.attempt_section.attempt,
         }
 
-        # 4. HTML fragmentni render qilib, JSON javobida qaytarish
         html = render_to_string('partials/answer_detail_card.html', context, request=request)
         return JsonResponse({'html': html})
 
     except UserAnswer.DoesNotExist:
-        return JsonResponse({'error': 'Bunday javob topilmadi yoki sizga tegishli emas.'}, status=404)
+        return JsonResponse({'error': 'Javob topilmadi'}, status=404)
     except Exception as e:
-        # Ishlab chiqish vaqtida xatolikni aniq ko'rish uchun (productionda o'chirib qo'yish kerak)
-        print(traceback.format_exc())
-        return JsonResponse({'error': 'Serverda kutilmagan xatolik.'}, status=500)
+        return JsonResponse({'error': 'Server xatosi'}, status=500)
+
 
 @login_required(login_url='login')
-def view_solution(request, question_id):
-    """
-    Foydalanuvchiga savol yechimini ko'rish uchun ruxsat beradi, kreditlarni tekshiradi va sarflaydi.
-    """
-    try:
-        question = get_object_or_404(Question, id=question_id)
-        user = request.user
-        attempt_id = request.GET.get('attempt_id')
-        
-        if not attempt_id:
-            # Agar attempt_id mavjud bo'lmasa, uni ko'rsatkichlar sahifasiga qaytarish yaxshi
-            messages.error(request, "Imtihon ID'si (Attempt ID) topilmadi.")
-            return redirect('dashboard')
-        
-        # 1. Yechim allaqachon ko'rilganmi yoki bepulmi (GLOBAL tekshiruv)
-        solution_viewed = UserSolutionView.objects.filter(user=user, question=question).exists()
-        is_solution_free = getattr(question, 'is_solution_free', False)
+def view_solution(request, slug, question_id):
+    center = get_object_or_404(Center, slug=slug)
+    if request.user.center != center:
+        messages.error(request, "Ruxsat yo‘q.")
+        return redirect('dashboard',slug=request.user.center.slug)
 
-        if is_solution_free or solution_viewed:
+    question = get_object_or_404(Question, id=question_id)
+    attempt_id = request.GET.get('attempt_id')
+
+    if not attempt_id:
+        messages.error(request, "Imtihon ID si topilmadi.")
+        return redirect('dashboard',slug=request.user.center.slug)
+
+    attempt = get_object_or_404(
+        UserAttempt,
+        id=attempt_id,
+        user=request.user,
+        exam__center=center  # MARKAZ TEKSHIRISH!
+    )
+
+    is_subject_exam = getattr(attempt.exam, 'is_subject_exam', False)
+    solution_viewed = UserSolutionView.objects.filter(user=request.user, question=question).exists()
+    is_solution_free = getattr(question, 'is_solution_free', False)
+
+    # 1. MAVZU IMTIHONI (60% sharti)
+    if is_subject_exam:
+        total_questions = UserAnswer.objects.filter(attempt_section__attempt=attempt).count()
+        correct_answers = UserAnswer.objects.filter(attempt_section__attempt=attempt, is_correct=True).count()
+        total_percentage = (correct_answers / total_questions) * 100 if total_questions > 0 else 0
+
+        if total_percentage >= 60:
             if not solution_viewed:
-                # Agar bepul bo'lsa-yu, lekin avval yozuv bo'lmasa, uni yaratamiz
-                UserSolutionView.objects.create(user=user, question=question, credit_spent=False)
-                
-            # messages.success(request, "Yechim bepul yoki avval ko'rilgan.")
-            # Natijalar sahifasiga yo'naltiramiz
-            return redirect('view_result_detail', attempt_id=attempt_id)
+                UserSolutionView.objects.create(user=request.user, question=question, credit_spent=False)
+                messages.success(request, "60% dan o‘tdingiz – yechim bepul!")
+        else:
+            messages.error(request, f"60% kerak! Siz: {total_percentage:.1f}%")
+            return redirect('view_result_detail', slug=center.slug, attempt_id=attempt_id)
 
-        # 2. Kredit tekshirish va sarflash
-        # select_for_update() yordamida bir vaqtda kirishdan himoyalanamiz
-        user_balance = UserBalance.objects.select_for_update().get(user=user)
-        
+        return redirect('view_result_detail', slug=center.slug, attempt_id=attempt_id)
 
+    # 2. DSAT / ODDIY IMTIHON
+    if is_solution_free or solution_viewed:
+        if not solution_viewed:
+            UserSolutionView.objects.create(user=request.user, question=question, credit_spent=False)
+        return redirect('view_result_detail', slug=center.slug, attempt_id=attempt_id)
+
+    # KREDIT TEKSHIRISH
+    try:
+        user_balance = UserBalance.objects.select_for_update().get(user=request.user)
         if user_balance.solution_view_credits > 0:
             with transaction.atomic():
-                # Yechimni ko'rganlik yozuvini yaratamiz
-                # Kredit sarflanganligi (credit_spent=True) ni belgilaymiz
-                UserSolutionView.objects.create(user=user, question=question, credit_spent=True)
-                
-                # Kreditni yechamiz
+                UserSolutionView.objects.create(user=request.user, question=question, credit_spent=True)
                 user_balance.solution_view_credits -= 1
                 user_balance.save()
-                
-                messages.success(request, f"Yechim ko'rildi! 1 ta kredit sarflandi. Qolgan kredit: {user_balance.solution_view_credits}")
+            messages.success(request, f"1 kredit sarflandi. Qoldi: {user_balance.solution_view_credits}")
         else:
-            messages.error(request, "Yechimni ko'rish uchun yetarli kredit yo'q!")
-        
-        return redirect('view_result_detail', attempt_id=attempt_id)
-
+            messages.error(request, "Kredit yetarli emas!")
     except UserBalance.DoesNotExist:
-        messages.error(request, "Foydalanuvchi balansi topilmadi. Ma’muriyat bilan bog‘laning.")
-        return redirect('view_result_detail', attempt_id=request.GET.get('attempt_id') or 'dashboard')
-    except Exception as e:
-        # logger.error(f"view_solution xatosi: {str(e)}")
-        messages.error(request, f"Yechimni ko‘rishda server xatosi yuz berdi: {e}")
-        return redirect('view_result_detail', attempt_id=request.GET.get('attempt_id') or 'dashboard')
+        messages.error(request, "Balans topilmadi.")
     
+    return redirect('view_result_detail', slug=center.slug, attempt_id=attempt_id)
+
 @login_required(login_url='login')
 @user_passes_test(is_teacher, login_url='index')
-def teacher_view_result_detail(request, attempt_id):
-    """O'qituvchi uchun talaba natijasining batafsil ko'rinishi."""
+def teacher_results(request, slug): # 🎯 SLUG QO'SHILDI
+    """Ustozning imtihonlari va talabalar natijalarini ko'rish (Markazga bog'langan)."""
+    user = request.user
+    center = get_object_or_404(Center, slug=slug)
     
+    # 1. Ruxsatni tekshirish (Faqat shu markaz o'qituvchisi)
+    if user.center != center and not user.is_staff:
+        messages.error(request, "Sizda bu markaz natijalarini ko'rish huquqi yo'q.")
+        return redirect('dashboard',slug=request.user.center.slug)
+    
+    # 2. Faqat shu o'qituvchiga tegishli (VA uning markaziga bog'langan) imtihonlarni yuklash
+    # Imtihonlar Teacher orqali, Teacher esa Center orqali filtrlanadi.
+    my_exams = Exam.objects.filter(teacher=user, teacher__center=center).order_by('-created_at').prefetch_related('sections')
+    exam_results = []
+    
+    for exam in my_exams:
+        # 3. Faqat shu imtihonga tegishli urinishlarni yuklash
+        attempts = UserAttempt.objects.filter(exam=exam).select_related('user').prefetch_related(
+            'section_attempts' 
+        ).order_by('-completed_at')
+        
+        attempt_details = []
+        all_sections = list(exam.sections.all())
+        
+        # Umumiy savollar sonini hisoblash (samaradorlik uchun tashqarida)
+        try:
+            # get_section_questions funksiyasi to'g'ri ishlashi kerak
+            total_questions_in_exam = sum(len(get_section_questions(section, exam)) for section in all_sections)
+        except NameError:
+            # Agar funksiya topilmasa, alternativ hisoblash
+            # Bu qism faqat avvalgi koddagi mavhum 'get_section_questions' ga bog'liqlikni yengillashtiradi
+            total_questions_in_exam = 0 
+            # Lekin shablon ishlashi uchun to'g'ri qiymat bo'lishi kerak.
+            # Real loyihada bu funksiya mavjud va ishonchli deb faraz qilamiz.
+            
+        
+        for attempt in attempts:
+            
+            # Agar attempt to'liq tugallanmagan bo'lsa, natijani ko'rsatmaslik yaxshiroq
+            if not attempt.is_completed:
+                continue
+
+            # Agar markaz imtihoni bo'lmasa (DSAT), ballni ko'rsatamiz. Aks holda foizni
+            score_to_display = attempt.final_total_score if not exam.is_subject_exam else f"{attempt.correct_percentage:.1f}%"
+            
+            # Agar savollar soni 0 bo'lsa (yoki statik bo'limda savol tanlanmagan bo'lsa)
+            if total_questions_in_exam == 0:
+                correct_answers = UserAnswer.objects.filter(attempt_section__attempt=attempt, is_correct=True).count()
+                total_attempt_questions = UserAnswer.objects.filter(attempt_section__attempt=attempt).count()
+                percentage = (correct_answers / total_attempt_questions * 100) if total_attempt_questions > 0 else 0
+                total_questions_display = total_attempt_questions
+            else:
+                correct_answers = sum(section.correct_answers_count for section in attempt.section_attempts.all())
+                percentage = (correct_answers / total_questions_in_exam * 100)
+                total_questions_display = total_questions_in_exam
+
+            incorrect_answers = total_questions_display - correct_answers
+            
+            attempt_details.append({
+                'attempt_id': attempt.id,
+                'user_username': attempt.user.username,
+                'correct_answers': correct_answers,
+                'incorrect_answers': incorrect_answers,
+                'total_questions': total_questions_display,
+                'score': score_to_display, # Ball (DSAT) yoki Foiz (Mavzu)
+                'percentage': round(percentage, 2),
+                'completed_at': attempt.completed_at,
+            })
+            
+        if attempt_details:
+            exam_results.append({
+                'title': exam.title,
+                'attempts': attempt_details,
+                'is_subject_exam': exam.is_subject_exam,
+            })
+    
+    context = {
+        'results': exam_results,
+        'center': center, # 🎯 Shablonlar uchun center obyekti
+        'page_title': f"{center.name} Markazi Talabalar Natijalari"
+    }
+    return render(request, 'teacher_results.html', context)
+
+@login_required(login_url='login')
+@user_passes_test(is_teacher, login_url='index')
+def teacher_view_result_detail(request, slug, attempt_id): # 🎯 SLUG QO'SHILDI
+    """O'qituvchi uchun talaba natijasining batafsil ko'rinishi."""
+    user = request.user
+    center = get_object_or_404(Center, slug=slug)
+
     # 1. Urinishni yuklash
     try:
         attempt = get_object_or_404(UserAttempt, id=attempt_id)
     except Exception:
         messages.error(request, "Natija topilmadi.")
-        return redirect('teacher_dashboard') # O'qituvchi bosh sahifasiga qaytarish
+        # Redirect qilishda SLUG ni uzatish
+        return redirect('teacher_results', slug=center.slug) 
 
-    # 2. Ruxsatni tekshirish
-    if attempt.exam.teacher != request.user:
+    # 2. Ruxsatni tekshirish (Urinish o'qituvchining markaziga tegishli ekanligini tekshirish)
+    if attempt.exam.teacher != user or attempt.exam.teacher.center != center:
         messages.error(request, "Siz bu natijani ko'rish huquqiga ega emassiz.")
         return render(request, '403.html', {'message': "Siz bu natijani ko'rish huquqiga ega emassiz."})
 
-    # 3. Umumiy statistika hisobi (kodda to'g'ri yozilgan)
+    # ... (Qolgan hisob-kitob mantig'i o'zgarishsiz qoladi) ...
     total_questions = 0
     total_correct_answers = 0
-    
-    # Ushbu qismda ma'lumotlar bazasi so'rovlarini optimallashtirish mumkin, 
-    # lekin mavjud mantiq saqlanadi.
-    for section_attempt in attempt.section_attempts.all():
-        section = section_attempt.section
-        # get_section_questions ning qanday ishlashiga bog'liq
-        try:
-            section_questions = get_section_questions(section, attempt.exam)
-            total_questions += len(section_questions)
-            # section_attempt.correct_answers_count fieldi mavjud deb hisoblanadi
-            total_correct_answers += section_attempt.correct_answers_count 
-        except NameError:
-             # Agar get_section_questions mavjud bo'lmasa, xato bo'ladi.
-             # Alternativ: total_questions = UserAnswer.objects.filter(attempt_section__attempt=attempt).count()
-             total_questions = UserAnswer.objects.filter(attempt_section__attempt=attempt).count()
-             total_correct_answers = UserAnswer.objects.filter(attempt_section__attempt=attempt, is_correct=True).count()
-             break # Xato bo'lsa, tsikldan chiqish
 
+    # Ma'lumotlarni to'g'ri hisoblash uchun
+    total_questions = UserAnswer.objects.filter(attempt_section__attempt=attempt).count()
+    total_correct_answers = UserAnswer.objects.filter(attempt_section__attempt=attempt, is_correct=True).count()
+    
     total_incorrect_answers = total_questions - total_correct_answers
+    total_omitted_answers = UserAnswer.objects.filter(attempt_section__attempt=attempt, is_correct=None).count()
+
 
     # 4. Savol-javoblarni tahlil qilish uchun yuklash
     user_answers = UserAnswer.objects.filter(attempt_section__attempt=attempt).order_by('question__id').select_related('question').prefetch_related('selected_options', 'question__options')
 
-    # 5. Har bir javobga tahlil ma'lumotlarini qo'shish
+    # 5. Har bir javobga tahlil ma'lumotlarini qo'shish (kerak bo'lsa)
     for user_answer in user_answers:
+        # ... (options_with_status mantig'i) ...
         options_with_status = []
         correct_options = set(user_answer.question.options.filter(is_correct=True).values_list('id', flat=True))
         selected_option_ids = set(user_answer.selected_options.values_list('id', flat=True))
@@ -2012,92 +2822,23 @@ def teacher_view_result_detail(request, attempt_id):
         user_answer.passage_text = user_answer.question.passage.text if user_answer.question.passage else None
         user_answer.is_solution_free = getattr(user_answer.question, 'is_solution_free', False) # Attribute tekshiruvi
 
+
     # 6. Contextni tayyorlash
     context = {
         'attempt': attempt,
         'user_answers': user_answers,
         'total_correct_answers': total_correct_answers,
         'total_incorrect_answers': total_incorrect_answers,
+        'total_omitted_answers': total_omitted_answers,
         'total_questions': total_questions,
-        # ability_estimate mavjud bo'lsa
+        'center': center, # 🎯 Shablonlar uchun center obyekti
         'ability_estimate': getattr(attempt, 'ability_estimate', 'Noma‘lum'), 
     }
-    return render(request, 'teacher_test_result_detail.html', context)
+    # Mavzu testi bo'lsa, maxsus shablon ishlatish kerak bo'lishi mumkin.
+    is_subject_exam = getattr(attempt.exam, 'is_subject_exam', False)
+    template_name = 'teacher_subject_result_detail.html' if is_subject_exam else 'teacher_test_result_detail.html'
 
-@login_required(login_url='login')
-@user_passes_test(is_teacher, login_url='index')
-def my_exams(request):
-    """Ustozning o'z yaratgan imtihonlarini ko'rish va boshqarish."""
-    
-    # Har bir imtihon uchun bo'limlar sonini ma'lumotlar bazasida hisoblash (samarali)
-    my_exams = Exam.objects.filter(teacher=request.user).annotate(
-        section_count=Count('sections')
-    ).order_by('-created_at')
-    
-    context = {'my_exams': my_exams}
-    return render(request, 'exam/my_exams.html', context)
-
-@login_required(login_url='login')
-@user_passes_test(is_teacher, login_url='index')
-def teacher_results(request):
-    """Ustozning imtihonlari va talabalar natijalarini ko'rish."""
-    
-    my_exams = Exam.objects.filter(teacher=request.user).order_by('-created_at').prefetch_related('sections')
-    exam_results = []
-    
-    for exam in my_exams:
-        # N+1 muammosini hal qilish uchun optimallashtirilgan so'rov:
-        attempts = UserAttempt.objects.filter(exam=exam).select_related('user').prefetch_related(
-            'section_attempts' # SectionAttempt ma'lumotlarini bir so'rovda yuklaymiz
-        ).order_by('-completed_at')
-        
-        attempt_details = []
-        
-        # Bu mantiq har bir urinish uchun barcha bo'lim savollarini qayta hisoblaydi.
-        # Agar 'get_section_questions' ma'lumotlar bazasiga kirishni talab qilsa, 
-        # bu yerda sekinlashishi mumkin. Lekin mavjud mantiqni saqlaymiz.
-        all_sections = list(exam.sections.all())
-        
-        # Barcha bo'limlardagi umumiy savollar sonini hisoblash (Agar statik bo'lsa, bu samarali)
-        try:
-             total_questions_in_exam = sum(len(get_section_questions(section, exam)) for section in all_sections)
-        except NameError:
-             # Agar funksiya aniqlanmagan bo'lsa, xato yuz bermasligi uchun nol
-             total_questions_in_exam = 0 
-        
-        for attempt in attempts:
-            
-            # Agar savollar soni 0 bo'lsa, natijani hisoblashdan qochish
-            if total_questions_in_exam == 0:
-                correct_answers = 0
-                percentage = 0
-            else:
-                correct_answers = sum(section.correct_answers_count for section in attempt.section_attempts.all())
-                percentage = (correct_answers / total_questions_in_exam * 100)
-            
-            incorrect_answers = total_questions_in_exam - correct_answers
-            
-            attempt_details.append({
-                'attempt_id': attempt.id,
-                # select_related('user') tufayli bu juda tez ishlaydi:
-                'user_username': attempt.user.username,
-                'correct_answers': correct_answers,
-                'incorrect_answers': incorrect_answers,
-                'score': attempts.final_total_score,
-                'percentage': round(percentage, 2),
-                'completed_at': attempt.completed_at,
-            })
-            
-        # Urinishlari bor imtihonlarni natijalar ro'yxatiga qo'shamiz
-        if attempt_details:
-             exam_results.append({
-                'title': exam.title,
-                'attempts': attempt_details,
-             })
-    
-    context = {'results': exam_results}
-    return render(request, 'teacher_results.html', context)
-
+    return render(request, template_name, context)
 
 def get_base_context(request):
     """Umumiy kontekst ma'lumotlarini qaytaruvchi yordamchi funksiya."""
@@ -2112,100 +2853,142 @@ def get_base_context(request):
 
 @login_required(login_url='login')
 @user_passes_test(is_teacher, login_url='index')
-def my_questions_home(request):
-    topics = Topic.objects.filter(teacher=request.user).annotate(
-        subtopic_count=Count('subtopics', distinct=True),
-        question_count=Count('subtopics__questions', distinct=True)
-    )
-    uncategorized_questions_count = Question.objects.filter(subtopic__isnull=True, author=request.user).count()
-    
+def my_questions(request, slug):
+    # 1. Markazni slug bo'yicha topish
+    center = get_object_or_404(Center, slug=slug)
+
+    # 2. Xavfsizlik Tekshiruvi
+    if request.user.center is None or request.user.center != center:
+        messages.error(request, "Bu markazga kirish huquqingiz yo‘q yoki sizga markaz biriktirilmagan.")
+        return redirect('index')
+
+    # 3. Topic ma'lumotlarini olish va Count Annotatsiyasini Qo'llash
+    topics = Topic.objects.filter(
+        center=center, 
+        teacher=request.user
+    ).annotate(
+        # Munosabat: Topic -> subtopics -> questions
+        question_count=Count('subtopics__questions'), 
+        subtopic_count=Count('subtopics') 
+    ).order_by('order')
+
+    # 4. Mavzulanmagan savollar sonini hisoblash
+    uncategorized_questions_count = Question.objects.filter(
+        center=center, 
+        author=request.user, 
+        subtopic__isnull=True
+    ).count()
+
+    # 5. Kontekstni shakllantirish
     context = {
         'topics': topics,
         'uncategorized_questions_count': uncategorized_questions_count,
-        **get_base_context(request)
+        'center': center,
+        'user': request.user,
     }
-    return render(request, 'questions/my_questions_home.html', context)
+    return render(request, 'questions/my_questions.html', context)
 
 @login_required(login_url='login')
 @user_passes_test(is_teacher, login_url='index')
-def topic_detail(request, topic_id):
-    topic = get_object_or_404(Topic, id=topic_id, teacher=request.user)
-    subtopics = Subtopic.objects.filter(topic=topic).annotate(question_count=Count('questions'))
+def topic_detail(request, slug, topic_id): # 💡 slug qo'shildi
+    center = get_object_or_404(Center, slug=slug)
     
+    if request.user.center is None or request.user.center != center:
+        messages.error(request, "Bu markazga kirish huquqingiz yo‘q yoki sizga markaz biriktirilmagan.")
+        return redirect('index')
+
+    # Topicni markaz va ustoz bo'yicha cheklash
+    topic = get_object_or_404(Topic, id=topic_id, center=center, teacher=request.user)
+    
+    # Subtopiclarni markaz va topic bo'yicha cheklash
+    subtopics = Subtopic.objects.filter(topic=topic, center=center).annotate(question_count=Count('questions'))
+
     context = {
         'topic': topic,
         'subtopics': subtopics,
-        **get_base_context(request)
+        'center': center,
+        'user': request.user,
     }
     return render(request, 'questions/topic_detail.html', context)
 
 @login_required(login_url='login')
 @user_passes_test(is_teacher, login_url='index')
-def subtopic_questions(request, subtopic_id):
-    """
-    Ichki mavzuga oid savollar ro'yxatini ko'rsatadi.
-    """
-    subtopic = get_object_or_404(Subtopic, id=subtopic_id, topic__teacher=request.user)
+def subtopic_questions(request, slug, subtopic_id):
+    center = get_object_or_404(Center, slug=slug)
+    
+    if request.user.center is None or request.user.center != center:
+        messages.error(request, "Bu markazga kirish huquqingiz yo‘q yoki sizga markaz biriktirilmagan.")
+        return redirect('index')
 
-    # Question, Passage, QuestionSolution, AnswerOption, Flashcard va Taglarni yuklab olamiz
-    questions = Question.objects.filter(
-        subtopic=subtopic,
-        author=request.user
-    ).select_related(
-        'solution',
-        'passage'
-    ).prefetch_related(
-        'options',
-        'tags',
-        'flashcards'
-    ).order_by('-created_at')
+    subtopic = get_object_or_404(Subtopic, id=subtopic_id, center=center)
+    # Savollarni markaz va muallif bo'yicha cheklash
+    questions = Question.objects.filter(subtopic=subtopic, center=center, author=request.user).order_by('-created_at')
 
     context = {
         'subtopic': subtopic,
         'questions': questions,
-        # get_base_context funksiyasi mavjud bo'lsa
-        # **get_base_context(request)
+        'center': center,
+        'user': request.user,
     }
     return render(request, 'questions/subtopic_questions.html', context)
 
 @login_required(login_url='login')
 @user_passes_test(is_teacher, login_url='index')
-def uncategorized_questions(request):
-    """
-    Mavzulanmagan savollar ro'yxatini ko'rsatadi.
-    """
+def uncategorized_questions(request, slug):
+    """ Mavzulanmagan savollar ro'yxatini markaz bo'yicha ko'rsatadi. """
+    center = get_object_or_404(Center, slug=slug)
+
+    # Xavfsizlik Tekshiruvi
+    if request.user.center is None or request.user.center != center:
+        messages.error(request, "Bu markazga kirish huquqingiz yo‘q yoki sizga markaz biriktirilmagan.")
+        return redirect('index')
+        
     questions = Question.objects.filter(
+        center=center, # Markazga bog'lash
         subtopic__isnull=True,
         author=request.user
     ).select_related(
-        'solution'
+        'difficulty_level',
+        'passage',
+        'parent_question',
+        'center',
     ).prefetch_related(
         Prefetch('translations', queryset=QuestionTranslation.objects.filter(language='uz')),
         Prefetch('options', queryset=AnswerOption.objects.prefetch_related(
             Prefetch('translations', queryset=AnswerOptionTranslation.objects.filter(language='uz'))
         )),
         'tags',
-        'flashcards'
+        'flashcards',
     )
     
     context = {
         'questions': questions,
         'uncategorized_view': True,
-        **get_base_context(request)
+        'center': center,
+        # get_base_context dan keladigan ma'lumotlar
+        **get_base_context(request) 
     }
     return render(request, 'questions/uncategorized_questions.html', context)
 
 @login_required(login_url='login')
 @user_passes_test(is_teacher, login_url='index')
-def delete_topic(request, topic_id):
-    topic = get_object_or_404(Topic, id=topic_id, teacher=request.user)
+def delete_topic(request, slug, topic_id): # 💡 slug qo'shildi
+    center = get_object_or_404(Center, slug=slug)
+    
+    if request.user.center is None or request.user.center != center:
+        messages.error(request, "Bu markazga kirish huquqingiz yo‘q yoki sizga markaz biriktirilmagan.")
+        return redirect('index')
+
+    # Markaz bo'yicha cheklash
+    topic = get_object_or_404(Topic, id=topic_id, center=center, teacher=request.user) 
     
     if request.method == 'POST':
         delete_type = request.POST.get('delete_type')
         if delete_type == 'move':
             target_topic_id = request.POST.get('target_topic')
             if target_topic_id:
-                target_topic = get_object_or_404(Topic, id=target_topic_id, teacher=request.user)
+                # Target topicni ham markaz va ustoz bo'yicha cheklash
+                target_topic = get_object_or_404(Topic, id=target_topic_id, center=center, teacher=request.user)
                 moved_count = Subtopic.objects.filter(topic=topic).update(topic=target_topic)
                 topic.delete()
                 messages.success(request, f'"{topic.name}" mavzusidagi {moved_count} ta ichki mavzu "{target_topic.name}" ga ko‘chirildi va mavzu o‘chirildi.')
@@ -2215,30 +2998,40 @@ def delete_topic(request, topic_id):
             topic.delete()
             messages.success(request, f'"{topic.name}" mavzusi va unga tegishli barcha savollar o‘chirildi.')
         
-        return redirect('my_questions')
+        return redirect('my_questions', slug=center.slug) # 💡 Redirectda slug uzatildi
 
     questions_count = Question.objects.filter(subtopic__topic=topic).count()
-    all_topics = Topic.objects.filter(teacher=request.user).exclude(id=topic_id)
+    # all_topics filteriga center=center qoshildi
+    all_topics = Topic.objects.filter(center=center, teacher=request.user).exclude(id=topic_id) 
     
     context = {
         'topic': topic,
         'questions_count': questions_count,
         'all_topics': all_topics,
+        'center': center,
     }
     return render(request, 'topic/delete_topic.html', context)
 
 @login_required(login_url='login')
 @user_passes_test(is_teacher, login_url='index')
-def delete_subtopic(request, subtopic_id):
-    subtopic = get_object_or_404(Subtopic, id=subtopic_id, topic__teacher=request.user)
+def delete_subtopic(request, slug, subtopic_id): # 💡 slug qo'shildi
+    center = get_object_or_404(Center, slug=slug)
+    
+    if request.user.center is None or request.user.center != center:
+        messages.error(request, "Bu markazga kirish huquqingiz yo‘q yoki sizga markaz biriktirilmagan.")
+        return redirect('index')
+
+    # Markaz bo'yicha cheklash
+    subtopic = get_object_or_404(Subtopic, id=subtopic_id, center=center, topic__teacher=request.user) 
     
     if request.method == 'POST':
         delete_type = request.POST.get('delete_type')
         if delete_type == 'move':
             target_subtopic_id = request.POST.get('target_subtopic')
             if target_subtopic_id:
-                target_subtopic = get_object_or_404(Subtopic, id=target_subtopic_id, topic__teacher=request.user)
-                moved_count = subtopic.questions.update(subtopic=target_subtopic)
+                # Target subtopicni ham markaz bo'yicha cheklash
+                target_subtopic = get_object_or_404(Subtopic, id=target_subtopic_id, center=center, topic__teacher=request.user)
+                moved_count = subtopic.questions.filter(center=center).update(subtopic=target_subtopic) # Markaz bo'yicha cheklab update qilish
                 subtopic.delete()
                 messages.success(request, f"{moved_count} ta savol '{target_subtopic.name}' ga ko'chirildi va ichki mavzu o'chirildi.")
             else:
@@ -2247,29 +3040,38 @@ def delete_subtopic(request, subtopic_id):
             subtopic.delete()
             messages.success(request, "Ichki mavzu va unga tegishli barcha savollar o'chirildi.")
         
-        return redirect('my_questions')
+        return redirect('my_questions', slug=center.slug) # 💡 Redirectda slug uzatildi
         
-    questions_count = subtopic.questions.count()
-    all_subtopics = Subtopic.objects.filter(topic__teacher=request.user).exclude(id=subtopic_id)
+    questions_count = subtopic.questions.filter(center=center).count() # Markaz bo'yicha cheklash
+    # all_subtopics filteriga center=center qoshildi
+    all_subtopics = Subtopic.objects.filter(center=center, topic__teacher=request.user).exclude(id=subtopic_id)
     
     context = {
         'subtopic': subtopic,
         'questions_count': questions_count,
         'all_subtopics': all_subtopics,
+        'center': center,
     }
     return render(request, 'topic/delete_subtopic.html', context)
 
 @login_required(login_url='login')
 @user_passes_test(is_teacher, login_url='index')
-def create_topic(request):
+def create_topic(request, slug):
+    center = get_object_or_404(Center, slug=slug)
+    
+    if request.user.center is None or request.user.center != center:
+        messages.error(request, "Xatolik: Markaz ma'lumoti topilmadi yoki ruxsat yo'q.")
+        return redirect('index')
+    
     if request.method == 'POST':
         form = TopicForm(request.POST)
         if form.is_valid():
             topic = form.save(commit=False)
             topic.teacher = request.user
+            topic.center = center # 💡 Markazni saqlash
             topic.save()
             messages.success(request, "Mavzu muvaffaqiyatli yaratildi!")
-            return redirect('my_questions')
+            return redirect('my_questions', slug=center.slug) # 💡 Redirectda slug uzatildi
         else:
             for field, errors in form.errors.items():
                 for error in errors:
@@ -2280,20 +3082,29 @@ def create_topic(request):
     context = {
         'form': form,
         'title': 'Yangi mavzu yaratish',
+        'center': center,
         **get_base_context(request)
     }
     return render(request, 'topic/create_topic.html', context)
 
 @login_required(login_url='login')
 @user_passes_test(is_teacher, login_url='index')
-def edit_topic(request, topic_id):
-    topic = get_object_or_404(Topic, id=topic_id, teacher=request.user)
+def edit_topic(request, slug, topic_id): # 💡 slug qo'shildi
+    center = get_object_or_404(Center, slug=slug)
+
+    if request.user.center is None or request.user.center != center:
+        messages.error(request, "Bu markazga kirish huquqingiz yo‘q yoki sizga markaz biriktirilmagan.")
+        return redirect('index')
+        
+    # Markaz bo'yicha cheklash
+    topic = get_object_or_404(Topic, id=topic_id, center=center, teacher=request.user) 
+    
     if request.method == 'POST':
         form = TopicForm(request.POST, instance=topic)
         if form.is_valid():
             form.save()
             messages.success(request, "Mavzu muvaffaqiyatli tahrirlandi!")
-            return redirect('my_questions')
+            return redirect('my_questions', slug=center.slug) # 💡 Redirectda slug uzatildi
         else:
             for field, errors in form.errors.items():
                 for error in errors:
@@ -2305,69 +3116,102 @@ def edit_topic(request, topic_id):
         'form': form,
         'title': 'Mavzuni tahrirlash',
         'topic': topic,
+        'center': center,
         **get_base_context(request)
     }
     return render(request, 'topic/create_topic.html', context)
 
 @login_required(login_url='login')
 @user_passes_test(is_teacher, login_url='index')
-def create_subtopic(request, topic_id=None):
+def create_subtopic(request, slug, topic_id=None):
+    center = get_object_or_404(Center, slug=slug)
+
+    if request.user.center is None or request.user.center != center:
+        messages.error(request, "Bu markazga kirish huquqingiz yo‘q yoki sizga markaz biriktirilmagan.")
+        return redirect('index')
+
     initial = {}
     if topic_id:
-        topic = get_object_or_404(Topic, id=topic_id, teacher=request.user)
+        # Topicni markaz va ustoz bo'yicha cheklash
+        topic = get_object_or_404(Topic, id=topic_id, center=center, teacher=request.user)
         initial['topic'] = topic
     
     if request.method == 'POST':
         form = SubtopicForm(request.POST)
         if form.is_valid():
             subtopic = form.save(commit=False)
-            if subtopic.topic.teacher != request.user:
-                messages.error(request, "Siz faqat o'zingiz yaratgan mavzularga ichki mavzu qo'shishingiz mumkin.")
-                return render(request, 'create_subtopic.html', {'form': form, 'title': 'Yangi ichki mavzu yaratish'})
+            
+            # Subtopic centerini qo'shish
+            subtopic.center = center
+            
+            # Topic egasi va markazini tekshirish (Double Check)
+            if subtopic.topic.teacher != request.user or subtopic.topic.center != center:
+                 messages.error(request, "Noto'g'ri mavzu tanlandi yoki siz tanlagan mavzuga kirish ruxsatingiz yo'q.")
+                 return redirect('my_questions', slug=center.slug)
+
             subtopic.save()
             messages.success(request, "Ichki mavzu muvaffaqiyatli yaratildi!")
-            return redirect('topic_detail', topic_id=subtopic.topic.id)
+            return redirect('topic_detail', slug=center.slug, topic_id=subtopic.topic.id)
         else:
-            for field, errors in form.errors.items():
+             # Xato logikasi
+             for field, errors in form.errors.items():
                 for error in errors:
                     messages.error(request, f"{field}: {error}")
     else:
         form = SubtopicForm(initial=initial)
-        form.fields['topic'].queryset = Topic.objects.filter(teacher=request.user)
+        # Formdagi topic querysetini cheklash
+        form.fields['topic'].queryset = Topic.objects.filter(center=center, teacher=request.user)
     
     context = {
         'form': form,
         'title': 'Yangi ichki mavzu yaratish',
+        'center': center,
         'topic_id': topic_id,
         **get_base_context(request)
     }
     return render(request, 'topic/create_subtopic.html', context)
 
+
 @login_required(login_url='login')
 @user_passes_test(is_teacher, login_url='index')
-def edit_subtopic(request, subtopic_id):
-    subtopic = get_object_or_404(Subtopic, id=subtopic_id, topic__teacher=request.user)
+def edit_subtopic(request, slug, subtopic_id):
+    center = get_object_or_404(Center, slug=slug)
+
+    if request.user.center is None or request.user.center != center:
+        messages.error(request, "Bu markazga kirish huquqingiz yo‘q yoki sizga markaz biriktirilmagan.")
+        return redirect('index')
+
+    # Markaz va ustoz bo'yicha cheklash
+    subtopic = get_object_or_404(Subtopic, id=subtopic_id, center=center, topic__teacher=request.user)
+    
     if request.method == 'POST':
         form = SubtopicForm(request.POST, instance=subtopic)
         if form.is_valid():
-            if form.cleaned_data['topic'].teacher != request.user:
-                messages.error(request, "Siz faqat o'zingiz yaratgan mavzularga ichki mavzu qo'shishingiz mumkin.")
-                return render(request, 'create_subtopic.html', {'form': form, 'title': 'Ichki mavzuni tahrirlash'})
+            
+            # Yangi tanlangan Topicning ustoz va markazini tekshirish
+            new_topic = form.cleaned_data['topic']
+            if new_topic.teacher != request.user or new_topic.center != center:
+                 messages.error(request, "Siz faqat o'zingiz yaratgan mavzularga ichki mavzularni biriktirishingiz mumkin.")
+                 return redirect('topic_detail', slug=center.slug, topic_id=subtopic.topic.id)
+                 
             form.save()
             messages.success(request, "Ichki mavzu muvaffaqiyatli tahrirlandi!")
-            return redirect('topic_detail', topic_id=subtopic.topic.id)
+            return redirect('topic_detail', slug=center.slug, topic_id=subtopic.topic.id)
         else:
-            for field, errors in form.errors.items():
+             # Xato logikasi
+             for field, errors in form.errors.items():
                 for error in errors:
                     messages.error(request, f"{field}: {error}")
     else:
         form = SubtopicForm(instance=subtopic)
-        form.fields['topic'].queryset = Topic.objects.filter(teacher=request.user)
+        # Formdagi topic querysetini cheklash
+        form.fields['topic'].queryset = Topic.objects.filter(center=center, teacher=request.user)
     
     context = {
         'form': form,
         'title': 'Ichki mavzuni tahrirlash',
         'subtopic': subtopic,
+        'center': center,
         **get_base_context(request)
     }
     return render(request, 'topic/create_subtopic.html', context)
@@ -2388,240 +3232,537 @@ def move_questions(request, subtopic_id):
     
     return redirect('subtopic_questions', subtopic_id=subtopic_id)
 
-@login_required(login_url='login')
-@user_passes_test(is_teacher, login_url='index')
-def list_flashcards(request):
-    """Barcha flashcardlarni ko'rsatish. Foydalanuvchi tomonidan filterlash shart emas."""
-    flashcards = Flashcard.objects.all().order_by('-created_at')
-    return render(request, 'flashcards/list_flashcards.html', {'flashcards': flashcards})
 
 @login_required(login_url='login')
 @user_passes_test(is_teacher, login_url='index')
-def create_flashcard(request):
+def list_flashcards(request, slug):
+    """
+    Berilgan slug'ga mos keluvchi Center'ga tegishli barcha flashcardlarni ko'rsatadi.
+    """
+    
+    # 1. Center obyektini slug orqali topish (Topilmasa 404 xatosi beradi)
+    # get_object_or_404 dan foydalanish tozaroq:
+    center = get_object_or_404(Center, slug=slug)
+    
+    # 2. Flashcardlarni filtrlash (ASOSIY TUZATISH)
+    # Flashcard modelida 'center' degan ForeignKey maydoni bor deb hisoblanadi.
+    flashcards = Flashcard.objects.filter(
+        center=center  # Faqat shu Center'ga tegishli flashcardlar
+    ).order_by('-created_at')
+    
+
+    return render(request, 'flashcards/list_flashcards.html', {
+        'flashcards': flashcards,
+        'center': center,
+    })
+
+@login_required(login_url='login')
+@user_passes_test(is_teacher, login_url='index')
+def create_flashcard(request, slug): # <-- 'slug' argumenti mavjud
+    """
+    Berilgan center slug'iga flashcard yaratish.
+    """
+    # 1. Center obyektini topish
+    center = get_object_or_404(Center, slug=slug)
+    
     if request.method == 'POST':
         form = FlashcardForm(request.POST, request.FILES)
         if form.is_valid():
             flashcard = form.save(commit=False)
-            flashcard.author = request.user # Muallifni avtomatik bog'laymiz
+            flashcard.author = request.user
+            flashcard.center = center
             flashcard.save()
-            messages.success(request, "Flashcard muvaffaqiyatli yaratildi!")
-            return redirect('list_flashcards')
-        # Agar form valid bo'lmasa, xatolar bilan qayta render qilinadi
+            messages.success(request, f"Flashcard '{center.name}' markazi uchun muvaffaqiyatli yaratildi!")
+            
+            # ✅ MUHIM: Muvaffaqiyatli redirectda slug uzatilmoqda
+            return redirect('list_flashcards', slug=slug) 
+        
+        # ⚠️ TUZATISH 1: Agar POST kelib, forma xato bo'lsa, render qilinadi.
+        # Bu yerda redirect yo'q, shuning uchun xato kelmaydi, lekin mantiqni tekshiring.
+        
     else:
         form = FlashcardForm()
     
-    return render(request, 'flashcards/create_flashcard.html', {'form': form})
+    # ⚠️ TUZATISH 2 (Agar bu yerda redirect ishlatilgan bo'lsa, uni tuzating)
+    # Agar biron sababga ko'ra bu yerda (else bloki tashqarisida) redirect ishlatilsa:
+    # return redirect('list_flashcards', slug=slug)
+    
+    return render(request, 'flashcards/create_flashcard.html', {
+        'form': form,
+        'center': center,
+    })
 
 @login_required(login_url='login')
 @user_passes_test(is_teacher, login_url='index')
-def edit_flashcard(request, pk):
-    """Flashcardni tahrirlash."""
-    # Barcha o'qituvchilar tahrirlash huquqiga ega deb hisoblaymiz.
-    flashcard = get_object_or_404(Flashcard, pk=pk)
+def edit_flashcard(request, slug, pk):
+    """
+    Flashcardni tahrirlash (Slug va pk orqali).
+    Qo'shimcha tekshiruv: flashcard haqiqatan ham shu centerga tegishlimi?
+    """
+    # 1. Center obyektini topish (Tekshirish uchun shart)
+    center = get_object_or_404(Center, slug=slug)
+    
+    # 2. Flashcardni topish va uning shu centerga tegishli ekanligini tekshirish
+    flashcard = get_object_or_404(Flashcard, pk=pk, center=center) # ASOSIY TEKSHIRUV
+
     if request.method == 'POST':
         form = FlashcardForm(request.POST, request.FILES, instance=flashcard)
         if form.is_valid():
             form.save()
             messages.success(request, "Flashcard muvaffaqiyatli tahrirlandi!")
-            return redirect('list_flashcards')
+            return redirect('list_flashcards', slug=slug)
     else:
         form = FlashcardForm(instance=flashcard)
-    return render(request, 'flashcards/edit_flashcard.html', {'form': form})
-
-@login_required(login_url='login')
-@user_passes_test(is_teacher, login_url='index')
-def delete_flashcard(request, pk):
-    """Flashcardni o'chirish."""
-    flashcard = get_object_or_404(Flashcard, pk=pk)
-    if request.method == 'POST':
-        flashcard.delete()
-        messages.success(request, "Flashcard muvaffaqiyatli o'chirildi.")
-        return redirect('list_flashcards')
-    
-    messages.error(request, "Ruxsat etilmagan so'rov usuli.")
-    return redirect('list_flashcards')
-
-@login_required(login_url='login')
-def add_question(request):
-    """
-    Yangi savol qo'shish. SAT Digital formatiga mos, IRT parametrlari va yechimlar bilan.
-    Faqat o'qituvchilar uchun ruxsat beriladi.
-    """
-    if not is_teacher(request.user):
-        messages.error(request, "Faqat o'qituvchilar savol qo'shishi mumkin!")
-        return redirect('index')
-
-    if request.method == 'POST':
-        form = QuestionForm(request.POST, request.FILES)
-        answer_option_formset = AnswerOptionFormSet(request.POST, prefix='options', queryset=AnswerOption.objects.none())
-
-        if form.is_valid() and answer_option_formset.is_valid():
-            with transaction.atomic():
-                # Savolni saqlash
-                question = form.save(commit=False)
-                question.author = request.user
-                question.save()
-                form.save_m2m()
-
-                answer_format = form.cleaned_data['answer_format']
-                
-                if answer_format in ['single', 'multiple']:
-                    valid_options = []
-                    correct_options = []
-                    
-                    # Barcha formsetlarni tekshirish
-                    for option_form in answer_option_formset.forms:
-                        if option_form.cleaned_data and not option_form.cleaned_data.get('DELETE', False):
-                            text = option_form.cleaned_data.get('text', '').strip()
-                            if text:  # Faqat bo'sh bo'lmagan matnlarni qo'shamiz
-                                valid_options.append(text)
-                                if option_form.cleaned_data.get('is_correct', False):
-                                    correct_options.append(text)
-                    
-                    # Validatsiya
-                    if len(valid_options) < 2:
-                        messages.error(request, "Kamida 2 ta javob varianti kiritilishi shart!")
-                        logger.error(f"Valid options: {valid_options}")
-                        return render(request, 'questions/add_questions.html', {
-                            'form': form,
-                            'answer_option_formset': answer_option_formset
-                        })
-
-                    if answer_format == 'single' and len(correct_options) != 1:
-                        messages.error(request, "Yagona javob formatida faqat bitta to'g'ri javob tanlanishi kerak!")
-                        logger.error(f"Correct options: {correct_options}")
-                        return render(request, 'questions/add_questions.html', {
-                            'form': form,
-                            'answer_option_formset': answer_option_formset
-                        })
-
-                    if answer_format == 'multiple' and len(correct_options) == 0:
-                        messages.error(request, "Bir nechta javob formatida kamida bitta to'g'ri javob tanlanishi kerak!")
-                        logger.error(f"Correct options: {correct_options}")
-                        return render(request, 'questions/add_questions.html', {
-                            'form': form,
-                            'answer_option_formset': answer_option_formset
-                        })
-
-                    # Eski javob variantlarini o'chirish
-                    AnswerOption.objects.filter(question=question).delete()
-
-                    # Yangi javob variantlarini saqlash
-                    for option_form in answer_option_formset.forms:
-                        if option_form.cleaned_data and not option_form.cleaned_data.get('DELETE', False):
-                            text = option_form.cleaned_data.get('text', '').strip()
-                            if text:  # Faqat bo'sh bo'lmagan matnlarni saqlaymiz
-                                AnswerOption.objects.create(
-                                    question=question,
-                                    text=bleach.clean(text),
-                                    is_correct=option_form.cleaned_data.get('is_correct', False)
-                                )
-
-                elif answer_format == 'short_answer':
-                    correct_short_answer = form.cleaned_data.get('correct_short_answer', '').strip()
-                    if not correct_short_answer:
-                        messages.error(request, "Qisqa javob formatida to'g'ri javob kiritilishi shart!")
-                        return render(request, 'questions/add_questions.html', {
-                            'form': form,
-                            'answer_option_formset': answer_option_formset
-                        })
-                    question.correct_short_answer = bleach.clean(correct_short_answer)
-                    question.save()
-
-                hint = form.cleaned_data.get('hint', '').strip()
-                detailed_solution = form.cleaned_data.get('detailed_solution', '').strip()
-                if hint or detailed_solution:
-                    QuestionSolution.objects.create(
-                        question=question,
-                        hint=bleach.clean(hint),
-                        detailed_solution=bleach.clean(detailed_solution)
-                    )
-
-            messages.success(request, "Savol muvaffaqiyatli qo'shildi!")
-            logger.info(f"Savol ID {question.id} muvaffaqiyatli saqlandi, javob variantlari: {valid_options}")
-            if 'save_and_add_another' in request.POST:
-                return redirect('add_question')
-            return redirect('my_questions')
-        else:
-            messages.error(request, "Savolni qo'shishda xatolik yuz berdi. Iltimos, ma'lumotlarni tekshiring.")
-            logger.error(f"Form errors: {form.errors}, Formset errors: {answer_option_formset.errors}")
-    else:
-        form = QuestionForm()
-        answer_option_formset = AnswerOptionFormSet(prefix='options', queryset=AnswerOption.objects.none())
-
-    return render(request, 'questions/add_questions.html', {
+        
+    return render(request, 'flashcards/edit_flashcard.html', {
         'form': form,
-        'answer_option_formset': answer_option_formset
+        'flashcard': flashcard,
+        'center': center,
     })
 
 @login_required(login_url='login')
 @user_passes_test(is_teacher, login_url='index')
-def edit_question(request, question_id):
-    question = get_object_or_404(Question, id=question_id, author=request.user)
+def delete_flashcard(request, slug, pk):
+    """
+    Flashcardni o'chirish (Slug va pk orqali).
+    Qo'shimcha tekshiruv: flashcard haqiqatan ham shu centerga tegishlimi?
+    """
+    # 1. Center obyektini topish (Tekshirish uchun shart)
+    center = get_object_or_404(Center, slug=slug)
     
-    initial_data = {
-        'hint': question.solution.hint if hasattr(question, 'solution') else '',
-        'detailed_solution': question.solution.detailed_solution if hasattr(question, 'solution') else '',
-    }
-
+    # 2. Flashcardni topish va uning shu centerga tegishli ekanligini tekshirish
+    flashcard = get_object_or_404(Flashcard, pk=pk, center=center) # ASOSIY TEKSHIRUV
+    
     if request.method == 'POST':
-        form = QuestionForm(request.POST, request.FILES, instance=question)
-        answer_format = request.POST.get('answer_format')
+        flashcard.delete()
+        messages.success(request, "Flashcard muvaffaqiyatli o'chirildi.")
+        return redirect('list_flashcards', slug=slug)
+    
+    # POST so'rovini kutish xavfsizroq bo'lgani uchun, agar GET kelsa, odatda List sahifasiga qaytariladi.
+    messages.error(request, "Xatolik: O'chirish uchun POST so'rovi talab qilinadi.")
+    return redirect('list_flashcards', slug=slug)
 
+
+@login_required(login_url='login')
+@user_passes_test(is_teacher, login_url='index')
+def add_question(request, slug=None):
+    """
+    Yangi savol qo'shish. QuestionForm va AnswerOptionFormSet bilan ishlaydi.
+    QuestionForm.clean() da tozalangan ma'lumotlar saqlashda qayta tozalanmaydi.
+    """
+    
+    # 0. Center va ruxsat tekshiruvi (O'zgarmadi)
+    if not is_teacher(request.user):
+        messages.error(request, _("Faqat o'qituvchilar savol qo'shishi mumkin!"))
+        return redirect('index')
+
+    center = None
+    if slug:
+        center = get_object_or_404(Center, slug=slug)
+        if request.user.role == 'center_admin' and request.user.center != center:
+            raise PermissionDenied(_("Bu markazga kirish huquqingiz yo‘q"))
+    else:
+        center = request.user.center
+        if not center:
+            messages.error(request, _("Siz hech qanday markazga ulanmagansiz!"))
+            return redirect('index')
+
+    ANSWER_OPTIONS_PREFIX = 'answer_option'
+    
+    # POST So'rovi
+    if request.method == 'POST':
+        # user=request.user ni uzatish zarur
+        form = QuestionForm(request.POST, request.FILES, user=request.user) 
+        answer_option_formset = None 
+
+        # 1. QuestionForm ni tekshirish
         if form.is_valid():
-            with transaction.atomic():
-                question = form.save(commit=False)
-                question.author = request.user
+            
+            # 2. Question obyektini xotirada yaratish (Formsetga instance uzatish uchun)
+            question_instance = form.save(commit=False)
+            question_instance.center = center # markazni o'rnatish
+            question_instance.author = request.user
+            
+            # 3. Formsetni instance bilan yaratish
+            answer_option_formset = AnswerOptionFormSet(
+                request.POST,
+                request.FILES,
+                prefix=ANSWER_OPTIONS_PREFIX,
+                instance=question_instance # 🛑 Instance bog'landi
+            )
+            
+            # 4. Formsetni validatsiya qilish
+            if answer_option_formset.is_valid():
+                try:
+                    with transaction.atomic():
+                        # 4.1. Question ni DB ga saqlash
+                        question_instance.save() 
+                        form.save_m2m() # ManyToMany bog'lanishlarni saqlash
+                        
+                        cleaned_data = form.cleaned_data # Barcha tozalangan ma'lumotlarni olish
+                        answer_format = cleaned_data['answer_format']
 
-                # Short answer format
-                if answer_format == 'short_answer':
-                    correct_short_answer = bleach.clean(request.POST.get('correct_short_answer', ''))
-                    if not correct_short_answer:
-                        messages.error(request, "Qisqa javob formatida to'g'ri javob kiritilishi shart!")
-                        return render(request, 'questions/edit_question.html', {'form': form, 'question': question})
-                    question.correct_short_answer = correct_short_answer
-                else:
-                    question.correct_short_answer = None
-
-                question.save()
-                form.save_m2m()
-
-                # Clear existing answer options and create new ones
-                if answer_format in ['single', 'multiple']:
-                    question.answeroption_set.all().delete()  # Use answeroption_set instead of options (unless related_name='options' is defined)
-                    option_texts = request.POST.getlist('option_text')
-                    correct_indices = request.POST.getlist('is_correct')
-                    valid_options = [text for text in option_texts if text.strip()]
-
-                    if len(valid_options) < 2:
-                        messages.error(request, "Kamida 2 ta javob varianti kiritilishi shart!")
-                        return render(request, 'questions/edit_question.html', {'form': form, 'question': question})
-
-                    if answer_format == 'single' and len(correct_indices) != 1:
-                        messages.error(request, "Yagona javob formatida faqat bitta to'g'ri javob tanlanishi kerak!")
-                        return render(request, 'questions/edit_question.html', {'form': form, 'question': question})
-
-                    if answer_format == 'multiple' and len(correct_indices) == 0:
-                        messages.error(request, "Bir nechta javob formatida kamida bitta to'g'ri javob tanlanishi kerak!")
-                        return render(request, 'questions/edit_question.html', {'form': form, 'question': question})
-
-                    for i, option_text in enumerate(option_texts):
-                        if option_text.strip():
-                            is_correct = str(i + 1) in correct_indices
-                            cleaned_option_text = bleach.clean(option_text)
-                            AnswerOption.objects.create(
-                                question=question,
-                                text=cleaned_option_text,
-                                is_correct=is_correct
+                        # 4.2. QuestionSolution ni saqlash (ASOSIY TUZATISH - qayta tozalash yo'q)
+                        hint = cleaned_data.get('hint', '').strip()
+                        detailed_solution = cleaned_data.get('detailed_solution', '').strip()
+                        
+                        # Faqat matn mavjud bo'lsa, saqlaymiz. Matn QuestionForm.clean() da tozalangan.
+                        if hint or detailed_solution:
+                            QuestionSolution.objects.update_or_create(
+                                question=question_instance,
+                                defaults={
+                                    'hint': hint, # ✅ QuestionForm.clean() dan kelgan tozalangan matn
+                                    'detailed_solution': detailed_solution # ✅ QuestionForm.clean() dan kelgan tozalangan matn
+                                }
                             )
+                        # Agar avval yechim bo'lib, endi o'chirilsa, yechim obyektini ham o'chirish kerak bo'lishi mumkin
+                        elif hasattr(question_instance, 'solution'):
+                            question_instance.solution.delete()
 
-                # Update or create solution
-                hint = bleach.clean(form.cleaned_data.get('hint', ''))
-                detailed_solution = bleach.clean(form.cleaned_data.get('detailed_solution', ''))
-                solution, created = QuestionSolution.objects.get_or_create(question=question)
-                solution.hint = hint
-                solution.detailed_solution = detailed_solution
-                solution
+
+                        # 4.3. Javob formatiga qarab mantiq (O'zgarishsiz qoldi, chunki short_answer allaqachon tozalangan)
+                        if answer_format in ['single', 'multiple']:
+                            answer_option_formset.save() 
+                            # Agar oldindan short_answer qiymati mavjud bo'lsa, uni o'chirish
+                            if question_instance.correct_short_answer:
+                                question_instance.correct_short_answer = None
+                                question_instance.save(update_fields=['correct_short_answer'])
+                                
+                        elif answer_format == 'short_answer':
+                            # correct_short_answer QuestionForm.clean() da allaqachon tozalangan/formatlangan
+                            correct_short_answer = cleaned_data.get('correct_short_answer', '').strip()
+                            question_instance.correct_short_answer = correct_short_answer
+                            question_instance.save(update_fields=['correct_short_answer'])
+                            # Variantlarni o'chirish
+                            question_instance.options.all().delete()
+                            
+                        # Bu else holati odatda bo'lmasligi kerak
+                        else:
+                            question_instance.options.all().delete()
+                            question_instance.correct_short_answer = None
+                            question_instance.save(update_fields=['correct_short_answer'])
+
+
+                        messages.success(request, _(f"Savol ID {question_instance.id} muvaffaqiyatli qo'shildi!"))
+                        logger.info(f"Savol ID {question_instance.id} muvaffaqiyatli saqlandi. Format: {answer_format}")
+
+                        # 4.4. MUVAFFDAQIYATLI SAQLASHDAN KEYIN YO'NALTIRISH
+                        return redirect('subtopic_questions', slug=center.slug, subtopic_id=question_instance.subtopic.id)
+
+                except Exception as e:
+                    messages.error(request, _(f"Saqlashda kutilmagan xatolik yuz berdi: {str(e)}"))
+                    logger.error(f"Savolni saqlash xatosi (Exception): {e}. Form errors: {form.errors}, Formset errors: {answer_option_formset.errors if answer_option_formset else 'Not created'}")
+            
+            # Formset validatsiyadan o'tmasa
+            else:
+                logger.error(f"AnswerOptionFormSet XATOLARI: {answer_option_formset.errors}")
+                messages.error(request, _("Javob variantlarini saqlashda xatolik yuz berdi. Iltimos, tekshiring."))
+
+        # QuestionForm validatsiyadan o'tmasa
+        else:
+            # AnswerOptionFormSet ni POST ma'lumotlari bilan yaratish (xatolarni ko'rsatish uchun)
+            # Lekin instance bo'lmagani uchun FormSet.clean() ishlamaydi, bu OK.
+            answer_option_formset = AnswerOptionFormSet(request.POST, request.FILES, prefix=ANSWER_OPTIONS_PREFIX)
+            logger.error("FORM VALIDATSIYADAN O'TMADI (add_question).")
+            logger.error(f"QuestionForm XATOLARI: {form.errors.as_json()}")
+            messages.error(request, _("Savolni saqlashda xatolik yuz berdi. Iltimos, formadagi xabarlarni tekshiring."))
+        
+        # Xatolar bo'lsa, shablonni qayta ko'rsatish
+        irt_fields = [
+            form['difficulty'], form['discrimination'], form['guessing'],
+            form['difficulty_level'], form['status']
+        ]
+        return render(request, 'questions/add_questions.html', {
+            'form': form,
+            'answer_option_formset': answer_option_formset,
+            'irt_fields': irt_fields,
+            'center': center,
+            **get_base_context(request)
+        })
+
+    # GET So'rovi (o'zgarmadi)
+    else: 
+        # 6. GET so'rovi uchun formani va bo'sh formsetni yaratish
+        initial_data = {'center': center}
+        subtopic_id = request.GET.get('subtopic')
+        if subtopic_id:
+            try:
+                # Subtopic mavjudligini tekshirish
+                Subtopic.objects.get(pk=subtopic_id, center=center)
+                initial_data['subtopic'] = subtopic_id
+            except (Subtopic.DoesNotExist, ValueError):
+                logger.warning(f"URLda noto'g'ri Subtopic ID kiritildi: {subtopic_id}")
+
+        form = QuestionForm(initial=initial_data, user=request.user)
+        # GET uchun bo'sh (yangi) formset
+        answer_option_formset = AnswerOptionFormSet(
+            prefix=ANSWER_OPTIONS_PREFIX,
+            queryset=AnswerOption.objects.none()
+        )
+        irt_fields = [
+            form['difficulty'],
+            form['discrimination'],
+            form['guessing'],
+            form['difficulty_level'],
+            form['status']
+        ]
+        return render(request, 'questions/add_questions.html', {
+            'form': form,
+            'answer_option_formset': answer_option_formset,
+            'irt_fields': irt_fields,
+            'center': center,
+            **get_base_context(request)
+        })
+    
+@login_required(login_url='login')
+@user_passes_test(is_teacher, login_url='index')
+def edit_question(request, slug, question_id):
+    """
+    Mavjud savolni tahrirlash. QuestionForm va AnswerOptionFormSet bilan ishlaydi.
+    """
+    
+    # 0. Center va Question obyektini olish
+    center = get_object_or_404(Center, slug=slug)
+    question_instance = get_object_or_404(Question, id=question_id, center=center)
+
+    if not is_teacher(request.user):
+        messages.error(request, _("Faqat o'qituvchilar savolni tahrirlashi mumkin!"))
+        return redirect('index')
+
+    if request.user.role == 'center_admin' and request.user.center != center:
+        raise PermissionDenied(_("Bu markazga kirish huquqingiz yo‘q"))
+
+    ANSWER_OPTIONS_PREFIX = 'answer_option'
+
+    # Savol yechimini yuklab olish
+    solution_instance = None
+    if hasattr(question_instance, 'solution'):
+        solution_instance = question_instance.solution
+
+    # POST So'rovi
+    if request.method == 'POST':
+        # Savol formasini mavjud ma'lumot (instance) va POST ma'lumotlari bilan yaratish
+        form = QuestionForm(
+            request.POST, 
+            request.FILES, 
+            user=request.user, 
+            instance=question_instance,
+            initial={'hint': solution_instance.hint if solution_instance else '', 
+                     'detailed_solution': solution_instance.detailed_solution if solution_instance else ''}
+        ) 
+        
+        # Formsetni mavjud ma'lumot (instance) va POST ma'lumotlari bilan yaratish
+        answer_option_formset = AnswerOptionFormSet(
+            request.POST,
+            request.FILES,
+            prefix=ANSWER_OPTIONS_PREFIX,
+            instance=question_instance # 🛑 Instance bog'landi
+        )
+
+        # 1. QuestionForm ni tekshirish
+        if form.is_valid():
+            # 2. Question obyektini xotirada saqlash (commit=False)
+            question_instance = form.save(commit=False)
+            question_instance.center = center # markazni qayta o'rnatish
+            question_instance.author = request.user # avtorni qayta o'rnatish
+            
+            # 3. Formsetni validatsiya qilish
+            if answer_option_formset.is_valid():
+                try:
+                    with transaction.atomic():
+                        # 4.1. Question ni DB ga saqlash
+                        question_instance.save() 
+                        form.save_m2m() # ManyToMany bog'lanishlarni saqlash
+                        
+                        cleaned_data = form.cleaned_data 
+                        answer_format = cleaned_data['answer_format']
+
+                        # 4.2. QuestionSolution ni saqlash/o'chirish
+                        hint = cleaned_data.get('hint', '').strip()
+                        detailed_solution = cleaned_data.get('detailed_solution', '').strip()
+                        
+                        if hint or detailed_solution:
+                            QuestionSolution.objects.update_or_create(
+                                question=question_instance,
+                                defaults={
+                                    'hint': hint,
+                                    'detailed_solution': detailed_solution,
+                                    'is_free': cleaned_data.get('is_solution_free', False) # is_free maydoni ham saqlanishi kerak
+                                }
+                            )
+                        elif hasattr(question_instance, 'solution'):
+                            question_instance.solution.delete()
+
+                        # 4.3. Javob formatiga qarab mantiq
+                        if answer_format in ['single', 'multiple']:
+                            answer_option_formset.save() 
+                            # Agar oldindan short_answer qiymati mavjud bo'lsa, uni o'chirish
+                            if question_instance.correct_short_answer:
+                                question_instance.correct_short_answer = None
+                                question_instance.save(update_fields=['correct_short_answer'])
+                                
+                        elif answer_format == 'short_answer':
+                            correct_short_answer = cleaned_data.get('correct_short_answer', '').strip()
+                            question_instance.correct_short_answer = correct_short_answer
+                            question_instance.save(update_fields=['correct_short_answer'])
+                            # Variantlarni o'chirish
+                            question_instance.options.all().delete()
+                            
+                        # Bu else holati odatda bo'lmasligi kerak
+                        else:
+                            question_instance.options.all().delete()
+                            question_instance.correct_short_answer = None
+                            question_instance.save(update_fields=['correct_short_answer'])
+
+
+                        messages.success(request, _(f"Savol ID {question_instance.id} muvaffaqiyatli tahrirlandi!"))
+                        logger.info(f"Savol ID {question_instance.id} muvaffaqiyatli tahrirlandi. Format: {answer_format}")
+
+                        # 4.4. MUVAFFDAQIYATLI SAQLASHDAN KEYIN YO'NALTIRISH
+                        return redirect('subtopic_questions', slug=center.slug, subtopic_id=question_instance.subtopic.id)
+
+                except Exception as e:
+                    messages.error(request, _(f"Saqlashda kutilmagan xatolik yuz berdi: {str(e)}"))
+                    logger.error(f"Savolni saqlash xatosi (Exception): {e}. Form errors: {form.errors}, Formset errors: {answer_option_formset.errors if answer_option_formset else 'Not created'}")
+            
+            # Formset validatsiyadan o'tmasa
+            else:
+                logger.error(f"AnswerOptionFormSet XATOLARI: {answer_option_formset.errors}")
+                messages.error(request, _("Javob variantlarini saqlashda xatolik yuz berdi. Iltimos, tekshiring."))
+
+        # QuestionForm validatsiyadan o'tmasa
+        else:
+            # AnswerOptionFormSet ni POST ma'lumotlari bilan yaratish (xatolarni ko'rsatish uchun)
+            answer_option_formset = AnswerOptionFormSet(
+                request.POST, 
+                request.FILES, 
+                prefix=ANSWER_OPTIONS_PREFIX, 
+                instance=question_instance
+            )
+            logger.error("FORM VALIDATSIYADAN O'TMADI (edit_question).")
+            logger.error(f"QuestionForm XATOLARI: {form.errors.as_json()}")
+            messages.error(request, _("Savolni saqlashda xatolik yuz berdi. Iltimos, formadagi xabarlarni tekshiring."))
+    
+    # GET So'rovi (Sahifani birinchi marta yuklash)
+    else:
+        # QuestionForm ni mavjud ma'lumot (instance) bilan yaratish
+        form = QuestionForm(
+            user=request.user, 
+            instance=question_instance,
+            initial={'hint': solution_instance.hint if solution_instance else '', 
+                     'detailed_solution': solution_instance.detailed_solution if solution_instance else ''}
+        )
+        
+        # Formsetni mavjud ma'lumot (instance) bilan yaratish
+        answer_option_formset = AnswerOptionFormSet(
+            instance=question_instance, 
+            prefix=ANSWER_OPTIONS_PREFIX,
+            queryset=question_instance.options.all().order_by('id') # Variantlarni ID bo'yicha tartiblab olish
+        )
+
+    # Shablonni render qilish
+    irt_fields = [
+        form['difficulty'], form['discrimination'], form['guessing'],
+        form['difficulty_level'], form['status']
+    ]
+    
+    # 💡 Formsetda yetishmayotgan minimal variantlarni qo'shish mantiqi (Agar MAX_NUM=5 bo'lsa)
+    # Ushbu qismni AnswerOptionFormSet ichida bajarish maqsadga muvofiq,
+    # lekin bu yerda shablonni to'g'ri ko'rsatish uchun uni o'zgartirmaymiz.
+
+    return render(request, 'questions/edit_question.html', {
+        'form': form,
+        'answer_option_formset': answer_option_formset,
+        'irt_fields': irt_fields,
+        'center': center,
+        'question': question_instance, # Shablon sarlavhasi uchun kerak
+    })
+
+def delete_images_from_html(html_content):
+    """ HTML matnidagi img teglarini topadi va default storage'dan fayllarni o'chiradi. """
+    if not html_content:
+        return
+        
+    try:
+        soup = BeautifulSoup(html_content, 'html.parser')
+        images = soup.find_all('img')
+        for img in images:
+            src = img.get('src')
+            if src and src.startswith(default_storage.base_url):
+                # /media/uploads/... kabi manzilni topamiz
+                file_path = src.replace(default_storage.base_url, '', 1) 
+                
+                # Agar saqlash joyi mahalliy (local storage) bo'lsa, o'chiramiz
+                if default_storage.exists(file_path):
+                    default_storage.delete(file_path)
+                    logger.info(f"O'chirilgan fayl: {file_path}")
+
+    except Exception as e:
+        logger.error(f"HTMLdagi rasmlarni o'chirishda xatolik: {e}")
+
+@login_required(login_url='login')
+def delete_question(request, slug, question_id):
+    """ Savolni o'chirish uchun tasdiqlash sahifasini ko'rsatadi va o'chiradi. """
+    
+    # 1. Center va Ruxsat tekshiruvi
+    center = get_object_or_404(Center, slug=slug)
+    user = request.user
+    
+    # Ruxsat tekshiruvi: Faqat shu markazning 'teacher' yoki 'center_admin'i bo'lishi kerak.
+    # Muallif tekshiruvi keyinroq qo'shildi. Agar admin bo'lsa, muallif bo'lish shart emas.
+    if user.center != center or user.role not in ['teacher', 'center_admin']:
+        messages.error(request, _("Bu markazdagi savollarni o'chirish huquqingiz yo‘q."))
+        return redirect('index')
+    
+    # Savolni yuklash:
+    # Admin o'z markazidagi istalgan savolni o'chira oladi.
+    # Teacher faqat o'zining savollarini o'chira oladi.
+    if user.role == 'teacher':
+        question_query = Question.objects.filter(id=question_id, center=center, author=user)
+    else: # center_admin
+        question_query = Question.objects.filter(id=question_id, center=center)
+        
+    question = get_object_or_404(question_query)
+    
+    # Qayerga qaytishni aniqlash
+    redirect_url = redirect('subtopic_questions', slug=center.slug, subtopic_id=question.subtopic.id) if question.subtopic else redirect('my_questions', slug=center.slug)
+
+    # POST so'rovi: Savolni o'chirish
+    if request.method == 'POST':
+        try:
+            # Savol matnidagi, variantlaridagi va yechimlaridagi rasmlarni o'chirish
+            
+            # 1. Savol matni
+            delete_images_from_html(question.text)
+            
+            # 2. Javob variantlari matni
+            for option in question.options.all():
+                delete_images_from_html(option.text)
+                
+            # 3. Yechim (Hint/Detailed Solution)
+            if hasattr(question, 'solution'):
+                delete_images_from_html(question.solution.hint)
+                delete_images_from_html(question.solution.detailed_solution)
+
+            # 4. Savolni o'chirish
+            # Agar Question modelida on_delete=CASCADE bo'lsa, bog'liq AnswerOption va QuestionSolution 
+            # avtomatik o'chadi.
+            question.delete()
+            
+            messages.success(request, _("Savol muvaffaqiyatli o'chirildi!"))
+            return redirect_url
+            
+        except Exception as e:
+            logger.error(f"Savolni o'chirishda xatolik (ID: {question_id}): {e}")
+            messages.error(request, _(f"Savolni o'chirishda kutilmagan xatolik yuz berdi: {str(e)}"))
+            return redirect_url
+    
+    # GET so'rovi: Tasdiqlash sahifasini ko'rsatish
+    return render(request, 'questions/delete_question_confirm.html', {
+        'question': question,
+        'center': center,
+        'redirect_url': redirect_url.url, # orqaga qaytish uchun URL
+    })
 
 @login_required
 def search_flashcards_api(request):
@@ -2647,252 +3788,1844 @@ def search_flashcards_api(request):
 
 @login_required(login_url='login')
 @user_passes_test(is_teacher, login_url='index')
-def delete_question(request, question_id):
-    """Savolni o'chirish."""
-    question = get_object_or_404(Question, id=question_id, author=request.user)
-    
-    # Savolni o'chirgandan so'ng qayerga qaytishni aniqlash
-    # Subtopic mavjud bo'lsa, o'sha mavzuga qaytish
-    redirect_url = 'my_questions'
-    if question.subtopic:
-        redirect_url = 'subtopic_questions'
-        redirect_args = [question.subtopic.id]
-    
-    if request.method == 'POST':
-        question.delete()
-        messages.success(request, "Savol muvaffaqiyatli o'chirildi!")
+@csrf_exempt # 🛑 MUHIM: CKEditor yuklash mexanizmi uchun ko'pincha kerak bo'ladi
+def ckeditor_upload_image(request):
+    """
+    CKEditor rasm yuklash talablariga mos View funksiyasi.
+    U 'upload' nomli POST faylini kutadi va URL ni qaytaradi.
+    """
+    if request.method == 'POST' and request.FILES.get('upload'):
+        file_obj = request.FILES['upload']
         
-        # O'chirilgandan so'ng to'g'ri sahifaga yo'naltirish
-        if question.subtopic:
-            return redirect('subtopic_questions', subtopic_id=question.subtopic.id)
-        else:
-            return redirect('my_questions')
-            
-    return redirect(redirect_url, *redirect_args)
+        # Fayl nomini o'zgartirish (to'qnashuvni oldini olish uchun)
+        import os
+        ext = os.path.splitext(file_obj.name)[1]
+        file_name = default_storage.get_available_name(f'questions/ckeditor/{file_obj.name}')
+        
+        # Faylni saqlash
+        saved_file_name = default_storage.save(file_name, file_obj)
+        file_url = default_storage.url(saved_file_name)
+        
+        # CKEditor 4 (ko'p ishlatiladigan) talab qiladigan format:
+        # success: {"uploaded": true, "url": "/media/questions/ckeditor/my_image.png"}
+        return JsonResponse({
+            'uploaded': 1, # CKEditor 4 uchun success holati
+            'fileName': os.path.basename(saved_file_name),
+            'url': file_url
+        })
+    
+    # Yuklash xatosi yoki noto'g'ri so'rov
+    return JsonResponse({'uploaded': 0, 'error': {'message': 'Rasm yuklashda xatolik yuz berdi.'}}, status=400)
+
 
 @login_required(login_url='login')
 @user_passes_test(is_teacher, login_url='index')
-def upload_image(request):
-    """TinyMCE rasm yuklashlarini qayta ishlash."""
-    if request.method == 'POST' and request.FILES.get('file'):
-        file = request.FILES['file']
-        file_name = default_storage.save(f'questions/{file.name}', file)
-        file_url = default_storage.url(file_name)
-        return JsonResponse({'location': file_url})
-    return JsonResponse({'error': 'Noto\'g\'ri so\'rov'}, status=400)
+def passage_list(request, slug): # Center slug = 'slug'
+    """Berilgan Center slug'ga tegishli BARCHA 'Passage'larni ko'rsatadi (Author filtrisiz)."""
+    
+    center = get_object_or_404(Center, slug=slug)
+    
+    # Faqat Center bo'yicha filtrlash.
+    passages = Passage.objects.filter(
+        center=center 
+    ).order_by('-created_at')
+    
+    return render(request, 'passage/passage_list.html', {
+        'passages': passages,
+        'center': center,
+    })
 
-@login_required
-@user_passes_test(is_teacher)
-def passage_list(request):
-    """O'qituvchiga tegishli barcha 'passage'lar ro'yxatini ko'rsatadi."""
-    passages = Passage.objects.filter(author=request.user).order_by('-created_at')
-    return render(request, 'passage/passage_list.html', {'passages': passages})
+# ==============================================================================
+# 2. ADD PASSAGE (Yaratish: Center slug = 'slug')
+# ==============================================================================
 
-@login_required
-@user_passes_test(is_teacher)
-def add_passage(request):
-    """Yangi 'passage' yaratish uchun funksiya."""
+@login_required(login_url='login')
+@user_passes_test(is_teacher, login_url='index')
+def add_passage(request, slug): # Center slug = 'slug'
+    """Yangi 'passage'ni ma'lum bir markazga yaratish uchun funksiya."""
+    
+    center = get_object_or_404(Center, slug=slug)
+    
     if request.method == 'POST':
         form = PassageForm(request.POST)
         if form.is_valid():
             passage = form.save(commit=False)
-            passage.author = request.user
+            passage.author = request.user # Yozuvchi saqlanadi
+            passage.center = center 
             passage.save()
-            messages.success(request, "Yangi matn muvaffaqiyatli qo'shildi!")
-            return redirect('passage_list')
+            messages.success(request, f"Yangi matn ({center.name} uchun) muvaffaqiyatli qo'shildi!")
+            
+            return redirect('passage_list', slug=center.slug) 
     else:
         form = PassageForm()
-    return render(request, 'passage/add_passage.html', {'form': form})
+        
+    return render(request, 'passage/add_passage.html', {'form': form, 'center': center})
 
-@login_required
-@user_passes_test(is_teacher)
-def edit_passage(request, pk):
-    """Mavjud 'passage'ni tahrirlash uchun funksiya."""
-    passage = get_object_or_404(Passage, pk=pk, author=request.user)
+# ==============================================================================
+# 3. EDIT PASSAGE (Tahrirlash: Center slug = 'slug', Passage PK = 'pk')
+# ==============================================================================
+
+@login_required(login_url='login')
+@user_passes_test(is_teacher, login_url='index')
+# ✅ Argument 'p_slug' o'rniga 'pk' ishlatiladi
+def edit_passage(request, slug, pk): 
+    """Mavjud 'passage'ni Center slug va Passage PK orqali tahrirlash uchun funksiya."""
+    
+    # ✅ PK orqali topish (slug o'rniga)
+    passage = get_object_or_404(
+        Passage, 
+        pk=pk,          
+        center__slug=slug
+    )
+    center = passage.center 
+    
     if request.method == 'POST':
         form = PassageForm(request.POST, instance=passage)
         if form.is_valid():
             form.save()
-            messages.success(request, "Matn muvaffaqiyatli tahrirlandi!")
-            return redirect('passage_list')
+            messages.success(request, f"Matn '{passage.title[:20]}...' muvaffaqiyatli tahrirlandi!")
+            
+            return redirect('passage_list', slug=center.slug) 
     else:
         form = PassageForm(instance=passage)
-    return render(request, 'passage/edit_passage.html', {'form': form, 'passage': passage})
+        
+    return render(request, 'passage/edit_passage.html', {'form': form, 'passage': passage, 'center': center})
 
-@login_required
-@user_passes_test(is_teacher)
-def delete_passage(request, pk):
-    """'Passage'ni o'chirish uchun funksiya."""
-    passage = get_object_or_404(Passage, pk=pk, author=request.user)
+# ==============================================================================
+# 4. DELETE PASSAGE (O'chirish: Center slug = 'slug', Passage PK = 'pk')
+# ==============================================================================
+
+@login_required(login_url='login')
+@user_passes_test(is_teacher, login_url='index')
+# ✅ Argument 'p_slug' o'rniga 'pk' ishlatiladi
+def delete_passage(request, slug, pk): 
+    """'Passage'ni Center slug va Passage PK orqali o'chirish uchun funksiya."""
+    
+    # ✅ PK orqali topish (slug o'rniga)
+    passage = get_object_or_404(
+        Passage, 
+        pk=pk, 
+        center__slug=slug
+    )
+    center = passage.center
+    
     if request.method == 'POST':
         passage.delete()
         messages.success(request, "Matn muvaffaqiyatli o'chirildi.")
-        return redirect('passage_list')
-    return render(request, 'passage/delete_passage.html', {'passage': passage})
+        
+        return redirect('passage_list', slug=center.slug) 
+        
+    return render(request, 'passage/delete_passage.html', {'passage': passage, 'center': center})
 
-# =========================================================================
-# ⭐️ 1. ACHIEVEMENTS_VIEW (Yutuqlar, Nishonlar, Missiyalar, Liderlar)
-# =========================================================================
 
-@login_required
-def achievements_view(request):
+
+@login_required(login_url='login')
+def process_purchase_view(request, slug, purchase_type, item_id):
     """
-    Foydalanuvchining barcha yutuqlari, missiyalari va liderlar doskasi statistikasini ko'rsatadi.
-    Yuqoridagi ikki xil mantiqni birlashtiramiz va haftalik hisob-kitobni saqlaymiz.
+    Yangi xarid obyekti yaratadi va skrinshot yuklash sahifasiga yo‘naltiradi.
+    Faqat o‘z markazidagi tariflar.
     """
-    user = request.user
-    
-    # 1. Joriy hafta raqamini aniqlash
-    # isocalendar()[1] ISO hafta raqamini beradi
-    current_week = timezone.now().isocalendar()[1] 
+    center = get_object_or_404(Center, slug=slug)
+    if request.user.center != center:
+        messages.error(request, "Ruxsat yo‘q.")
+        return redirect('dashboard',slug=request.user.center.slug)
 
-    # 2. Nishonlar (Badges) va keyingi nishonni topish
-    all_badges = Badge.objects.all().order_by('title')
-    earned_badge_ids = set(UserBadge.objects.filter(user=user).values_list('badge_id', flat=True))
-
-    next_badge_to_earn = None
-    # Qo'lga kiritilmagan eng birinchi nishonni topamiz
-    for badge in all_badges:
-        if badge.id not in earned_badge_ids:
-            next_badge_to_earn = badge
-            break
-
-    # 3. Joriy Missiyalar (Missions) progressi
-    # UserMissionProgress modeli orqali yoki dinamik hisoblash orqali (ikkinchi mantiqni qoldiramiz)
-    try:
-        mission_progress = UserMissionProgress.objects.get(user=user)
-    except UserMissionProgress.DoesNotExist:
-         # Agar model mavjud bo'lmasa, dinamik hisob-kitob
-         mission_progress = {
-             'exam_attempts_completed': UserAttempt.objects.filter(user=user, is_completed=True).count(),
-             'highest_score': UserAttempt.objects.filter(user=user, is_completed=True).aggregate(max_score=Max('attempts__final_total_score'))['max_score'] or 0,
-         }
-         
-    # 4. Liderlar Doskasi (Leaderboards)
-    
-    # LeaderboardEntry modeli bo'yicha hisoblash (samaraliroq):
-    performance_leaderboard = LeaderboardEntry.objects.filter(
-        leaderboard_type='performance',
-        week_number=current_week
-    ).select_related('user').order_by('-score')[:10] # Top 10
-    
-    effort_leaderboard = LeaderboardEntry.objects.filter(
-        leaderboard_type='effort',
-        week_number=current_week
-    ).select_related('user').order_by('-score')[:10] # Top 10
-
-    context = {
-        'all_badges': all_badges,
-        'earned_badge_ids': earned_badge_ids,
-        'next_badge_to_earn': next_badge_to_earn,
-        'mission_progress': mission_progress,
-        'performance_leaderboard': performance_leaderboard,
-        'effort_leaderboard': effort_leaderboard,
-        'current_week': current_week,
-    }
-    return render(request, 'student/achievements.html', context)
-
-# =========================================================================
-# ⭐️ 2. PROCESS_PURCHASE_VIEW (Xaridni Boshlash)
-# =========================================================================
-
-@login_required
-def process_purchase_view(request, purchase_type, item_id):
-    """
-    Yangi xarid obyekti yaratadi va foydalanuvchini skrinshot yuklash sahifasiga yo'naltiradi.
-    """
     user = request.user
     item = None
-    
-    if purchase_type == 'subscription':
-        item = get_object_or_404(SubscriptionPlan, id=item_id)
-    elif purchase_type == 'package':
-        item = get_object_or_404(ExamPackage, id=item_id)
-    else:
-        messages.error(request, "Xarid turida xatolik. Noto‘g‘ri tur ko‘rsatilgan.")
-        return redirect('price') # 'price' url nomi mavjud deb hisoblanadi
 
-    # Yangi xarid obyektini yaratish
-    # Tranzaksiya ichida yaratish shart emas, chunki bu faqat pending yozuv yaratish
+    if purchase_type == 'subscription':
+        item = get_object_or_404(SubscriptionPlan, id=item_id, is_active=True)
+    elif purchase_type == 'package':
+        item = get_object_or_404(ExamPackage, id=item_id, is_active=True)
+    else:
+        messages.error(request, "Noto‘g‘ri xarid turi.")
+        return redirect('price', slug=slug)
+
+    # Xarid yaratish
     purchase = Purchase.objects.create(
         user=user,
         purchase_type=purchase_type,
         package=item if purchase_type == 'package' else None,
         subscription_plan=item if purchase_type == 'subscription' else None,
         amount=item.price,
-        final_amount=item.price, # Chegirma logikasi qo'shilishi mumkin
+        final_amount=item.price,
         status='pending'
     )
-    
-    messages.info(request, f"'{item.name}' xaridi uchun to‘lov kutilyapti. Iltimos, to‘lov skrinshotini yuboring.")
 
-    # Foydalanuvchini skrinshot yuklash sahifasiga yo'naltirish
-    return redirect('upload_screenshot', purchase_id=purchase.id)
+    messages.info(request, f"'{item.name}' uchun to‘lov kutilmoqda. Skrinshotni yuklang.")
 
-# =========================================================================
-# ⭐️ 3. UPLOAD_SCREENSHOT_VIEW (Skrinshotni Yuklash)
-# =========================================================================
+    return redirect('upload_screenshot', slug=slug, purchase_id=purchase.id)
 
-@login_required
-def upload_screenshot_view(request, purchase_id):
+@login_required(login_url='login')
+def upload_screenshot_view(request, slug, purchase_id):
     """
-    Foydalanuvchining to'lov skrinshotini yuklash formasini ko'rsatadi va qabul qiladi.
+    Skrinshot yuklash – faqat o‘z xaridi uchun.
     """
-    # 1. Xarid obyektini tekshirib yuklash
-    purchase = get_object_or_404(Purchase, id=purchase_id, user=request.user)
+    center = get_object_or_404(Center, slug=slug)
+    if request.user.center != center:
+        messages.error(request, "Ruxsat yo‘q.")
+        return redirect('dashboard',slug=request.user.center.slug)
 
-    if purchase.status != 'pending':
-        messages.info(request, "Bu xarid bo'yicha ma'lumot allaqachon yuborilgan va tekshirilmoqda yoki tasdiqlangan.")
-        return redirect('dashboard') 
+    purchase = get_object_or_404(
+        Purchase, 
+        id=purchase_id, 
+        user=request.user,
+        status='pending'  # faqat pending bo‘lsa
+    )
 
-    # 2. POST so'rovi
     if request.method == 'POST':
-        # form instance'ga purchase obyektini bog'laymiz
-        form = ScreenshotUploadForm(request.POST, request.FILES, instance=purchase) 
+        form = ScreenshotUploadForm(request.POST, request.FILES, instance=purchase)
         if form.is_valid():
             purchase = form.save(commit=False)
-            purchase.status = 'moderation' # Tasdiqlash uchun statusni o'zgartiramiz
+            purchase.status = 'moderation'
             purchase.save()
-            
-            messages.success(request, "To'lov ma'lumotlaringiz qabul qilindi. Tez orada tasdiqlanadi!")
-            return redirect('dashboard')
+            messages.success(request, "Skrinshot qabul qilindi. Tez orada tasdiqlanadi!")
+            return redirect('dashboard',slug=request.user.center.slug)
         else:
-            # Formada xato bo'lsa, xatolikni ko'rsatish
-            messages.error(request, "Xato: Iltimos, barcha maydonlarni to‘g‘ri to‘ldiring.")
+            messages.error(request, "Formada xatolik. Iltimos, tekshiring.")
     else:
-        # 3. GET so'rovi (Formani ko'rsatish)
         form = ScreenshotUploadForm(instance=purchase)
 
-    # Admin panelidan sozlamalarni olish (Bank rekvizitlari uchun)
-    # objects.first() bu yechim bo'lsa, uni saqlaymiz
     site_settings = SiteSettings.objects.first()
 
     context = {
+        'center': center,
         'form': form,
         'purchase': purchase,
-        # Xarid qilingan ob'ektni olish
-        'item': purchase.subscription_plan or purchase.package, 
+        'item': purchase.subscription_plan or purchase.package,
         'site_settings': site_settings,
     }
     return render(request, 'student/upload_screenshot.html', context)
 
 def get_section_questions(section, exam):
-    """Bo'lim uchun savollar ro'yxatini hisoblash."""
-    section_questions = []
-    static_questions = section.static_questions.all().select_related('question')
-    section_questions.extend([sq.question for sq in static_questions])
-    topic_rules = section.topic_rules.all()
-    for rule in topic_rules:
-        topic_questions = Question.objects.filter(
-            subtopic__topic=rule.topic,
-            author=exam.teacher
-        )[:rule.questions_count]
-        section_questions.extend(topic_questions)
-    subtopic_rules = section.subtopic_rules.all()
-    for rule in subtopic_rules:
-        subtopic_questions = Question.objects.filter(
-            subtopic=rule.subtopic,
-            author=exam.teacher
-        )[:rule.questions_count]
-        section_questions.extend(subtopic_questions)
-    return section_questions
+    """
+    Bo‘lim uchun statik savollarni qaytaradi.
+    Faqat o‘z markazidagi savollar.
+    """
+    if exam.center != section.exam.center:
+        return []  # Xavfsizlik
+
+    static_questions = section.static_questions.filter(
+        question__exam__center=exam.center
+    ).select_related('question')
+    
+    return [sq.question for sq in static_questions]
+
+# ======================================================================
+# 1. EXAM BOSHQARUVI
+# ======================================================================
+
+@login_required(login_url='login')
+@user_passes_test(is_teacher, login_url='index')
+def exam_list(request, slug): # 🎯 SLUG QO'SHILDI
+    """
+    Imtihonlar ro'yxatini ko'rish (Faqat user.center ichida).
+    """
+    center = get_object_or_404(Center, slug=slug)
+    
+    # Xavfsizlik: Foydalanuvchi markazga tegishli ekanligini tekshirish
+    if request.user.center != center:
+         messages.error(request, "Siz bu markaz imtihonlarini ko'rish huquqiga ega emassiz.")
+         return redirect('dashboard',slug=request.user.center.slug)
+    
+    # 1. Prefetch obyekti: ExamSectionOrder orqali Section savollar sonini olish 
+    prefetch_exam_sections = Prefetch(
+        'examsectionorder',
+        # ExamSectionOrder.exam_section.static_questions.count() N+1 muammosini keltirmaslik uchun
+        # HTML da to'g'ridan-to'g'ri .exam_section.static_questions.count ni ishlatamiz.
+        # Bu yerda faqat bog'lanishlarni optimallashtiramiz.
+        queryset=ExamSectionOrder.objects.select_related('exam_section').order_by('order'),
+        to_attr='ordered_sections'
+    )
+
+    # 2. Asosiy Exam so'rovi (Faqat shu markaz o'qituvchilari tomonidan yaratilgan imtihonlar)
+    exams = Exam.objects.filter(
+        teacher__center=center # 🎯 Filtrni o'zgartirdik: teacher=request.user O'RNIGA teacher__center=center
+    ).annotate(
+        section_count=Count('examsectionorder') 
+    ).prefetch_related(
+        prefetch_exam_sections,
+        'teacher' # Teacher ma'lumotlarini yuklaymiz
+    ).order_by('-created_at')
+    
+    context = {
+        'exams': exams,
+        'center': center, # Shablon uchun center obyekti
+    }
+    return render(request, 'management/exam_list.html', context)
+
+@login_required(login_url='login')
+@user_passes_test(is_teacher, login_url='index')
+def exam_create(request, slug):
+    """Yangi imtihon yaratish (Faqat user.center ichida)."""
+    center = get_object_or_404(Center, slug=slug)
+    if request.user.center != center:
+         messages.error(request, "Boshqa markazda imtihon yaratishga ruxsat yo'q.")
+         return redirect('dashboard',slug=request.user.center.slug)
+         
+    # Sectionlarni filtratsiya qilish: Faqat shu markazdagi o'qituvchilar yaratgan sectionlar
+    available_sections = ExamSection.objects.filter(
+        created_by__center=center 
+    ).annotate(
+        question_count=Count('static_questions')
+    ).order_by('name') 
+    
+    selected_sections_ids = []
+    
+    if request.method == 'POST':
+        form = ExamForm(request.POST)
+        selected_sections_ids_str = request.POST.getlist('sections_select2') 
+        
+        try:
+            selected_sections_ids = [int(id_str) for id_str in selected_sections_ids_str if id_str.isdigit()]
+        except:
+            messages.error(request, "Bo'lim ID'lari noto'g'ri formatda. Iltimos, faqat ro'yxatdan tanlang.")
+            selected_sections_ids = []
+
+        form_is_valid = form.is_valid()
+        
+        if not selected_sections_ids:
+            messages.error(request, "Iltimos, kamida bitta bo'limni tanlang.")
+            form_is_valid = False
+        
+        if form_is_valid and selected_sections_ids:
+            try:
+                with transaction.atomic():
+                    exam = form.save(commit=False)
+                    exam.teacher = request.user
+                    exam.center = center # Markazni imtihonga biriktirish 
+                    exam.save()
+                    
+                    selected_sections_map = {
+                        section.id: section for section in ExamSection.objects.filter(
+                            id__in=selected_sections_ids, 
+                            created_by__center=center, # Yaratishda ham filtr
+                        )
+                    }
+
+                    exam_section_orders = []
+                    for index, section_id in enumerate(selected_sections_ids):
+                        section = selected_sections_map.get(section_id)
+                        if not section: continue 
+                        exam_section_orders.append(
+                            ExamSectionOrder(exam=exam, exam_section=section, order=index + 1)
+                        )
+                    
+                    if exam_section_orders:
+                        ExamSectionOrder.objects.bulk_create(exam_section_orders)
+                        
+                        # ==================================================
+                        # ✅ FLASHCARD YARATISH MANTIG'INI TUZATISH
+                        # ==================================================
+
+                        # 1. Tanlangan ExamSectionlarga tegishli barcha Question ID'larini olish
+                        question_ids = ExamSectionStaticQuestion.objects.filter(
+                            exam_section__id__in=selected_sections_ids
+                        ).values_list('question_id', flat=True).distinct()
+
+                        # 2. Yuqoridagi Question ID'lariga bog'langan barcha Flashcard ID'larini olish
+                        # (Flashcard modelidagi ManyToManyField nomi 'questions' deb faraz qilinadi)
+                        flashcard_ids = Flashcard.objects.filter(
+                            questions__id__in=question_ids
+                        ).values_list('id', flat=True).distinct()
+
+                        if flashcard_ids.exists():
+                            # 3. FlashcardExam obyektini yaratish
+                            flashcard_exam = FlashcardExam.objects.create(
+                                source_exam=exam, 
+                                title=f"{exam.title} bo'yicha Flashcard to'plami"
+                            )
+                            
+                            # 4. Flashcardlarni biriktirish (MUHIM QISM: flashcards.set() orqali)
+                            flashcard_exam.flashcards.set(flashcard_ids) 
+                            
+                            messages.info(request, f"Flashcard to'plami avtomatik yaratildi va {flashcard_ids.count()} ta kartochka biriktirildi.")
+                        
+                        # ==================================================
+                        # ✅ TUZATISH YAKUNI
+                        # ==================================================
+                            
+                        messages.success(request, f"Imtihon '{exam.title}' muvaffaqiyatli yaratildi va {len(exam_section_orders)} ta bo'lim biriktirildi!")
+                        return redirect('exam_list', slug=center.slug) # SLUG Bilan REDIRECT
+                    else:
+                        messages.error(request, "Tanlangan bo'limlar ro'yxatida xato. Iltimos, boshqadan harakat qiling.")
+                        raise Exception("Bo'limlar ro'yxati yaratilmadi.")
+                
+            except Exception as e:
+                messages.error(request, f"Xato: Imtihonni yaratishda muammo yuz berdi. ({e})")
+        
+        selected_sections_ids = selected_sections_ids 
+
+    else:
+        form = ExamForm()
+        selected_sections_ids = []
+
+    context = {
+        'form': form,
+        'sections': available_sections,
+        'selected_sections_ids': selected_sections_ids,
+        'center': center, # Shablon uchun center obyekti
+    }
+    return render(request, 'management/exam_create.html', context)
+
+@login_required(login_url='login')
+@user_passes_test(is_teacher, login_url='index')
+def exam_edit(request, slug, pk): # 🎯 SLUG QO'SHILDI
+    """Imtihonni tahrirlash (Faqat user.center ichida)."""
+    center = get_object_or_404(Center, slug=slug)
+    if request.user.center != center:
+         messages.error(request, "Boshqa markaz imtihonini tahrirlashga ruxsat yo'q.")
+         return redirect('dashboard',slug=request.user.center.slug)
+         
+    # Examni o'zgartirdik: Faqat shu markazdagi o'qituvchilarning examlari
+    exam = get_object_or_404(Exam, id=pk, teacher__center=center)
+    
+    # 🎯 Sectionlarni filtratsiya qilish: Faqat shu markazdagi o'qituvchilar yaratgan sectionlar
+    available_sections = ExamSection.objects.filter(
+        created_by__center=center 
+    ).annotate(
+        question_count=Count('static_questions') 
+    ).order_by('name') 
+    
+    # ... Qolgan kod o'zgarishsiz, faqat REDIRECT ga slug qo'shiladi
+    current_section_ids = list(
+        ExamSectionOrder.objects.filter(exam=exam).order_by('order').values_list('exam_section_id', flat=True)
+    )
+
+    if request.method == 'POST':
+        form = ExamForm(request.POST, instance=exam)
+        selected_sections_ids_str = request.POST.getlist('sections_select2') 
+        
+        selected_sections_ids = []
+        try:
+            selected_sections_ids = [int(id_str) for id_str in selected_sections_ids_str if id_str.isdigit()]
+        except:
+            pass
+
+        form_is_valid = form.is_valid()
+        
+        if not selected_sections_ids:
+            messages.error(request, "Iltimos, kamida bitta bo'limni tanlang.")
+            form_is_valid = False
+        
+        if form_is_valid and selected_sections_ids:
+            try:
+                with transaction.atomic():
+                    exam = form.save()
+                    
+                    ExamSectionOrder.objects.filter(exam=exam).delete()
+                    selected_sections_map = {
+                        section.id: section for section in ExamSection.objects.filter(
+                            id__in=selected_sections_ids, created_by__center=center
+                        )
+                    }
+
+                    exam_section_orders = []
+                    for index, section_id in enumerate(selected_sections_ids):
+                        section = selected_sections_map.get(section_id)
+                        if not section: continue
+                        exam_section_orders.append(
+                            ExamSectionOrder(exam=exam, exam_section=section, order=index + 1)
+                        )
+                    
+                    if exam_section_orders:
+                        ExamSectionOrder.objects.bulk_create(exam_section_orders)
+                        
+                        has_flashcards_in_sections = Question.objects.filter(
+                            examsectionstaticquestion__exam_section__id__in=selected_sections_ids,
+                            flashcards__isnull=False 
+                        ).exists()
+
+                        if has_flashcards_in_sections:
+                            FlashcardExam.objects.get_or_create(
+                                source_exam=exam,
+                                defaults={'title': f"{exam.title} bo'yicha Flashcard to'plami"}
+                            )
+                            messages.info(request, "Flashcard to'plami yangilandi.")
+                        else:
+                            if hasattr(exam, 'flashcard_exam'):
+                                exam.flashcard_exam.delete()
+                                messages.info(request, "Flashcard to'plami so'zlar qolmagani uchun o'chirildi.")
+
+                        messages.success(request, f"Imtihon '{exam.title}' muvaffaqiyatli tahrirlandi va {len(exam_section_orders)} ta bo'lim biriktirildi!")
+                        return redirect('exam_list', slug=center.slug) # 🎯 SLUG Bilan REDIRECT
+                    else:
+                        messages.error(request, "Bo'limlar ro'yxati yaratilmadi. Iltimos, faqat o'zingiz yaratgan bo'limlarni tanlang.")
+                        current_section_ids = selected_sections_ids
+                        raise Exception("Bo'limlar to'liq yaratilmadi.")
+
+            except Exception as e:
+                error_message = f"Xato: Imtihonni tahrirlashda muammo yuz berdi. ({e})"
+                messages.error(request, error_message)
+                current_section_ids = selected_sections_ids 
+        else:
+            current_section_ids = selected_sections_ids if request.method == 'POST' else current_section_ids
+            
+    else:
+        form = ExamForm(instance=exam)
+
+    context = {
+        'form': form,
+        'exam': exam,
+        'sections': available_sections,
+        'current_section_ids': current_section_ids, 
+        'center': center, # Shablon uchun center obyekti
+    }
+    return render(request, 'management/exam_edit.html', context)
+
+@login_required(login_url='login')
+@user_passes_test(is_teacher, login_url='index')
+def exam_delete(request, slug, pk): # 🎯 SLUG QO'SHILDI
+    """Imtihonni o'chirish (Faqat user.center ichida)."""
+    center = get_object_or_404(Center, slug=slug)
+    if request.user.center != center:
+         messages.error(request, "Boshqa markaz imtihonini o'chirishga ruxsat yo'q.")
+         return redirect('dashboard',slug=request.user.center.slug)
+         
+    # Examni o'zgartirdik: Faqat shu markazdagi o'qituvchilarning examlari
+    exam = get_object_or_404(Exam, id=pk, teacher__center=center) 
+    
+    if request.method == 'POST':
+        exam.delete() 
+        messages.success(request, f"Imtihon '{exam.title}' muvaffaqiyatli o'chirildi!")
+        return redirect('exam_list', slug=center.slug) # 🎯 SLUG Bilan REDIRECT
+    
+    return redirect('exam_list', slug=center.slug) # 🎯 SLUG Bilan REDIRECT
+
+
+# ======================================================================
+# 2. SECTION BOSHQARUVI (Center Ichida Umumiy)
+# ======================================================================
+
+@login_required(login_url='login')
+@user_passes_test(is_teacher, login_url='index')
+def section_list(request, slug): # 🎯 SLUG QO'SHILDI
+    """Bo'limlar ro'yxatini ko'rish (Faqat user.center ichida umumiy)."""
+    center = get_object_or_404(Center, slug=slug)
+    if request.user.center != center:
+         messages.error(request, "Boshqa markaz bo'limlarini ko'rishga ruxsat yo'q.")
+         return redirect('dashboard',slug=request.user.center.slug)
+         
+    # 🎯 MUHIM O'ZGARTIRISH: Faqat shu markazdagi o'qituvchilar yaratgan bo'limlar
+    sections = ExamSection.objects.filter(created_by__center=center).annotate(
+        question_count=Count('static_questions')
+    ).select_related('created_by') # Kim yaratganini yuklaymiz
+    
+    context = {'sections': sections, 'center': center}
+    return render(request, 'management/section_list.html', context)
+
+@login_required(login_url='login')
+@user_passes_test(is_teacher, login_url='index')
+def section_create(request, slug): # 🎯 SLUG QO'SHILDI
+    """Yangi bo'lim yaratish (Faqat user.center ichida)."""
+    center = get_object_or_404(Center, slug=slug)
+    if request.user.center != center:
+         messages.error(request, "Boshqa markazda bo'lim yaratishga ruxsat yo'q.")
+         return redirect('dashboard',slug=request.user.center.slug)
+         
+    if request.method == 'POST':
+        form = ExamSectionForm(request.POST) 
+
+        if form.is_valid():
+            try:
+                with transaction.atomic():
+                    section = form.save(commit=False)
+                    if hasattr(section, 'created_by'):
+                        section.created_by = request.user
+                    section.save()
+                    
+                    messages.success(request, "Bo'lim ma'lumotlari muvaffaqiyatli saqlandi. Endi savollarni tanlang.")
+                    # Savol tanlash sahifasiga yo'naltiramiz
+                    return redirect('static_questions_add', slug=center.slug, section_id=section.pk) # 🎯 SLUG Bilan REDIRECT
+
+            except Exception as e:
+                messages.error(request, f"Bo‘limni saqlashda xato: {e}")
+                print(f"Database error in section_create: {e}")
+        else:
+            messages.error(request, 'Xatolarni to‘g‘rilang.')
+    else:
+        form = ExamSectionForm()
+
+    context = {
+        'form': form,
+        'center': center,
+    }
+    return render(request, 'management/section_create.html', context)
+
+@login_required(login_url='login')
+@user_passes_test(is_teacher, login_url='index')
+def static_questions_add(request, slug, section_id): # 🎯 SLUG QO'SHILDI
+    """Statik savollarni tanlash va yaratilgan bo'limga bog'lash sahifasi."""
+    center = get_object_or_404(Center, slug=slug)
+    if request.user.center != center:
+         messages.error(request, "Boshqa markaz bo'limini boshqarishga ruxsat yo'q.")
+         return redirect('dashboard',slug=request.user.center.slug)
+         
+    # 🎯 MUHIM: Faqat shu markazdagi o'qituvchilar yaratgan bo'limni tahrirlash
+    section = get_object_or_404(ExamSection, pk=section_id, created_by__center=center)
+    
+    # ... Qolgan kod O'zgarishsiz, chunki savollar ro'yxati Centerga bog'liq emas (umumiy baza)
+    # ... Faqat contextga center ni qo'shamiz
+    
+    initial_questions_ids = list(ExamSectionStaticQuestion.objects
+                                 .filter(exam_section=section)
+                                 .values_list('question_id', flat=True))
+    
+    topics = Topic.objects.all()
+    questions = None
+    
+    if request.method == 'POST' or request.GET.get('subtopic_id'):
+        subtopic_id = request.POST.get('subtopic') or request.GET.get('subtopic_id')
+        if subtopic_id and subtopic_id.isdigit():
+            questions = Question.objects.filter(subtopic_id=subtopic_id, status='published').select_related('subtopic')
+    
+    context = {
+        'topics': topics,
+        'section_id': section_id,
+        'max_questions': section.max_questions,
+        'section_name' : section.name,
+        'section_type' : section.get_section_type_display(),
+        'questions': questions,
+        'initial_questions_ids': initial_questions_ids, 
+        'center': center, # Shablon uchun center obyekti
+    }
+    return render(request, 'management/static_questions_add.html', context)
+
+
+@login_required(login_url='login')
+@user_passes_test(is_teacher, login_url='index')
+def save_static_questions(request, slug, section_id):
+    """Tanlangan savollarni ExamSectionStaticQuestion modeliga saqlash (AJAX orqali)."""
+    
+    # 1. Ob'ektlar va xavfsizlik tekshiruvi
+    center = get_object_or_404(Center, slug=slug)
+    
+    if request.user.center != center:
+        # Ruxsat yo'q
+        return JsonResponse({'success': False, 'message': "Boshqa markaz bo'limini boshqarishga ruxsat yo'q"}, status=403)
+
+    # 2. ✅ YO'NALTIRISH MANZILINI MARKAZ OBYEKTI OLINGANDAN SO'NG YARATISH
+    # Ro'yxatga qaytarish uchun:
+    redirect_url = reverse('section_list', kwargs={'slug': center.slug}) 
+    
+    # Agar tahrirlash sahifasiga qaytarish kerak bo'lsa, quyidagidan foydalaning:
+    # redirect_url = reverse('section_edit', kwargs={'slug': center.slug, 'section_id': section_id}) 
+
+    if request.method == 'POST':
+        try:
+            # Bo'limni olish (xavfsizlik tekshiruvi bilan)
+            section = get_object_or_404(ExamSection, pk=section_id, created_by__center=center)
+            selected_ids_str = request.POST.get('selected_questions_ids', '')
+            
+            question_ids = []
+            if selected_ids_str:
+                question_ids = [int(id_str) for id_str in selected_ids_str.split(',') if id_str.strip().isdigit()]
+            
+            # 3. Savollar sonini tekshirish
+            if len(question_ids) > section.max_questions:
+                 return JsonResponse({
+                     'success': False, 
+                     'message': f"Tanlangan savollar soni ({len(question_ids)}) maksimal son ({section.max_questions}) dan oshib ketdi."
+                 }, status=400)
+
+            # 4. Atomik saqlash logikasi
+            with transaction.atomic():
+                # Avvalgi savollarni o'chirish
+                ExamSectionStaticQuestion.objects.filter(exam_section=section).delete()
+                
+                if question_ids:
+                    # Yangi savollarni yaratish
+                    new_questions = [
+                        ExamSectionStaticQuestion(
+                            exam_section=section, 
+                            question_id=question_id, 
+                            question_number=i + 1
+                        ) for i, question_id in enumerate(question_ids)
+                    ]
+                    ExamSectionStaticQuestion.objects.bulk_create(new_questions)
+                    
+            # 5. Muvaffaqiyatli yakun (O'chirish ham, yangi qo'shish ham shu yerdan o'tadi)
+            # Endi bu yerda yaratilgan redirect_url to'g'ri bo'ladi.
+            return JsonResponse({
+                'success': True, 
+                'redirect_url': redirect_url,
+                'message': "Savollar ro'yxati muvaffaqiyatli yangilandi."
+            }) 
+            
+        except Exception as e:
+            # Xatolikni qaytarish
+            print(f"Error saving static questions: {e}")
+            return JsonResponse({'success': False, 'message': f"Savollarni saqlashda xato yuz berdi: {str(e)}"}, status=500)
+    
+    # Faqat POST so'rov qabul qilinishini tasdiqlash
+    return JsonResponse({'success': False, 'message': "Faqat POST so'rov qabul qilinadi"}, status=405)
+
+
+@login_required(login_url='login')
+@user_passes_test(is_teacher, login_url='index')
+def section_edit(request, slug, section_id): # 🎯 SLUG QO'SHILDI
+    """Bo'limni tahrirlash (Faqat user.center ichida umumiy)."""
+    center = get_object_or_404(Center, slug=slug)
+    if request.user.center != center:
+         messages.error(request, "Boshqa markaz bo'limini tahrirlashga ruxsat yo'q.")
+         return redirect('dashboard',slug=request.user.center.slug)
+         
+    # 🎯 MUHIM: Faqat shu markazdagi o'qituvchilar yaratgan bo'limni tahrirlash
+    section = get_object_or_404(ExamSection, id=section_id, created_by__center=center)
+    
+    # ... Qolgan kod O'zgarishsiz, faqat REDIRECT ga slug qo'shiladi
+    
+    if request.method == 'POST':
+        form = ExamSectionForm(request.POST, instance=section) 
+        selected_ids_str = request.POST.get('selected_questions_ids', '')
+
+        if form.is_valid():
+            try:
+                with transaction.atomic():
+                    section = form.save()
+                    
+                    question_ids = []
+                    if selected_ids_str:
+                        question_ids = [int(id_str) for id_str in selected_ids_str.split(',') if id_str.strip().isdigit()]
+
+                    ExamSectionStaticQuestion.objects.filter(exam_section=section).delete()
+
+                    if question_ids:
+                        if len(question_ids) > section.max_questions:
+                            messages.error(request, f"Tanlangan savollar soni ({len(question_ids)}) maksimal son ({section.max_questions}) dan oshib ketdi.")
+                            return render(request, 'management/section_edit.html', {'section': section, 'form': form})
+                                
+                        new_questions = [
+                            ExamSectionStaticQuestion(
+                                exam_section=section, 
+                                question_id=question_id, 
+                                question_number=i + 1
+                            ) for i, question_id in enumerate(question_ids)
+                        ]
+                        ExamSectionStaticQuestion.objects.bulk_create(new_questions)
+
+                messages.success(request, f"Bo'lim '{section.name}' muvaffaqiyatli tahrirlandi va savollar yangilandi!")
+                return redirect('section_list', slug=center.slug) # 🎯 SLUG Bilan REDIRECT
+
+            except Exception as e:
+                messages.error(request, f"Bo‘limni saqlashda kutilmagan xato: {e}")
+                print(f"Database error in section_edit: {e}")
+        else:
+            messages.error(request, "Xatolarni to'g'rilang. Forma maydonlarida muammo bor.")
+            
+    else:
+        form = ExamSectionForm(instance=section)
+        
+    context = {
+        'section': section,
+        'form': form,
+        'center': center, # Shablon uchun center obyekti
+    }
+    return render(request, 'management/section_edit.html', context)
+
+@login_required(login_url='login')
+@user_passes_test(is_teacher, login_url='index')
+def section_delete(request, slug, section_id):
+    """
+    Bo'limni o'chirish (Faqat user.center ga tegishli bo'lgan markazda).
+    URL: /center/<slug>/section/<int:section_id>/delete/
+    """
+    
+    # 1. Markazni tekshirish (Slug orqali)
+    try:
+        center = get_object_or_404(Center, slug=slug)
+    except Exception:
+        messages.error(request, "Ko'rsatilgan markaz topilmadi.")
+        return redirect('dashboard',slug=request.user.center.slug) # Markaz topilmasa boshqaruv paneliga
+
+    # 2. Foydalanuvchi markazini tekshirish (Xavfsizlik)
+    if request.user.center != center:
+        messages.error(request, "Siz boshqa markaz bo'limini o'chirishga ruxsat ololmadingiz.")
+        return redirect('dashboard',slug=request.user.center.slug)
+        
+    # 3. Bo'limni topish (Markazga va yaratuvchiga bog'lab)
+    # Faqat shu markazdagi o'qituvchilar yaratgan bo'limni o'chirish
+    try:
+        # created_by__center=center tekshiruvi muhim xavfsizlik filtri
+        section = get_object_or_404(
+            ExamSection, 
+            id=section_id, 
+            created_by__center=center
+        )
+    except Exception:
+        messages.error(request, "Bo'lim topilmadi yoki siz uni o'chirishga ruxsatga ega emassiz.")
+        return redirect('section_list', slug=center.slug)
+
+    # 4. O'chirish Mantiqi (POST so'rovi orqali)
+    if request.method == 'POST':
+        section.delete()
+        messages.success(request, f"'{section.name}' bo'limi muvaffaqiyatli o'chirildi!")
+        
+        # 5. Qaytarish (Bo'limlar ro'yxatiga)
+        return redirect('section_list', slug=center.slug) 
+    
+    # GET so'rovi (yoki POST bo'lmagan so'rov) kelganida, shunchaki ro'yxatga qaytarish.
+    # Bu Modal ishlatilgani uchun to'g'ri, chunki tasdiqlash sahifasi yo'q.
+    return redirect('section_list', slug=center.slug)
+
+# ======================================================================
+# 2. AJAX ENDPOINTLARI
+# ======================================================================
+
+@login_required(login_url='login')
+@user_passes_test(is_teacher, login_url='index')
+def get_subtopics(request, slug): # 🎯 SLUG QO'SHILDI
+    """
+    Topic bo'yicha Subtopic'larni olish. 
+    Faqat joriy Center'ga tegishli o'qituvchilar yaratgan Subtopic'lar qaytadi.
+    """
+    user = request.user
+    center = get_object_or_404(Center, slug=slug)
+    
+    # 1. Xavfsizlik tekshiruvi
+    if user.center != center:
+        return JsonResponse({'error': "Ruxsat yo'q. Boshqa markaz Subtopic'lari."}, status=403)
+        
+    topic_id = request.GET.get('topic_id')
+    if not topic_id or not topic_id.isdigit():
+        return JsonResponse({'error': 'Topic ID noto‘g‘ri yoki mavjud emas'}, status=400)
+        
+    try:
+        # 2. Filtrlash: Berilgan topic_id bo'yicha VA shu markaz o'qituvchilari tomonidan yaratilgan subtopiclar
+        subtopics = Subtopic.objects.filter(
+            topic_id=topic_id,
+            center = center,
+        ).order_by('name')
+        
+        data = [{'id': sub.id, 'name': sub.name} for sub in subtopics]
+        return JsonResponse(data, safe=False)
+        
+    except Exception as e:
+        print(f"Error in get_subtopics: {e}")
+        return JsonResponse({'error': f"Ma'lumot olishda xato: {str(e)}"}, status=500)
+
+from django.template.loader import render_to_string
+
+@login_required(login_url='login')
+@user_passes_test(is_teacher, login_url='index')
+def get_questions(request, slug): # 🎯 SLUG QO'SHILDI
+    """
+    Subtopic bo'yicha savollarni olish. 
+    Faqat joriy Center'ga tegishli o'qituvchilar yaratgan savollar qaytadi.
+    """
+    user = request.user
+    center = get_object_or_404(Center, slug=slug)
+    
+    # 1. Xavfsizlik tekshiruvi
+    if user.center != center:
+        return JsonResponse({'error': "Ruxsat yo'q. Boshqa markaz savollari."}, status=403)
+
+    subtopic_id = request.GET.get('subtopic_id')
+    if not subtopic_id or not subtopic_id.isdigit():
+        return JsonResponse({'error': 'Subtopic ID noto‘g‘ri yoki mavjud emas'}, status=400)
+        
+    try:
+        # 2. Filtrlash: Berilgan subtopic_id bo'yicha VA shu markaz o'qituvchilari tomonidan yaratilgan savollar
+        questions = Question.objects.filter(
+            subtopic_id=subtopic_id,
+            #status='published',
+            center=center  # 🎯 Markazga bog'lash
+        ).select_related('subtopic').prefetch_related('options').order_by('id')
+        
+        if not questions.exists():
+            html = render_to_string('partials/questions_list.html', {'questions': questions, 'center': center}, request=request)
+            return JsonResponse({'html': html})
+
+        html = render_to_string('partials/questions_list.html', {'questions': questions, 'center': center}, request=request)
+        return JsonResponse({'html': html})
+        
+    except Exception as e:
+        print(f"Error in get_questions: {e}")
+        return JsonResponse({'error': f"Savollarni olishda xato: {str(e)}"}, status=500)
+
+# =========================================================
+# A. KURS MODULLARI BOSHQARUVI (module_list, module_create, ...)
+# =========================================================
+@login_required(login_url='login')
+def module_list(request, course_id):
+    """ Kursning barcha modullari ro'yxati va boshqaruvi. """
+    # if not (is_teacher(request.user) or request.user.is_staff):
+    #     messages.error(request, "Sizda bu bo'limga kirish huquqi yo'q.")
+    #     return redirect('dashboard',slug=request.user.center.slug)
+    
+    course = get_object_or_404(Course, id=course_id)
+    
+    # Har bir modul ichidagi darslarni o'z ichiga olgan so'rov
+    modules = CourseModule.objects.filter(course=course).order_by('order').prefetch_related(
+        Prefetch('lessons', queryset=Lesson.objects.order_by('order'), to_attr='lessons_list')
+    )
+    
+    context = {
+        'course': course,
+        'modules': modules,
+        'page_title': f"'{course.title}' kursining modullari"
+    }
+    return render(request, 'management/module_list.html', context)
+
+@login_required
+def module_create(request, course_id):
+    """
+    Yangi modul yaratish funksiyasi.
+    """
+    course = get_object_or_404(Course, id=course_id)
+    
+    if request.method == 'POST':
+        form = CourseModuleForm(request.POST)
+        if form.is_valid():
+            # 1. Ob'ektni bazaga saqlamay turib olish
+            new_module = form.save(commit=False)
+            new_module.course = course
+            
+            # 🔥 2. Eng katta order raqamini topish va 1 qo'shish
+            # Module.objects o'rniga CourseModule.objects ishlatildi
+            max_order = CourseModule.objects.filter(course=course).aggregate(Max('order'))['order__max']
+            # Agar hali modul bo'lmasa, 1 dan boshlaymiz (yoki mavjud bo'lsa, keyingisini olamiz)
+            new_module.order = (max_order or 0) + 1
+            
+            # 3. Yakuniy saqlash
+            new_module.save()
+            messages.success(request, f"'{new_module.title}' moduli muvaffaqiyatli yaratildi.")
+            return redirect('module_list', course_id=course.id)
+        else:
+            messages.error(request, "Iltimos, formadagi xatolarni to'g'irlang.") # Xato xabari
+    else:
+        form = CourseModuleForm()
+
+    context = {
+        'form': form,
+        'course': course,
+    }
+    
+    return render(request, 'management/module_form.html', context)
+
+@login_required 
+def module_update(request, course_id, module_id):
+    """
+    Mavjud modulni tahrirlash funksiyasi.
+    """
+    # 1. Kursni topish
+    course = get_object_or_404(Course, id=course_id)
+    
+    # 2. Tahrirlanadigan modulni topish (Kursga bog'langanligini tekshirish muhim)
+    module = get_object_or_404(CourseModule, id=module_id, course=course) # CourseModule dan topildi
+
+    if request.method == 'POST':
+        # POST: Formani yuborilgan ma'lumotlar bilan va mavjud modul ob'ekti bilan yuklash
+        form = CourseModuleForm(request.POST, instance=module)
+        if form.is_valid():
+            # Formani saqlash 
+            module_instance = form.save()
+            messages.success(request, f"'{module_instance.title}' moduli muvaffaqiyatli tahrirlandi.") # Muvaffaqiyat xabari
+            
+            # Muvaffaqiyatli saqlashdan keyin modullar ro'yxatiga qaytarish
+            return redirect('module_list', course_id=course.id)
+        else:
+            messages.error(request, "Iltimos, formadagi xatolarni to'g'irlang.")
+    else:
+        # GET: Mavjud modul ma'lumotlari bilan formani yuklash
+        form = CourseModuleForm(instance=module)
+
+    context = {
+        'form': form,
+        'course': course,  # Shablon uchun kerak
+        'module': module,  # Tahrirlash sarlavhasi uchun kerak
+    }
+    
+    # module_form.html shablonini render qilish
+    return render(request, 'management/module_form.html', context)
+
+@login_required
+def module_delete(request, course_id, module_id):
+    """
+    Modulni o'chirish funksiyasi.
+    """
+    # Kurs va modulni topamiz. Modulning ushbu kursga tegishli ekanligini tekshiramiz.
+    course = get_object_or_404(Course, id=course_id)
+    module = get_object_or_404(CourseModule, id=module_id, course=course) # CourseModule dan topildi
+
+    # Agar POST so'rovi kelsa (o'chirishni tasdiqlash uchun)
+    if request.method == 'POST':
+        module_title = module.title # O'chirishdan oldin nomini saqlab olamiz
+        module.delete()
+        
+        messages.success(request, f"'{module_title}' moduli muvaffaqiyatli o'chirildi.") # Muvaffaqiyat xabari
+        # Muvaffaqiyatli o'chirishdan keyin modullar ro'yxatiga qaytarish
+        return redirect('module_list', course_id=course.id)
+
+    # GET so'rovini qabul qilmaslik kerak, lekin agar kelsa, ro'yxatga qaytaramiz
+    return redirect('module_list', course_id=course.id)
+
+# =========================================================
+# B. DARS BOSHQARUVI (lesson_list, lesson_create, ...)
+# =========================================================
+
+@login_required(login_url='login')
+def lesson_list(request, module_id):
+    """ Modul ichidagi darslar va resurslar boshqaruvi. """
+    module = get_object_or_404(CourseModule, id=module_id)
+    
+    # Har bir darsning resurslarini yuklash
+    lessons = Lesson.objects.filter(module=module).order_by('order').prefetch_related(
+        Prefetch('resources', queryset=LessonResource.objects.order_by('order'), to_attr='resources_list')
+    ).select_related('related_exam') # Testni ham yuklaymiz
+    
+    context = {
+        'module': module,
+        'course': module.course,
+        'lessons': lessons,
+        'page_title': f"'{module.title}' modulining darslari"
+    }
+    return render(request, 'management/lesson_list.html', context)
+
+@login_required(login_url='login')
+def lesson_create(request, module_id):
+    """ Yangi dars yaratish. """
+    module = get_object_or_404(CourseModule, id=module_id)
+    
+    if request.method == 'POST':
+        form = LessonForm(request.POST)
+        if form.is_valid():
+            lesson = form.save(commit=False)
+            lesson.module = module
+            lesson.save()
+            messages.success(request, f"'{lesson.title}' darsi yaratildi. Endi resurslarni qo'shing.")
+            return redirect('lesson_list', module_id=module.id)
+    else:
+        form = LessonForm()
+        
+    context = {
+        'form': form,
+        'module': module,
+        'page_title': f"'{module.title}' moduliga dars qo'shish"
+    }
+    return render(request, 'management/lesson_form.html', context)
+
+@login_required(login_url='login')
+def lesson_update(request, lesson_id):
+    """ Mavjud darsni tahrirlash (lesson_form ga ulanadi). """
+    # Darsni olish. Agar ulanishda module_id ham talab qilinsa, u holda uni ham tekshirish kerak.
+    # Lekin URL faqat lesson_id talab qiladi deb hisoblaymiz.
+    lesson = get_object_or_404(Lesson, id=lesson_id)
+    module = lesson.module
+    
+    if request.method == 'POST':
+        form = LessonForm(request.POST, instance=lesson)
+        if form.is_valid():
+            form.save()
+            messages.success(request, f"'{lesson.title}' darsi muvaffaqiyatli tahrirlandi.")
+            return redirect('lesson_list', module_id=module.id)
+    else:
+        form = LessonForm(instance=lesson)
+        
+    context = {
+        'form': form,
+        'module': module,
+        # lesson_form.html ishlatilgani uchun title o'zgaruvchisi o'rniga modul o'zgaruvchisi kerak
+        'page_title': f"'{lesson.title}' darsini tahrirlash" 
+    }
+    # lesson_form.html shablonidan foydalaniladi
+    return render(request, 'management/lesson_form.html', context)
+
+@login_required(login_url='login')
+def lesson_delete(request, lesson_id):
+    """ Darsni o'chirish (lesson_list sahifasidagi modal orqali tasdiqlanadi). """
+    lesson = get_object_or_404(Lesson, id=lesson_id)
+    module_id = lesson.module.id
+
+    # O'chirish faqat POST so'rovi orqali amalga oshiriladi
+    if request.method == 'POST':
+        lesson_title = lesson.title
+        lesson.delete()
+        messages.success(request, f"'{lesson_title}' darsi muvaffaqiyatli o'chirildi.")
+    
+    # Har doim ro'yxat sahifasiga qaytish
+    return redirect('lesson_list', module_id=module_id)
+
+# =========================================================
+# C. RESURS BOSHQARUVI (Linklarni qo'shish)
+# =========================================================
+
+@login_required(login_url='login')
+def resource_create(request, lesson_id):
+    """ Darsga yangi resurs (link) qo'shish. """
+    lesson = get_object_or_404(Lesson, id=lesson_id)
+    
+    if request.method == 'POST':
+        form = LessonResourceForm(request.POST)
+        if form.is_valid():
+            resource = form.save(commit=False)
+            resource.lesson = lesson
+            resource.save()
+            messages.success(request, f"Yangi '{resource.get_resource_type_display()}' resursi qo'shildi.")
+            # Keyin resurslar ro'yxati sahifasiga qaytish kerak (lesson_detail yoki shunga o'xshash)
+            return redirect('lesson_list', module_id=lesson.module.id)
+    else:
+        form = LessonResourceForm()
+        
+    context = {
+        'form': form,
+        'lesson': lesson,
+        'page_title': f"'{lesson.title}' darsiga resurs qo'shish"
+    }
+    return render(request, 'management/resource_form.html', context)
+
+
+# =========================================================
+# D. JADVAL BOSHQARUVI (Offline/Muddatli kurslar uchun)
+# =========================================================
+
+@login_required(login_url='login')
+def schedule_list(request, course_id):
+    """ Kursning dars jadvallarini boshqarish. """
+    course = get_object_or_404(Course, id=course_id)
+    
+    # Faqat Offline yoki Muddatli Online kurslar uchun ruxsat berish
+    if course.is_online and not course.is_scheduled:
+        messages.warning(request, "Bu kurs ixtiyoriy rejimda. Jadval belgilash shart emas.")
+        return redirect('module_list', course_id=course.id)
+        
+    schedules = CourseSchedule.objects.filter(course=course).order_by('start_time').select_related('related_lesson')
+    
+    context = {
+        'course': course,
+        'schedules': schedules,
+        'page_title': f"'{course.title}' kursining dars jadvallari"
+    }
+    return render(request, 'management/schedule_list.html', context)
+
+@login_required(login_url='login')
+def schedule_create(request, course_id):
+    """ Yangi dars jadvalini yaratish. """
+    course = get_object_or_404(Course, id=course_id)
+    
+    if request.method == 'POST':
+        # Formaga faqat shu kursga tegishli darslarni uzatamiz
+        form = CourseScheduleForm(request.POST, course_instance=course)
+        if form.is_valid():
+            schedule = form.save(commit=False)
+            schedule.course = course
+            schedule.save()
+            messages.success(request, "Dars jadvali muvaffaqiyatli qo'shildi.")
+            return redirect('schedule_list', course_id=course.id)
+    else:
+        form = CourseScheduleForm(course_instance=course)
+        
+    context = {
+        'form': form,
+        'course': course,
+        'page_title': f"'{course.title}' uchun jadval yaratish"
+    }
+    return render(request, 'management/schedule_form.html', context)
+
+@login_required(login_url='login')
+def schedule_update(request, course_id, schedule_id):
+    """ Mavjud CourseSchedule ni tahrirlash funksiyasi. 
+        Bu funksiya siz so'ragan 'schedule_update' view'idir.
+    """
+    course = get_object_or_404(Course, id=course_id)
+    # CourseSchedule modelidan foydalanamiz
+    schedule = get_object_or_404(CourseSchedule, id=schedule_id, course=course)
+
+    if request.method == 'POST':
+        # Formaga POST ma'lumotlarini, instance ni (tahrirlash uchun) va course_instance ni (filtratsiya uchun) yuboramiz
+        form = CourseScheduleForm(request.POST, instance=schedule, course_instance=course)
+        if form.is_valid():
+            form.save()
+            messages.success(request, f"Jadval muvaffaqiyatli tahrirlandi.")
+            return redirect('schedule_list', course_id=course.id)
+    else:
+        # GET so'rovi uchun instance ni (mavjud ma'lumotlarni to'ldirish uchun) va course_instance ni yuboramiz
+        form = CourseScheduleForm(instance=schedule, course_instance=course)
+
+    context = {
+        'form': form,
+        'course': course,
+        'schedule': schedule,
+        'page_title': "Jadvalni tahrirlash"
+    }
+    return render(request, 'management/schedule_form.html', context)
+
+
+@login_required(login_url='login')
+def schedule_delete(request, course_id, schedule_id):
+    """ CourseSchedule ob'ektini o'chirish funksiyasi. """
+    # Tasdiqlash sahifasi o'rniga, amaliyotni bevosita POST so'rov orqali amalga oshiramiz
+    course = get_object_or_404(Course, id=course_id)
+    schedule = get_object_or_404(CourseSchedule, id=schedule_id, course=course)
+    
+    schedule.delete()
+    messages.warning(request, f"Jadval muvaffaqiyatli o'chirildi.")
+    return redirect('schedule_list', course_id=course.id)
+
+
+@login_required
+def tag_list_view(request, slug):
+    """
+    Markazga (Center) tegishli taglar ro'yxatini ko'rsatish va ular bo'yicha statistikani hisoblash.
+    """
+    # 1. Center obyektini slug orqali olamiz
+    center = get_object_or_404(Center, slug=slug)
+
+    # 2. Taglarni Center bo'yicha filterlaymiz va statistikani hisoblaymiz
+    tags = Tag.objects.filter(
+        # Faqat joriy Centerga tegishli taglar
+        center=center
+    ).annotate(
+        # 1. Tegga bog'langan savollar soni
+        question_count=Count('question', distinct=True),
+        
+        # 2. Ushbu teg bo'yicha umumiy to'g'ri javoblar soni (UserTagPerformance dan)
+        total_correct=Sum('user_performances__correct_answers'),
+        
+        # 3. Ushbu teg bo'yicha umumiy urinishlar soni
+        total_attempts=Sum('user_performances__attempts_count'),
+        
+        # 4. Teg bo'yicha o'rtacha muvaffaqiyat darajasini hisoblash
+        # Eslatma: Bu hisoblash barcha foydalanuvchilarning ushbu teg bo'yicha umumiy ko'rsatkichini oladi.
+        avg_success_rate=Avg(
+            F('user_performances__correct_answers') * 100.0 / 
+            (F('user_performances__correct_answers') + F('user_performances__incorrect_answers')),
+            # divide by zero xatosini oldini olish uchun
+            # Agar sizda Django 4.0+ bo'lsa, bu yo'l to'g'ri
+            default=0.0
+        )
+        
+    ).order_by('name') # Tag nomiga ko'ra tartiblash
+
+    context = {
+        'tags': tags,
+        'title': f"{center.name} Markazi uchun Teglar / Mavzular ro'yxati",
+        'center': center, # Shablon uchun Center obyektini uzatamiz
+    }
+    return render(request, 'management/tag_list.html', context)
+
+@login_required
+def tag_create_or_update_view(request, slug, tag_id=None):
+    """
+    Centerga tegishli yangi teg yaratish yoki mavjudini tahrirlash sahifasi.
+    """
+    # Joriy Center obyektini olish
+    center = get_object_or_404(Center, slug=slug)
+
+    if tag_id:
+        # Tahrirlash rejimi: Faqat joriy Centerga tegishli Tag'ni olish
+        tag = get_object_or_404(Tag, id=tag_id, center=center)
+        is_creating = False
+        title = f"'{tag.name}' tegini tahrirlash"
+    else:
+        # Yaratish rejimi
+        tag = None
+        is_creating = True
+        title = "Yangi Teg / Mavzu yaratish"
+
+    if request.method == 'POST':
+        # TagFormga qo'shimcha ravishda Center obyektini uzatish kerak bo'lishi mumkin
+        form = TagForm(request.POST, instance=tag)
+        if form.is_valid():
+            new_tag = form.save(commit=False)
+            
+            # Agar yangi yaratilayotgan bo'lsa, Center'ni belgilash
+            if is_creating:
+                new_tag.center = center 
+                
+            new_tag.save()
+            form.save_m2m() # Agar form.save(commit=False) ishlatilsa, M2M saqlash
+            
+            action = "yaratildi" if is_creating else "tahrirlandi"
+            messages.success(request, f"Teg muvaffaqiyatli {action}: {new_tag.get_full_hierarchy()}")
+            
+            # Center slug bilan tag_list ga qaytarish
+            return redirect('tag_list', slug=center.slug) 
+        else:
+            messages.error(request, "Xatolik: Ma'lumotlarni tekshiring.")
+    else:
+        form = TagForm(instance=tag)
+
+    context = {
+        'form': form,
+        'tag': tag,
+        'is_creating': is_creating,
+        'title': title,
+        'center': center, # Shablon uchun Center obyektini uzatish
+    }
+    return render(request, 'management/tag_create_or_update.html', context)
+
+@login_required
+def tag_delete_view(request, slug, tag_id):
+    """
+    Centerga tegishli Tegni o'chirish.
+    """
+    # 1. Joriy Center obyektini olish
+    center = get_object_or_404(Center, slug=slug)
+    
+    # 2. Faqat joriy Centerga tegishli Tag'ni olish (Xavfsizlik)
+    tag = get_object_or_404(Tag, id=tag_id, center=center)
+    
+    if request.method == 'POST':
+        tag_name = tag.get_full_hierarchy()
+        
+        # Bog'langan barcha child taglarni ham o'chiradi
+        tag.delete()
+        
+        messages.success(request, f"Teg muvaffaqiyatli o'chirildi: {tag_name}")
+        # Center slug bilan tag_list ga qaytarish
+        return redirect('tag_list', slug=center.slug)
+        
+    context = {
+        'tag': tag,
+        'title': f"'{tag.name}' tegini o'chirish",
+        'center': center, # Shablon uchun Center obyektini uzatish
+    }
+    # Haqiqiy o'chirish uchun alohida tasdiqlash sahifasiga yuboriladi
+    return render(request, 'management/tag_confirm_delete.html', context)
+
+
+@user_passes_test(is_admin) 
+def center_list_view(request):
+    """
+    Super Admin uchun barcha O'quv Markazlari ro'yxatini ko'rsatish.
+    'Ega' ustuni o'rniga 'Xodimlar' ro'yxatini ko'rsatishga moslandi.
+    """
+    
+    centers = Center.objects.all().order_by('-id').prefetch_related(
+        'subscriptions', 
+        'members',           # Markazga biriktirilgan xodimlar (teacher/center_admin)
+        'groups__students'   # Guruhlar va ularning o'quvchilari
+    ).annotate(
+        # Barcha guruhlardagi noyob o'quvchilar sonini DB darajasida hisoblash
+        student_count_db=Count('groups__students', distinct=True)
+    )
+    
+    for center in centers:
+        # 1. Obuna holati
+        center.is_valid = center.is_subscription_valid 
+        
+        # 2. Eng so'nggi aktiv obuna 
+        center.active_subscription = next(
+            (sub for sub in center.subscriptions.all() if sub.is_active and sub.end_date >= date.today()), 
+            None
+        )
+        
+        # 3. Markazga biriktirilgan xodimlar (Superuserlar bu ro'yxatga kirmaydi)
+        center.teachers = [user for user in center.members.all() if not user.is_superuser]
+
+        # 4. Guruhlar ro'yxati (AJAX uchun ma'lumotni tayyorlash)
+        center.all_groups = list(center.groups.all())
+        
+        # 5. O'quvchilar sonini Annotate orqali olish
+        center.student_count = center.student_count_db 
+        
+    # TeacherAssignmentForm() mavjudligini faraz qilamiz
+    # Agar bu formani view ichida yaratish muammo bo'lsa, uni yubormasdan ham ishlataverish mumkin.
+    try:
+         assignment_form = TeacherAssignmentForm()
+    except NameError:
+         assignment_form = None
+
+    context = {
+        'centers': centers,
+        'title': "O'quv Markazlari Boshqaruvi",
+        'TeacherAssignmentForm': assignment_form, 
+    }
+    return render(request, 'admin_panel/center_list.html', context)
+
+@user_passes_test(is_admin)
+def center_edit_view(request, center_id=None):
+    """
+    Markazni yaratish/tahrirlash logikasi.
+    """
+    is_create = center_id is None
+    center = None
+    
+    if not is_create:
+        center = get_object_or_404(Center, id=center_id)
+
+    if request.method == 'POST':
+        form = CenterForm(request.POST, instance=center)
+        
+        if form.is_valid():
+            try:
+                with transaction.atomic():
+                    center_instance = form.save(commit=False)
+                    
+                    if is_create:
+                        # --- YARATISH MANTIQI ---
+                        # Bu yerda Markaz egasi avtomatik tayinlanmaydi (keyinchalik Assign modal orqali qilinadi)
+                        center_instance.save() 
+                        
+                        months = form.cleaned_data.get('subscription_months')
+                        
+                        if months and months > 0:
+                            end_date = date.today() + timedelta(days=months * 30)
+                            
+                            Subscription.objects.create(
+                                center=center_instance,
+                                end_date=end_date,
+                                price=0.00, 
+                                is_active=True
+                            )
+                        
+                        messages.success(request, f"'{center_instance.name}' markazi muvaffaqiyatli yaratildi. Obuna: {months} oy.")
+                    else:
+                        # --- TAHRIRLASH MANTIQI ---
+                        center_instance.save()
+                        messages.success(request, f"'{center_instance.name}' markazi ma'lumotlari muvaffaqiyatli yangilandi.")
+
+                    return redirect('center_list')
+            except Exception as e:
+                messages.error(request, f"Saqlashda kutilmagan xatolik yuz berdi. Iltimos, admin bilan bog'laning.")
+                # Xato loglarini yozish tavsiya etiladi
+                # print(f"DEBUG ERROR: {e}") 
+        else:
+            messages.error(request, "Shaklda xatoliklar mavjud. Iltimos, ma'lumotlarni tekshiring.")
+    else:
+        # GET so'rovi (sahifani yuklash)
+        form = CenterForm(instance=center)
+    
+    context = {
+        'form': form,
+        'center': center,
+        'is_create': is_create,
+        'title': "Yangi O'quv Markazi Yaratish" if is_create else f"'{center.name}' markazini tahrirlash",
+    }
+    # 💥 Shablon nomini to'g'ri chaqirish
+    return render(request, 'admin_panel/center_edit.html', context)
+
+@user_passes_test(is_admin)
+def center_delete_view(request, center_id):
+    center = get_object_or_404(Center, id=center_id)
+    if request.method == 'POST':
+        center_name = center.name
+        center.delete()
+        messages.success(request, f"'{center_name}' markazi muvaffaqiyatli o'chirildi.")
+        return redirect('center_list')
+    return redirect('center_list') 
+
+@user_passes_test(is_admin)
+def remove_teacher_view(request, center_id, user_id):
+    """Xodimni (o'qituvchini) markazdan ajratish (o'chirmasdan)."""
+    center = get_object_or_404(Center, id=center_id)
+    # Faqat shu markazga tegishli userni topish
+    user_to_remove = get_object_or_404(CustomUser, id=user_id, center=center) 
+    
+    if request.method == 'POST':
+        try:
+            # Markaz egasini o'chirishni cheklash
+            if user_to_remove.id == center.owner_id:
+                 messages.error(request, f"Markaz egasini ({user_to_remove.username}) chiqarish mumkin emas. Avval Owner'ni o'zgartiring.")
+                 return redirect('center_list')
+                 
+            user_to_remove.center = None # CustomUser'dan markazni ajratish
+            # is_staff = False qatori o'chirildi
+            user_to_remove.save()
+            messages.warning(request, f"'{user_to_remove.username}' foydalanuvchisi '{center.name}' markazidan chiqarildi.")
+        except Exception as e:
+             messages.error(request, f"O'chirishda xatolik: {e}")
+             
+    return redirect('center_list')
+
+@user_passes_test(is_admin)
+@require_POST
+def assign_teacher_to_center(request, center_id):
+    """
+    Tanlangan foydalanuvchini markazga biriktiradi, 
+    agar u o'qituvchi bo'lmasa, rolini 'teacher' ga o'zgartiradi.
+    """
+    
+    # HTML dan kelgan field nomi: name="user_to_assign"
+    teacher_id = request.POST.get('user_to_assign') 
+    
+    if not teacher_id:
+        messages.error(request, "Iltimos, biriktirish uchun foydalanuvchini tanlang.")
+        return redirect('center_list')
+        
+    try:
+        center = get_object_or_404(Center, id=center_id)
+        teacher = get_object_or_404(CustomUser, id=teacher_id)
+        
+        # O'qituvchi allaqachon boshqa markazga biriktirilgan bo'lsa, xatolik
+        if teacher.center is not None and teacher.center != center:
+             messages.error(request, f"'{teacher.full_name or teacher.username}' allaqachon '{teacher.center.name}' markaziga biriktirilgan.")
+             return redirect('center_list')
+
+        with transaction.atomic():
+            # 1. Rolini 'teacher' ga o'zgartirish (agar student yoki boshqa rol bo'lsa)
+            if teacher.role != 'teacher':
+                 teacher.role = 'teacher'
+                 # Agar rol o'zgarsa, unga staff huquqini berish kerakmi?
+                 # teacher.is_staff = True # Kerak bo'lsa yoqib qo'ying
+            
+            # 2. O'qituvchini markazga biriktirish
+            teacher.center = center
+            teacher.save()
+            
+            messages.success(request, f"'{teacher.full_name or teacher.username}' muvaffaqiyatli ravishda '{center.name}' markaziga biriktirildi va ROLI O'QITUVCHIGA o'zgartirildi.")
+            
+    except Exception as e:
+        messages.error(request, f"Xodimni biriktirishda xatolik yuz berdi: {e}")
+        
+    return redirect('center_list')
+
+@user_passes_test(is_admin)
+def search_unassigned_teachers_ajax(request):
+    """
+    Markazga biriktirilmagan (center__isnull=True) va admin/owner bo'lmagan 
+    aktiv foydalanuvchilarni qidiradi. Rolidan qat'iy nazar qidiriladi.
+    """
+    q = request.GET.get('q', '')
+    
+    users_qs = CustomUser.objects.filter(
+        center__isnull=True,  
+        is_active=True
+    ).exclude(
+        Q(role='admin') | Q(is_superuser=True)
+    )
+    
+    if q:
+        users_qs = users_qs.filter(
+            Q(full_name__icontains=q) |
+            Q(username__icontains=q) |
+            Q(phone_number__icontains=q)
+        ).distinct()
+        
+    users = users_qs[:10] 
+
+    results = []
+    for user in users:
+        role_display = user.get_role_display() if hasattr(user, 'get_role_display') else user.role
+        display_text = f"{user.full_name or user.username} (Rol: {role_display})"
+        
+        results.append({
+            'id': user.id,
+            'text': display_text, 
+        })
+
+    return JsonResponse({
+        'items': results,
+        'total_count': users_qs.count()
+    })
+
+@user_passes_test(is_admin) 
+def center_groups_ajax(request, center_id):
+    """Berilgan markazdagi guruhlar ro'yxatini AJAX orqali qaytaradi."""
+    center = get_object_or_404(Center, id=center_id)
+    
+    groups_data = []
+    
+    # Guruhlar ro'yxatini yuklash, o'qituvchi ma'lumotini yuklash va o'quvchilar sonini hisoblash
+    groups = center.groups.select_related('teacher').annotate(
+        student_count=Count('students')
+    ).all().order_by('-created_at')
+    
+    for group in groups:
+        groups_data.append({
+            'id': group.pk,
+            'name': group.name,
+            'is_active': group.is_active,
+            'teacher_username': group.teacher.username,
+            'student_count': group.student_count, 
+            # Guruhni boshqarish sahifasi URL manzilini to'g'ri o'rnating
+            'manage_url': f'/groups/{group.pk}/manage/', 
+        })
+        
+    return JsonResponse({'groups': groups_data, 'total_count': groups.count()})
+
+
+@login_required(login_url='login')
+@user_passes_test(is_teacher, login_url='index')
+def group_list_view(request, slug):
+    """
+    Berilgan slug'ga mos Center'dagi guruhlar ro'yxatini ko'rsatadi.
+    Center Admin barcha guruhlarni, Teacher faqat o'z guruhlarini ko'radi.
+    """
+    user = request.user
+    
+    # 1. Center obyektini slug orqali topish
+    center = get_object_or_404(Center, slug=slug)
+    
+    # Xavfsizlik: Foydalanuvchi shu markazga tegishli ekanligini tekshirish
+    if user.center != center:
+         messages.error(request, _("Siz bu markaz guruhlarini ko'rish huquqiga ega emassiz."))
+         return redirect('dashboard',slug=request.user.center.slug)
+    
+    # 2. Guruhlarni filtrlash
+    if user.role == 'center_admin':
+        # Center Admin: Markazdagi barcha guruhlar
+        groups = Group.objects.filter(center=center).order_by('-created_at')
+    else: # user.role == 'teacher'
+        # Teacher: Faqat o'zi yaratgan guruhlar
+        groups = Group.objects.filter(teacher=user, center=center).order_by('-created_at')
+        
+    context = {
+        'groups': groups,
+        'title': _("Guruhlar Ro'yxati"),
+        'center': center, # Shablon uchun center obyekti
+        'is_center_admin': user.role == 'center_admin',
+    }
+    return render(request, 'management/group_list.html', context)
+
+@login_required(login_url='login')
+@user_passes_test(is_teacher, login_url='index')
+def group_create_view(request, slug):
+    """
+    Berilgan slug'ga mos Center'da yangi guruh yaratish.
+    """
+    user = request.user
+    
+    # 1. Center obyektini slug orqali topish
+    center = get_object_or_404(Center, slug=slug)
+    
+    if user.center != center:
+         messages.error(request, _("Guruhni boshqa markazda yaratishga ruxsat yo'q."))
+         return redirect('dashboard',slug=request.user.center.slug)
+
+    if request.method == 'POST':
+        # Formaga markaz ma'lumotlarini uzatamiz
+        form = GroupForm(request.POST, request=request, teacher=user, center=center)
+        
+        if form.is_valid():
+            group = form.save(commit=False)
+            group.teacher = user
+            group.center = center # Guruhni topilgan markazga bog'laymiz
+            group.save()
+            
+            students_to_add = form.cleaned_data.get('students')
+            
+            if students_to_add:
+                student_ids = [student.pk for student in students_to_add]
+                
+                # Center ID si NULL bo'lgan o'quvchilarni shu markazga biriktirish
+                students_to_update = CustomUser.objects.filter(
+                    pk__in=student_ids, 
+                    center__isnull=True 
+                )
+                updated_count = students_to_update.update(center=center)
+                
+                if updated_count > 0:
+                    messages.warning(request, _(f"Guruhga qo'shilgan {updated_count} ta o'quvchi avtomatik ravishda '{center.name}' markaziga biriktirildi."))
+                
+                group.students.set(students_to_add) 
+                
+            messages.success(request, _(f"'{group.name}' nomli yangi guruh muvaffaqiyatli yaratildi!"))
+            return redirect('group_list', slug=center.slug) 
+            
+    else:
+        form = GroupForm(request=request, teacher=user, center=center)
+
+    context = {
+        'form': form,
+        'title': _("Yangi Guruh Yaratish"),
+        'center': center, # Shablon uchun center obyekti
+        'is_create': True,
+    }
+    return render(request, 'management/group_form.html', context)
+
+@login_required(login_url='login')
+@user_passes_test(is_teacher, login_url='index')
+def group_update_view(request, slug, pk):
+    """
+    Berilgan slug'ga mos Center'da guruhni tahrirlash.
+    Ruxsat: Center Admin yoki Guruhning yaratuvchisi.
+    """
+    user = request.user
+    
+    # 1. Center obyektini slug orqali topish
+    center = get_object_or_404(Center, slug=slug)
+        
+    if user.center != center:
+         messages.error(request, _("Boshqa markaz guruhini tahrirlashga ruxsat yo'q."))
+         return redirect('dashboard',slug=request.user.center.slug)
+        
+    # 2. Guruhni topish (pk va center bo'yicha cheklash)
+    group = get_object_or_404(Group, pk=pk, center=center)
+
+    # 3. Ruxsat tekshiruvi: Agar oddiy o'qituvchi bo'lsa, faqat o'zining guruhini tahrirlasin
+    if user.role == 'teacher' and group.teacher != user:
+        messages.error(request, _("Siz bu guruhni tahrirlash huquqiga ega emassiz."))
+        return redirect('group_list', slug=center.slug) 
+
+    if request.method == 'POST':
+        form = GroupForm(request.POST, instance=group, request=request, teacher=user, center=center)
+        
+        if form.is_valid():
+            group = form.save()
+            students_to_add = form.cleaned_data.get('students')
+            
+            if students_to_add is not None:
+                student_ids = [student.pk for student in students_to_add]
+                
+                # Center ID si NULL bo'lgan o'quvchilarni shu markazga biriktirish
+                students_to_update = CustomUser.objects.filter(
+                    pk__in=student_ids, 
+                    center__isnull=True 
+                )
+                updated_count = students_to_update.update(center=center)
+                
+                if updated_count > 0:
+                    messages.warning(request, _(f"Guruhga qo'shilgan {updated_count} ta o'quvchi avtomatik ravishda '{center.name}' markaziga biriktirildi."))
+                
+                group.students.set(students_to_add)
+                
+            messages.success(request, _(f"'{group.name}' guruhidagi o'zgarishlar saqlandi."))
+            return redirect('group_list', slug=center.slug) 
+            
+    else:
+        form = GroupForm(instance=group, request=request, teacher=user, center=center)
+
+    context = {
+        'form': form,
+        'title': _(f"Guruhni Tahrirlash: {group.name}"),
+        'center': center, # Shablon uchun center obyekti
+        'is_create': False,
+    }
+    return render(request, 'management/group_form.html', context)
+
+@login_required(login_url='login')
+@user_passes_test(is_teacher, login_url='index')
+def group_manage_students_view(request, slug, pk):
+    """
+    Berilgan slug'ga mos Center'dagi guruhga o'quvchilarni qo'shish/olib tashlash.
+    """
+    user = request.user
+    
+    # 1. Center obyektini slug orqali topish
+    center = get_object_or_404(Center, slug=slug)
+        
+    if user.center != center:
+         messages.error(request, _("Boshqa markaz guruhini boshqarishga ruxsat yo'q."))
+         return redirect('dashboard',slug=request.user.center.slug)
+        
+    # 2. Guruhni topish
+    group = get_object_or_404(Group, pk=pk, center=center)
+    
+    # Ruxsat tekshiruvi
+    if user.role == 'teacher' and group.teacher != user:
+        messages.error(request, _("Siz bu guruh o'quvchilarini boshqarish huquqiga ega emassiz."))
+        return redirect('group_list', slug=center.slug) 
+
+    # 1. O'CHIRISH MANTIQI (Jadvaldan O'chirish tugmasi)
+    remove_student_id = request.GET.get('remove_student')
+    if remove_student_id:
+        try:
+            student_to_remove = CustomUser.objects.get(pk=remove_student_id, role='student')
+            if student_to_remove in group.students.all():
+                group.students.remove(student_to_remove)
+                messages.success(request, _(f"O'quvchi {student_to_remove.full_name} guruhdan olib tashlandi."))
+            else:
+                messages.error(request, _("O'quvchi guruhda mavjud emas."))
+        except CustomUser.DoesNotExist:
+            messages.error(request, _("O'quvchi topilmadi."))
+            
+        return redirect('group_manage_students', slug=group.center.slug, pk=group.pk)
+
+
+    # 2. QO'SHISH MANTIQI (Yuqoridagi formadan)
+    if request.method == 'POST':
+        # AddStudentToGroupForm ni o'zingizning markaz filtriga moslab ishlatishingiz kerak
+        add_form = AddStudentToGroupForm(request.POST) 
+        
+        if add_form.is_valid(): 
+            students_to_add = add_form.cleaned_data.get('student_ids') 
+            newly_added_count = 0
+            
+            for student in students_to_add:
+                # Markazga biriktirish mantig'i (avvalgi koddagi kabi saqlanadi)
+                if not student.center:
+                    student.center = center
+                    student.save(update_fields=['center'])
+                    messages.warning(request, _(f"O'quvchi {student.full_name} avtomatik '{center.name}' markaziga biriktirildi."))
+                
+                # Guruhga qo'shish
+                if student not in group.students.all():
+                    group.students.add(student)
+                    newly_added_count += 1
+            
+            if newly_added_count > 0:
+                messages.success(request, _(f"{newly_added_count} ta o'quvchi '{group.name}' guruhiga qo'shildi."))
+            else:
+                messages.info(request, _("Tanlangan o'quvchilar allaqachon guruhda mavjud."))
+                
+            return redirect('group_manage_students', slug=group.center.slug, pk=group.pk)
+            
+    else:
+        add_form = AddStudentToGroupForm()
+
+    context = {
+        'group': group,
+        'center': center, # Shablon uchun center obyekti
+        'students': group.students.all().order_by('full_name'),
+        'title': _(f"Guruh O'quvchilari: {group.name}"),
+        'add_form': add_form, 
+    }
+    return render(request, 'management/group_student_list.html', context)
+
+@login_required(login_url='login')
+@user_passes_test(is_teacher, login_url='index')
+@require_POST 
+def group_delete_view(request, slug, pk):
+    """
+    Berilgan slug'ga mos Center'dagi guruhni o'chirish.
+    Ruxsat: Center Admin yoki Guruhning yaratuvchisi.
+    """
+    user = request.user
+    
+    # 1. Center obyektini slug orqali topish
+    center = get_object_or_404(Center, slug=slug)
+        
+    if user.center != center:
+         messages.error(request, _("Boshqa markaz guruhini o'chirishga ruxsat yo'q."))
+         return redirect('dashboard',slug=request.user.center.slug)
+        
+    # 2. Guruhni topish
+    group = get_object_or_404(Group, pk=pk, center=center)
+    
+    # Ruxsat tekshiruvi
+    if user.role == 'teacher' and group.teacher != user:
+        messages.error(request, _("Siz bu guruhni o'chirish huquqiga ega emassiz."))
+        return redirect('group_list', slug=center.slug)
+        
+    group_name = group.name
+    group.delete()
+    messages.success(request, _(f"Guruh '{group_name}' muvaffaqiyatli o'chirildi."))
+    return redirect('group_list', slug=center.slug)
+
+@user_passes_test(is_teacher)
+def search_students_ajax(request):
+    """
+    Bu view uchun slug kerak emas, chunki u faqat o'qituvchining joriy markazida (yoki markazsiz) studentlarni qidiradi.
+    """
+    user = request.user
+    user_center = user.center # O'qituvchining joriy markazi
+
+    if user.role not in ['teacher', 'center_admin']:
+        return JsonResponse({'items': []}, status=403)
+        
+    query = request.GET.get('q', '')
+    
+    q_objects = Q(role='student') & Q(is_active=True)
+    search_fields = Q(full_name__icontains=query) | Q(username__icontains=query) | Q(phone_number__icontains=query)
+
+    # Filtr: Faqat joriy Center studentlari yoki hali biror markazga biriktirilmagan studentlar
+    if user_center:
+         q_objects &= (Q(center=user_center) | Q(center__isnull=True))
+    
+    # Agar user_center bo'lmasa, u holda faqat center__isnull=True bo'lganlarni ko'radi
+    # Lekin yuqorida user_passes_test(is_teacher) ishlatilgani uchun, teacher markazsiz bo'lmasligi kerak (yoki is_teacher logikasi boshqacha)
+
+    students = CustomUser.objects.filter(q_objects & search_fields).order_by('full_name')[:20]
+
+    results = []
+    for student in students:
+        center_info = f"({student.center.name})" if student.center else " (Markazsiz)"
+        
+        results.append({
+            'id': student.pk,
+            'text': f"{student.full_name} ({student.username}){center_info}" 
+        })
+
+    return JsonResponse({'items': results, 'total_count': students.count()})

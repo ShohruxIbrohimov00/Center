@@ -1,109 +1,63 @@
+{% load static %}
+
 {% if question.answer_format == 'single' %}
 <div class="space-y-2" data-format="single">
     {% for option, letter in options_with_letters %}
+        {% with is_selected=user_answer and option.id in selected_option_ids %}
         <div class="option-item flex items-center p-3 rounded-lg border cursor-pointer transition duration-150 ease-in-out 
-            {% if user_answer and option in user_answer.selected_options.all %}selected{% endif %}"
+            {% if is_selected %}selected{% endif %}"
             data-option-id="{{ option.id }}" data-option="{{ letter }}">
             
             <input type="radio" name="option" value="{{ option.id }}" 
-                   {% if user_answer and option in user_answer.selected_options.all %}checked{% endif %} 
-                   class="hidden option-input-radio"> 
+                {% if is_selected %}checked{% endif %} 
+                class="hidden option-input-radio"> 
             
-            <div class="option-indicator w-9 h-9 mr-3 flex items-center justify-center rounded-full border-1">
+            <div class="option-indicator w-9 h-9 mr-3 flex items-center justify-center rounded-full border-1 
+                {% if is_selected %}bg-black border-white text-white{% else %}bg-white border-gray-400 text-gray-400{% endif %}">
                 <span class="option-letter">{{ letter }}</span>
             </div>
 
-            <span class="text-base option-text block w-full">{{ option.text|safe }}</span>
+            <span class="text-base option-text block w-full 
+                {% if is_selected %}text-white{% else %}text-gray-400{% endif %}">
+                {{ option.text|safe }}
+            </span>
         </div>
+        {% endwith %}
     {% endfor %}
 </div>
+
 {% elif question.answer_format == 'multiple' %}
 <div class="space-y-2" data-format="multiple">
     {% for option, letter in options_with_letters %}
+    {% with is_selected=user_answer and option.id in selected_option_ids %}
     <div class="option-item flex items-center p-3 rounded-lg border cursor-pointer transition duration-150 ease-in-out 
-        {% if user_answer and option in user_answer.selected_options.all %}selected{% endif %}"
+        {% if is_selected %}selected{% endif %}"
         data-option-id="{{ option.id }}" data-option="{{ letter }}">
         
         <input type="checkbox" name="option" value="{{ option.id }}" 
-               {% if user_answer and option in user_answer.selected_options.all %}checked{% endif %} 
-               class="hidden option-input-checkbox">
+            {% if is_selected %}checked{% endif %} 
+            class="hidden option-input-checkbox">
         
-        <div class="option-indicator w-9 h-9 mr-3 flex items-center justify-center border-1 rounded-md">
+        <div class="option-indicator w-9 h-9 mr-3 flex items-center justify-center border-1 rounded-md
+            {% if is_selected %}bg-black border-white text-white{% else %}bg-white border-gray-400 text-gray-400{% endif %}">
             <span class="option-letter">{{ letter }}</span>
         </div>
         
-        <span class="text-base option-text block w-full">{{ option.text|safe }}</span>
+        <span class="text-base option-text block w-full
+            {% if is_selected %}text-white{% else %}text-gray-400{% endif %}">
+            {{ option.text|safe }}
+        </span>
     </div>
+    {% endwith %}
     {% endfor %}
 </div>
+
 {% elif question.answer_format == 'short_answer' %}
 <div class="mt-4" data-format="short_answer">
     <input type="text" id="short-answer-input" name="short_answer" 
            class="w-full max-w-lg p-3 border-2 border-slate-300 rounded-lg text-lg focus:ring-indigo-500 focus:border-indigo-500 transition" 
            placeholder="Javobingizni kiriting..." 
-           value="{{ user_answer.short_answer_text|default_if_none:'' }}"
+           value="{{ short_answer_text|default_if_none:'' }}"
            autocomplete="off">
 </div>
 {% endif %}
-
-<script>
-document.addEventListener('DOMContentLoaded', () => {
-    // Variant matnlarini tozalash
-    document.querySelectorAll('.option-text').forEach(span => {
-        let content = span.innerHTML.replace(/&lt;p&gt;/g, '<p>').replace(/&lt;\/p&gt;/g, '</p>');
-        span.innerHTML = content;
-    });
-
-    // Butun DIV ni bosiladigan qilish
-    document.querySelectorAll('.option-item').forEach(item => {
-        item.addEventListener('click', function(e) {
-            e.preventDefault(); // Form submitni oldini olish
-            const format = this.closest('[data-format]').dataset.format;
-            const input = this.querySelector('.option-input-radio, .option-input-checkbox');
-            const indicator = this.querySelector('.option-indicator');
-            const letter = this.dataset.option;
-            
-            if (format === 'single') {
-                // Single choice: Boshqa variantlarni tozalash
-                document.querySelectorAll('.option-item').forEach(el => {
-                    el.classList.remove('selected');
-                    el.querySelector('.option-input-radio').checked = false;
-                    el.querySelector('.option-indicator').classList.remove('bg-black', 'border-white', 'text-white');
-                    el.querySelector('.option-indicator').classList.add('bg-white', 'border-gray-400', 'text-gray-400');
-                    el.querySelector('.option-text').classList.remove('text-white');
-                    el.querySelector('.option-text').classList.add('text-gray-400');
-                    el.querySelector('.option-letter').innerHTML = el.dataset.option;
-                });
-                
-                // Tanlangan variantni belgilash
-                input.checked = true;
-                this.classList.add('selected');
-                indicator.classList.remove('bg-white', 'border-gray-400', 'text-gray-400');
-                indicator.classList.add('bg-black', 'border-white', 'text-white');
-                this.querySelector('.option-text').classList.remove('text-gray-400');
-                this.querySelector('.option-text').classList.add('text-white');
-                this.querySelector('.option-letter').innerHTML = letter;
-
-            } else if (format === 'multiple') {
-                // Multiple choice: Qo'shish/O'chirish
-                input.checked = !input.checked;
-                this.classList.toggle('selected');
-                indicator.classList.toggle('bg-black');
-                indicator.classList.toggle('border-white');
-                indicator.classList.toggle('text-white');
-                indicator.classList.toggle('bg-white');
-                indicator.classList.toggle('border-gray-400');
-                indicator.classList.toggle('text-gray-400');
-                this.querySelector('.option-text').classList.toggle('text-white');
-                this.querySelector('.option-text').classList.toggle('text-gray-400');
-                this.querySelector('.option-letter').innerHTML = letter;
-            }
-            
-            // Javobni avtomatik saqlash
-            if (window.saveCurrentAnswer) {
-                window.saveCurrentAnswer();
-            }
-        });
-    });
-});
-</script>

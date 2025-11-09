@@ -19,12 +19,17 @@ from django.contrib import admin
 from django.urls import path, include
 from django.conf.urls.static import static
 from django.conf import settings
+from Mock.views import ckeditor_upload_image
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    path('ckeditor/', include('ckeditor_uploader.urls')),
+    path('ckeditor/upload/', ckeditor_upload_image, name='ckeditor_upload_image'),
     path('', include('Mock.urls')),
     path('select2/', include('django_select2.urls')),
 ]
+# 💡 Bu qism har doim eng oxirida bo'lishi kerak!
 if settings.DEBUG:
+    # Media fayllarini Debug rejimida yuklash
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+    # Static fayllarni ham yuklash (agar kerak bo'lsa)
+    urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)

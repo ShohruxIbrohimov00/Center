@@ -1,0 +1,192 @@
+{% extends 'base.html' %}
+{% load static i18n widget_tweaks %}
+
+{% block title %}{{ page_title }}{% endblock %}
+
+{% block extra_css %}
+<link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+{# 🔥 1. Select2 CSS faylini qo'shish #}
+<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+
+<style>
+    /* Umumiy tugma uslublari (oldingi kabi) */
+    .btn { 
+        display: inline-flex; 
+        align-items: center; 
+        padding: 0.5rem 1.25rem;
+        font-weight: 600; 
+        border-radius: 0.5rem;
+        transition: all 0.3s; 
+        text-decoration: none;
+    }
+    .btn-primary { background-color: #4f46e5; color: white; }
+    .btn-primary:hover { background-color: #4338ca; }
+    .btn-secondary { background-color: #f3f4f6; color: #4b5563; border: 1px solid #d1d5db; }
+    .btn-secondary:hover { background-color: #e5e7eb; }
+    
+    /* Forma elementlari uchun asosiy uslublar */
+    .form-input, .form-select, .form-textarea {
+        display: block;
+        width: 100%;
+        padding: 0.625rem 0.75rem;
+        font-size: 1rem;
+        color: #4a5568;
+        background-color: #ffffff;
+        border: 1px solid #d1d5db;
+        border-radius: 0.5rem;
+        box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+        transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+    }
+    .form-input:focus, .form-select:focus, .form-textarea:focus {
+        border-color: #4f46e5;
+        box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.4);
+        outline: none;
+    }
+    .form-checkbox {
+        height: 1.25rem;
+        width: 1.25rem;
+        color: #4f46e5;
+        border-radius: 0.25rem;
+        border: 1px solid #d1d5db;
+    }
+
+    /* 🔥 Select2 uchun Tailwindga mos uslublar (agar qo'shilsa yaxshi) */
+    /* Select2 Container-ni asosiy inputlarga o'xshatish */
+    .select2-container--default .select2-selection--single {
+        height: 38px !important; /* form-input balandligiga moslash */
+        border: 1px solid #d1d5db !important;
+        border-radius: 0.5rem !important;
+        padding-top: 5px !important; 
+    }
+    /* Select2 Dropdown o'zgaruvchan joylashuvi */
+    .select2-container {
+        width: 100% !important; 
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container mx-auto px-4 py-8 max-w-5xl">
+    <div class="flex items-center space-x-4 mb-8">
+        <a href="{% url 'course_list' slug=center.slug %}" class="text-gray-500 hover:text-indigo-600 transition-colors p-2 rounded-full hover:bg-gray-100" title="{% trans "Ro'yxatga qaytish" %}">
+            <i class="fas fa-arrow-left text-xl"></i>
+        </a>
+        <h1 class="text-3xl font-extrabold text-gray-900">{{ page_title }}</h1>
+    </div>
+    
+    <div class="bg-white p-6 md:p-10 rounded-2xl shadow-xl border border-gray-100">
+        <form method="post" enctype="multipart/form-data">
+            {% csrf_token %}
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
+                {# Asosiy ma'lumotlar - 2 ustunda #}
+                {% for field in form %}
+                    {% if field.name == 'title' or field.name == 'teacher' or field.name == 'price' or field.name == 'course_type' or field.name == 'online_lesson_flow' %}
+                        <div class="field-wrapper">
+                            <label for="{{ field.id_for_label }}" class="block text-sm font-semibold text-gray-800 mb-1">
+                                {{ field.label }}{% if field.field.required %}<span class="text-red-500 ml-1">*</span>{% endif %}
+                            </label>
+                            
+                            {# teacher maydoni uchun 'select2-enabled' klassini qo'shamiz #}
+                            {% if field.name == 'teacher' %}
+                                {{ field|add_class:"form-input select2-enabled" }}
+                            {% else %}
+                                {{ field|add_class:"form-input" }}
+                            {% endif %}
+                            
+                            {% if field.errors %}
+                                <p class="text-red-500 text-xs italic mt-1 font-medium">{{ field.errors.as_text|cut:"*" }}</p>
+                            {% endif %}
+                            {% if field.help_text %}
+                                <p class="text-gray-500 text-xs italic mt-1">{{ field.help_text }}</p>
+                            {% endif %}
+                        </div>
+                    {% endif %}
+                {% endfor %}
+            </div>
+            
+            {# Checkbox maydonlari - Yonma-yon joylashuvi #}
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6 mt-6 border-t pt-6">
+                {% for field in form %}
+                    {% if field.name == 'is_premium' or field.name == 'is_active' %}
+                        <div class="field-wrapper flex items-center h-full">
+                            <div class="checkbox-container flex items-center space-x-2">
+                                {{ field|attr:"class:form-checkbox" }} 
+                                <label for="{{ field.id_for_label }}" class="text-sm font-semibold text-gray-800">
+                                    {{ field.label }}
+                                </label>
+                            </div>
+                            
+                            {% if field.help_text %}
+                                <p class="text-gray-500 text-xs italic mt-1">{{ field.help_text }}</p>
+                            {% endif %}
+                            {% if field.errors %}
+                                <p class="text-red-500 text-xs italic mt-1 font-medium">{{ field.errors.as_text|cut:"*" }}</p>
+                            {% endif %}
+                        </div>
+                    {% endif %}
+                {% endfor %}
+            </div>
+            
+            {# Katta maydonlar (Description va Image) - To'liq kenglikda #}
+            <div class="mt-8 border-t pt-8">
+                {% for field in form %}
+                    {% if field.name == 'description' or field.name == 'image' %}
+                        <div class="mb-6">
+                            <label for="{{ field.id_for_label }}" class="block text-sm font-semibold text-gray-800 mb-1">
+                                {{ field.label }}{% if field.field.required %}<span class="text-red-500 ml-1">*</span>{% endif %}
+                            </label>
+
+                            {% if field.name == 'description' %}
+                                {{ field|add_class:"form-textarea h-32" }}
+                            {% else %}
+                                {{ field|add_class:"form-input" }}
+                            {% endif %}
+
+                            {% if field.errors %}
+                                <p class="text-red-500 text-xs italic mt-1 font-medium">{{ field.errors.as_text|cut:"*" }}</p>
+                            {% endif %}
+                            {% if field.help_text %}
+                                <p class="text-gray-500 text-xs italic mt-1">{{ field.help_text }}</p>
+                            {% endif %}
+                        </div>
+                    {% endif %}
+                {% endfor %}
+            </div>
+            
+            <div class="mt-10 flex justify-end space-x-4 border-t pt-6">
+                <a href="{% url 'course_list' slug=center.slug %}" class="btn btn-secondary">
+                    <i class="fas fa-times mr-2"></i>{% trans "Bekor qilish" %}
+                </a>
+                <button type="submit" class="btn btn-primary">
+                    <i class="fas fa-save mr-2"></i>{% trans "Saqlash" %}
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+{# 🔥 2. jQuery va Select2 JS kutubxonalarini qo'shish (Select2 jQueryga bog'liq) #}
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // 🔥 3. Select2'ni faollashtirish
+        $('.select2-enabled').select2({
+            theme: "default", // Select2'ning standart temasini ishlatish
+            placeholder: "{% trans "Oqituvchini tanlang" %}",
+            allowClear: true, // Agar tanlov bo'lsa, tozalash tugmasini ko'rsatish
+        });
+        
+        // Input type="file"ga uslub berish (oldingi kabi)
+        const fileInput = document.getElementById('id_image'); 
+        if (fileInput) {
+            fileInput.classList.add('py-2');
+        }
+    });
+</script>
+{% endblock %}

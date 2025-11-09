@@ -4,7 +4,7 @@
 {% block title %}Tugatilgan imtihonlar{% endblock %}
 
 {% block content %}
-<div class="container mx-auto px-4 py-4 md:py-4">
+<div class="container mx-auto px-4 py-4 md:py-4 data-center-slug="{{ center.slug }}">
     <div class="text-center mb-10 md:mb-12">
         <h1 class="text-3xl sm:text-4xl lg:text-5xl font-extrabold text-slate-800 tracking-tight">
             Natijalar Arxivi
@@ -12,13 +12,12 @@
         <p class="mt-3 text-base sm:text-lg text-slate-600 max-w-3xl mx-auto">Sizning barcha yakunlangan sinovlaringiz va ularning natijalari.</p>
         <div class="mt-8 max-w-xl mx-auto">
             <div class="relative">
-
-                <input type="text" id="exam-search-input" placeholder="Imtihon nomini qidiring..." class="w-full pl-5 pr-12 py-3 text-lg border-2 border-slate-200 rounded-full focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition">
-                
+                <input type="text" id="exam-search-input" placeholder="Imtihon nomini qidiring..." 
+                    class="w-full pl-5 pr-12 py-3 text-lg border-2 border-slate-200 rounded-full 
+                        focus:ring-2 focus:ring-success-500 focus:border-success-500 transition">
                 <div class="absolute inset-y-0 right-0 flex items-center pr-5 pointer-events-none">
                     <i class="fa-solid fa-search text-slate-400 text-xl"></i>
                 </div>
-
             </div>
         </div>
     </div>
@@ -28,14 +27,19 @@
             <i class="fas fa-box-open text-5xl text-slate-400 mb-4"></i>
             <h3 class="text-2xl font-bold text-slate-700">Tugatilgan Imtihonlar Yo'q</h3>
             <p class="text-lg text-slate-500 mt-2">Imtihon topshirib, o'z bilimingizni sinab ko'ring! 🚀</p>
-            <a href="{% url 'all_exams' %}" class="btn-primary mt-6 inline-block">Imtihonlar Ro'yxatiga O'tish</a>
+            <a href="{% url 'all_exams' center.slug %}" class="btn btn-primary mt-6 inline-block">Imtihonlar Ro'yxatiga O'tish</a>
         </div>
     {% else %}
         <section class="exam-section mb-12">
-            <h2 class="text-2xl font-bold text-slate-800 mb-4">Eng Yuqori Ballar</h2>
+            <div class="flex items-center mb-4">
+                <h2 class="text-2xl font-bold text-slate-800">Ishlangan imtihonlar</h2>
+                <span class="ml-3 inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-success-100 text-success-800">
+                    {{ top_results|length }} ta imtihon
+                </span>
+            </div>
             <div class="horizontal-scroll">
                 {% for result in top_results %}
-                    {% include 'partials/completed_exam_card.html' with result=result %}
+                    {% include 'partials/completed_exam_card.html' with result=result center=center %}
                 {% endfor %}
             </div>
         </section>
@@ -44,21 +48,28 @@
             <h2 class="text-2xl font-bold text-slate-800 mb-4">Oxirgi Topshirilganlar</h2>
             <div class="horizontal-scroll">
                 {% for result in recent_results %}
-                    {% include 'partials/completed_exam_card.html' with result=result %}
+                    {% include 'partials/completed_exam_card.html' with result=result center=center %}
                 {% endfor %}
             </div>
         </section>
-        
+
         <div id="no-search-results" class="hidden text-center mt-12 p-8 bg-slate-50 rounded-lg border-2 border-dashed">
             <p class="text-lg text-slate-500">Afsuski, qidiruvingiz bo'yicha hech narsa topilmadi.</p>
         </div>
     {% endif %}
 </div>
 
+
 {% block extra_js %}
 <script>
 document.addEventListener('DOMContentLoaded', () => {
-    // 1. QIDIRUV KODI (BU O'ZI SIZDA BOR)
+    // 1. Center Slugni Djangodan olish (URL uchun)
+    const centerSlug = "{{ center.slug }}"; 
+    
+    // 🎯 2. CSRF Tokenni Djangodan olish (Endi faqat shu qatordan foydalaniladi)
+    const csrftoken = "{{ csrf_token }}";
+
+    // --- Qidiruv funksiyasi (O'zgarishsiz qoladi) ---
     const searchInput = document.getElementById('exam-search-input');
     if (searchInput) {
         const allSections = document.querySelectorAll('.exam-section');
@@ -75,7 +86,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 cardsInSection.forEach(card => {
                     const title = card.querySelector('h3').textContent.toLowerCase();
                     if (title.includes(searchTerm)) {
-                        card.style.display = 'block'; // 'flex' o'rniga 'block' ishlatamiz
+                        card.style.display = 'block';
                         sectionHasVisibleCard = true;
                         totalVisibleCards++;
                     } else {
@@ -91,31 +102,25 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // 2. TUGMALAR UCHUN KOD (MANA SHU QISM QO'SHILISHI KERAK)
+    // --- Imtihonni qayta boshlash uchun ASOSIY JS BLOKI ---
     
-    function getCookie(name) {
-        let cookieValue = null;
-        if (document.cookie && document.cookie !== '') {
-            const cookies = document.cookie.split(';');
-            for (let i = 0; i < cookies.length; i++) {
-                const cookie = cookies[i].trim();
-                if (cookie.substring(0, name.length + 1) === (name + '=')) {
-                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
-                    break;
-                }
-            }
-        }
-        return cookieValue;
-    }
-    const csrftoken = getCookie('csrftoken');
+    // ⚠️ Eslatma: getCookie funksiyasi o'chirildi/ishlatilmadi
     
     document.querySelectorAll('.start-exam-btn').forEach(button => {
         button.addEventListener('click', async (e) => {
             e.preventDefault();
             const examId = button.dataset.examId;
+            const canStartExam = button.dataset.canStartExam === 'true'; 
+            
             if (!examId) {
-                console.error('examId not found in button dataset');
+                console.error('examId topilmadi!');
                 alert('Imtihon ID topilmadi.');
+                return;
+            }
+            
+            if (!canStartExam) {
+                alert('Bu imtihonni boshlash uchun aktiv obuna yoki yetarli kredit kerak.');
+                window.location.href = "{% url 'price' center.slug %}"; 
                 return;
             }
             
@@ -124,35 +129,46 @@ document.addEventListener('DOMContentLoaded', () => {
             button.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Yuklanmoqda...';
             
             try {
-                const response = await fetch(`/start-exam/${examId}/`, {
+                // 🎯 3. URLni to'g'ri tuzish: /slug/exams/id/start/
+                const url = `/${centerSlug}/exams/${examId}/start/`; 
+                
+                const response = await fetch(url, {
                     method: 'POST',
                     headers: { 
+                        // X-CSRFToken headeri endi Djangodan to'g'ri olingan qiymatni uzatadi
                         'X-CSRFToken': csrftoken, 
                         'Accept': 'application/json',
                         'Content-Type': 'application/json'
                     },
-                    body: JSON.stringify({})
+                    body: JSON.stringify({}) 
                 });
                 
-                if (!response.ok) {
-                    const text = await response.text();
-                    console.error('Server error response:', text);
-                    throw new Error(`Server xatosi: ${response.status}`);
+                let data;
+                try {
+                    data = await response.json();
+                } catch (e) {
+                    // Agar server JSON emas, balki oddiy 403 HTML sahifasini qaytarsa, bu yuz berishi mumkin
+                    console.error("JSON parsing xatosi. Server noto'g'ri javob qaytardi.", response.status);
+                    throw new Error(`Server xatosi! Status: ${response.status}`);
                 }
                 
-                const data = await response.json();
-                
-                if (data.status === 'success' && data.exam_url) {
-                    window.location.href = data.exam_url;
+                // Muvaffaqiyatni tekshirish va yo'naltirish
+                // 🎯 4. View funksiyangiz qaytargan 'redirect_url' nomidan foydalanish
+                if (response.ok && data.status === 'success' && data.redirect_url) {
+                    console.log('Muvaffaqiyatli: Yo‘naltirilmoqda:', data.redirect_url);
+                    window.location.href = data.redirect_url;
+                    return; 
                 } else {
-                    console.error('Server response error:', data.message);
-                    alert(data.message || 'Xatolik yuz berdi.');
-                    button.disabled = false;
-                    button.innerHTML = originalHtml;
+                    const error_message = data.message || `Imtihonni boshlashda xato. Server xabari: ${data.status} / ${data.error || 'Noma‘lum xato'}`;
+                    console.error('Server response error:', error_message, data);
+                    alert(error_message);
                 }
+                
             } catch (error) {
-                console.error('Fetch error:', error);
-                alert('Ulanishda xatolik: ' + error.message);
+                console.error('Tizim xatosi:', error.message);
+                alert('Ulanishda xatolik yuz berdi: ' + error.message);
+            } finally {
+                // Agar yo'naltirish bo'lmagan bo'lsa, tugmani tiklash
                 button.disabled = false;
                 button.innerHTML = originalHtml;
             }

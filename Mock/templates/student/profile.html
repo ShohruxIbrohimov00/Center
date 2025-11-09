@@ -37,7 +37,7 @@
 
             <div class="p-6 md:p-8">
                 <div id="personal-info-content" class="tab-content">
-                    <form action="{% url 'profile' %}" method="POST" enctype="multipart/form-data" class="space-y-6">
+                    <form action="{% url 'profile' center.slug %}" method="POST" enctype="multipart/form-data" class="space-y-6">
                         {% csrf_token %}
                         
                         <div>
@@ -90,7 +90,7 @@
                                 {% else %}
                                     <div class="bg-slate-50 p-4 rounded-lg text-center border border-slate-200">
                                         <p class="text-slate-600 mb-4">Sizda faol obuna mavjud emas.</p>
-                                        <a href="{% url 'price' %}" class="btn btn-primary">
+                                        <a href="{% url 'price' center.slug %}" class="btn btn-primary">
                                             Obuna Sotib Olish
                                         </a>
                                     </div>

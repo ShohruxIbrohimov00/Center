@@ -21,7 +21,7 @@
                 Imtihonni boshlash
             </button>
         {% else %}
-            <a href="{% url 'price' %}" class="btn bg-green-500 hover:bg-green-600 text-white font-semibold py-2.5 px-5 rounded-lg mt-6">
+            <a href="{% url 'price' center.slug %}" class="btn bg-green-500 hover:bg-green-600 text-white font-semibold py-2.5 px-5 rounded-lg mt-6">
                 <i class="fas fa-crown mr-1"></i> Paket sotib olish
             </a>
         {% endif %}

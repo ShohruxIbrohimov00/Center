@@ -1,0 +1,225 @@
+{% extends 'base.html' %}
+{% load static i18n %}
+
+{% block title %}{% trans "Teglar/Mavzular ro'yxati" %}{% endblock %}
+
+{% block extra_css %}
+<style>
+    /* Umumiy tugmalar: Avvalgi CSS ni saqlab qolamiz */
+    .btn { 
+        display: inline-flex; 
+        align-items: center; 
+        padding: 0.5rem 1rem; 
+        font-weight: 600; 
+        border-radius: 0.5rem; 
+        transition: all 0.3s; 
+    }
+    .btn-primary { background-color: #4f46e5; color: white; }
+    .btn-primary:hover { background-color: #4338ca; }
+    .btn-danger { background-color: #ef4444; color: white; }
+    .btn-danger:hover { background-color: #dc2626; }
+    .btn-secondary { background-color: #6b7280; color: white; }
+    .btn-secondary:hover { background-color: #4b5563; }
+    .btn-icon { 
+        display: flex; 
+        align-items: center; 
+        justify-content: center; 
+        width: 2.25rem; 
+        height: 2.25rem; 
+        border-radius: 0.5rem; 
+        transition: all 0.2s; 
+    }
+    .btn-icon:hover { background-color: rgba(0, 0, 0, 0.05); }
+
+    /* Modal style (Mobilga moslashtirilgan) */
+    .modal { 
+        display: none; 
+        position: fixed; 
+        z-index: 1000; 
+        left: 0; 
+        top: 0; 
+        width: 100%; 
+        height: 100%; 
+        overflow: auto; 
+        background-color: rgba(0, 0, 0, 0.6); 
+        padding: 1rem; 
+        backdrop-filter: blur(2px); 
+    }
+    .modal-content { 
+        background-color: #fefefe; 
+        margin: 15vh auto; 
+        padding: 24px; 
+        border-radius: 12px; 
+        box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2); 
+        width: 100%; 
+        max-width: 450px; 
+        animation: fadeIn 0.3s ease-out;
+    }
+    @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(-20px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+    .close { 
+        color: #aaa; 
+        font-size: 28px; 
+        font-weight: bold; 
+        cursor: pointer; 
+        line-height: 1;
+        float: right;
+    }
+    .close:hover, .close:focus { color: #000; text-decoration: none; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container mx-auto p-2 sm:p-4 md:p-8 max-w-7xl">
+    <div class="bg-white shadow-2xl rounded-xl p-4 sm:p-6 md:p-8 border border-gray-100">
+        
+        {# Sarlavha va Yaratish tugmasi #}
+        <div class="flex flex-col sm:flex-row justify-between items-center mb-6 space-y-3 sm:space-y-0">
+            <h2 class="text-3xl sm:text-4xl font-extrabold text-gray-900">{% trans "Teglar / Mavzularni boshqarish" %}</h2>
+            
+            {# 🔴 TUZATILDI: slug=center.slug qo'shildi #}
+            {% if center %}
+            <a href="{% url 'tag_create' slug=center.slug %}" class="btn btn-primary w-full sm:w-auto">
+                <i class="fas fa-plus mr-2"></i>{% trans "Yangi Teg qo'shish" %}
+            </a>
+            {% endif %}
+        </div>
+
+        {# Teglar ro'yxati #}
+        {% if tags %}
+        <div class="overflow-x-auto border border-gray-200 rounded-lg shadow-inner">
+            <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-indigo-50">
+                    <tr>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-semibold text-indigo-700 uppercase tracking-wider">
+                            {% trans "Teg/Mavzu nomi" %}
+                        </th>
+                        <th scope="col" class="px-3 sm:px-6 py-3 text-center text-xs font-semibold text-indigo-700 uppercase tracking-wider hidden sm:table-cell">
+                            {% trans "Savollar soni" %}
+                        </th>
+                        <th scope="col" class="px-3 sm:px-6 py-3 text-center text-xs font-semibold text-indigo-700 uppercase tracking-wider hidden md:table-cell">
+                            {% trans "Umumiy urinishlar" %}
+                        </th>
+                        <th scope="col" class="px-6 py-3 text-center text-xs font-semibold text-indigo-700 uppercase tracking-wider">
+                            {% trans "O'rtacha natija" %}
+                        </th>
+                        <th scope="col" class="px-6 py-3 text-right text-xs font-semibold text-indigo-700 uppercase tracking-wider">
+                            {% trans "Amallar" %}
+                        </th>
+                    </tr>
+                </thead>
+                <tbody class="bg-white divide-y divide-gray-100">
+                    {% for tag in tags %}
+                    <tr class="hover:bg-indigo-50 transition duration-100">
+                        <td class="px-6 py-4">
+                            <div class="text-sm font-medium text-gray-900">
+                                <strong>{{ tag.get_full_hierarchy }}</strong> 
+                            </div>
+                            {% if tag.description %}
+                            <div class="text-xs text-gray-500 mt-1 sm:hidden">
+                                {{ tag.description|truncatechars:70 }}
+                            </div>
+                            {% endif %}
+                        </td>
+                        <td class="px-3 sm:px-6 py-4 text-center text-sm hidden sm:table-cell">
+                            <span class="px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-indigo-100 text-indigo-800">
+                                {{ tag.question_count|default:0 }}
+                            </span>
+                        </td>
+                        <td class="px-3 sm:px-6 py-4 text-center text-sm text-gray-500 hidden md:table-cell">
+                            {{ tag.total_attempts|default:0 }}
+                        </td>
+                        <td class="px-6 py-4 text-center text-sm">
+                            {% if tag.avg_success_rate is not None %}
+                                {% with success_rate=tag.avg_success_rate|floatformat:0 %}
+                                    <span class="px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full 
+                                        {% if success_rate >= 70 %}bg-green-100 text-green-800{% elif success_rate >= 50 %}bg-yellow-100 text-yellow-800{% else %}bg-red-100 text-red-800{% endif %}">
+                                        {{ success_rate }}%
+                                    </span>
+                                {% endwith %}
+                            {% else %}
+                                <span class="text-gray-400">N/A</span>
+                            {% endif %}
+                        </td>
+                        <td class="px-6 py-4 text-right text-sm font-medium">
+                            <div class="flex justify-end space-x-2">
+                                {# 🔴 TUZATILDI: slug=center.slug qo'shildi #}
+                                <a href="{% url 'tag_update' slug=center.slug tag_id=tag.id %}" class="btn-icon text-blue-600 hover:bg-blue-100" title="{% trans 'Tahrirlash' %}">
+                                    <i class="fas fa-edit"></i>
+                                </a>
+                                <button onclick="openDeleteModal('delete-modal-{{ tag.id }}')" class="btn-icon text-red-600 hover:bg-red-100" title="{% trans 'O\'chirish' %}">
+                                    <i class="fas fa-trash-alt"></i>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        
+        {# Paginatsiya (Agar kerak bo'lsa, bu yerga qo'shiladi) #}
+
+        {% else %}
+        <div class="text-center py-16 bg-indigo-50 rounded-xl border border-dashed border-indigo-200 mt-6">
+            <i class="fas fa-tags text-7xl text-indigo-400 mb-6"></i>
+            <p class="text-xl text-gray-600 mb-6 font-medium">{% trans "Hozircha teglar/mavzular yaratilmagan." %}</p>
+            {# 🔴 TUZATILDI: slug=center.slug qo'shildi #}
+            {% if center %}
+            <a href="{% url 'tag_create' slug=center.slug %}" class="btn btn-primary">
+                <i class="fas fa-plus mr-2"></i>{% trans "Birinchi tegni yaratish" %}
+            </a>
+            {% endif %}
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+{# O'chirish Modallari #}
+{% for tag in tags %}
+    <div id="delete-modal-{{ tag.id }}" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeModal('delete-modal-{{ tag.id }}')">&times;</span>
+            <h3 class="text-2xl font-bold text-gray-800 mb-4">{% trans "Tegni o'chirishni tasdiqlash" %}</h3>
+            <p class="text-gray-600 mb-6">
+                {% trans "Haqiqatan ham" %} "<span class="font-bold text-indigo-600">{{ tag.get_full_hierarchy }}</span>" {% trans "tegini o'chirmoqchimisiz? Bu tegga bog'langan barcha savollar (question) ham ta'sirlanadi va bu qaytarib bo'lmaydigan amal!" %}
+            </p>
+            {# 🔴 TUZATILDI: slug=center.slug qo'shildi #}
+            <form method="post" action="{% url 'tag_delete' slug=center.slug tag_id=tag.id %}"> 
+                {% csrf_token %}
+                <div class="flex flex-col sm:flex-row justify-end space-y-3 sm:space-y-0 sm:space-x-3 mt-4">
+                    <button type="button" onclick="closeModal('delete-modal-{{ tag.id }}')" class="btn btn-secondary w-full sm:w-auto">{% trans "Bekor qilish" %}</button>
+                    <button type="submit" class="btn btn-danger w-full sm:w-auto">{% trans "Ha, o'chirish" %}</button>
+                </div>
+            </form>
+        </div>
+    </div>
+{% endfor %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Modal funksiyalari
+    function closeModal(modalId) {
+        document.getElementById(modalId).style.display = 'none';
+    }
+
+    function openDeleteModal(modalId) {
+        // Avval barcha modallarni yopish
+        document.querySelectorAll('.modal').forEach(modal => {
+             modal.style.display = 'none';
+        });
+        // Keyin kerakli modalni ochish
+        document.getElementById(modalId).style.display = 'block';
+    }
+    
+    // Modal tashqarisini bosganda yopish
+    window.onclick = function(event) {
+        if (event.target.classList.contains('modal')) {
+            event.target.style.display = "none";
+        }
+    }
+</script>
+{% endblock %}

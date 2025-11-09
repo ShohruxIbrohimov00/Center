@@ -28,7 +28,9 @@ INSTALLED_APPS = [
     'django_select2',
     'ckeditor',
     'ckeditor_uploader',
-    'django_bleach'
+    'django.contrib.humanize', 
+    'django_bleach',
+    'crispy_forms',
 ]
 
 MIDDLEWARE = [
@@ -61,6 +63,7 @@ TEMPLATES = [
                 'django.template.context_processors.request',
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
+                'Mock.context_processors.global_context',
             ],
         },
     },
@@ -93,6 +96,13 @@ AUTH_PASSWORD_VALIDATORS = [
     {'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator'},
 ]
 
+CSRF_TRUSTED_ORIGINS = [
+    'http://localhost:8000',
+    'https://localhost:8000',  # Xato xabarida ko'rsatilgan manbani qo'shing
+    'http://127.0.0.1:8000',
+    # Agar loyihani boshqa domen orqali ishlatmoqchi bo'lsangiz, uni ham qo'shing
+]
+
 LANGUAGE_CODE = 'uz-UZ'
 TIME_ZONE = 'Asia/Tashkent'
 USE_I18N = True
@@ -107,24 +117,36 @@ MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
-CKEDITOR_UPLOAD_PATH = "Uploads/"
+CKEDITOR_UPLOAD_PATH = "uploads/"
 CKEDITOR_IMAGE_BACKEND = "pillow"
 
 CKEDITOR_CONFIGS = {
     'default': {
-        'skin': 'moono',
+        'skin': 'moono-lisa',
         'toolbar_Basic': [['Source', '-', 'Bold', 'Italic']],
-        'extraPlugins': 'codesnippet,image2,mathjax,autogrow',
+        
+        'filebrowserUploadUrl': '/ckeditor/upload/', 
+        'filebrowserBrowseUrl': '/ckeditor/browse/',
+
+        'extraPlugins': [['codesnippet,image2,autogrow']], 
+        
+        # 2. Rasm bilan bog'liq o'chirilgan plaginlarni qayta yoqamiz
+        'removePlugins': 'exportpdf,flash',  # 'image' ni olib tashladik
+        
+        # Rasm sozlamalari (qayta o'zgarishsiz qolsa ham bo'ladi)
         'image2_alignClasses': ['image-left', 'image-center', 'image-right'],
         'image2_toolbar': ['|', 'imageTextAlternative', '|', 'imageWidth', 'imageHeight', 'imageStyle', '|', 'imageResize', 'imageResizeWidth', 'imageResizeHeight'],
         'image2_config': {'maxWidth': 800},
-        'resize_enabled': False,
-        'removeButtons': 'Image,Flash,ExportPdf',
-        'removePlugins': 'exportpdf',
+        'resize_enabled': True, # Rasmlarni o'lchamini o'zgartirish uchun yoqish tavsiya etiladi
+
+        # 3. 'Image' tugmasini 'removeButtons' dan o'chirib, 'toolbar_Full' ga qo'shamiz
+        'removeButtons': 'Flash,ExportPdf', # 'Image' ni olib tashladik
+        
         'toolbar_Full': [
             ['Styles', 'Format', 'Bold', 'Italic', 'Underline', 'Strike', 'SpellChecker', 'Undo', 'Redo'],
             ['Link', 'Unlink', 'Anchor'],
-            ['Image', 'Table', 'HorizontalRule'],
+            # Image tugmasi bu yerda turishi kerak. Endi u yuklash funksiyasini qo'shadi.
+            ['Image', 'Table', 'HorizontalRule'], 
             ['TextColor', 'BGColor'],
             ['Smiley', 'SpecialChar'],
             ['Source', 'Maximize']
@@ -135,13 +157,16 @@ CKEDITOR_CONFIGS = {
     }
 }
 
-BLEACH_ALLOWED_TAGS = ['p', 'b', 'i', 'u', 'em', 'strong', 'a', 'ul', 'ol', 'li']
-BLEACH_ALLOWED_ATTRIBUTES = ['href', 'title']
+CKEDITOR_ALLOW_NON_STAFF_USERS = True
+
+BLEACH_ALLOWED_TAGS = ['p', 'b', 'i', 'u', 'em', 'strong', 'a', 'ul', 'ol', 'li','img']
+BLEACH_ALLOWED_ATTRIBUTES = ['href', 'title','src', 'alt', 'width', 'height', 'style', 'class']
 BLEACH_STRIP_TAGS = True
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 AUTH_USER_MODEL = 'Mock.CustomUser'
 LOGIN_URL = 'login'
-LOGIN_REDIRECT_URL = 'dashboard'
+LOGIN_REDIRECT_URL = 'dashboard_base'
 AUTHENTICATION_BACKENDS = ['django.contrib.auth.backends.ModelBackend']
 EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
+CRISPY_TEMPLATE_PACK = "uni_form"

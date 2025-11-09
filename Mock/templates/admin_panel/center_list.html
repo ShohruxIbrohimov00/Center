@@ -1,0 +1,508 @@
+{% extends 'base.html' %}
+{% load static i18n widget_tweaks %}
+
+{% block title %}{% trans "O'quv Markazlari Boshqaruvi" %}{% endblock %}
+
+{% block extra_css %}
+{# ... (CSS qismi o'zgarishsiz qoladi) ... #}
+<style>
+/* --- MODAL UCHUN TO'LIQ QAYTA YOZILGAN CSS (IS-ACTIVE CLASS BILAN) --- */
+
+/* 1. MODAL KONTEYNERI (.modal): Markazlashni doimiy ta'minlaydi */
+.modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    
+    /* Fonni boshqarish: Dastlab shaffof va ko'rinmas */
+    background-color: rgba(0, 0, 0, 0); 
+    z-index: 1000;
+    
+    /* Markazlash uchun (doimo flex) */
+    display: flex; 
+    align-items: center;    
+    justify-content: center; 
+    padding: 1rem;
+    
+    /* Yopiq holat */
+    opacity: 0; 
+    visibility: hidden; /* display: none o'rniga eng yaxshi yechim */
+    transition: opacity 0.3s ease-out, background-color 0.3s ease-out, visibility 0.3s;
+}
+
+/* 2. MODAL OCHILGANDA: JS tomonidan .is-active klassi qo'shilganda faollashadi */
+.modal.is-active { /* <<<< E'TIBOR BERING! Faqat is-active klassi ishlaydi! */
+    background-color: rgba(0, 0, 0, 0.4); 
+    opacity: 1;
+    visibility: visible;
+}
+
+
+/* 3. MODAL KONTENTI (.modal-content): Kirish/Chiqish animatsiyasi */
+.modal-content {
+    background-color: #ffffff;
+    border-radius: 0.5rem;
+    padding: 1.5rem;
+    width: 90%;
+    max-width: 500px; /* Umumiy modal kengligi */
+    margin: 0; 
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+    
+    /* Animatsiya tezligi */
+    transition: transform 0.3s ease-out, opacity 0.3s ease-out;
+
+    /* Yopiq holat */
+    transform: translateY(-50px); 
+    opacity: 0; 
+}
+
+/* Katta kontentli modal uchun kenglik */
+#groups-list-modal .modal-content {
+    max-width: 700px; 
+}
+
+
+/* 4. MODAL OCHILGANDA KONTENTNI MARKAZGA TUSHIRISH */
+.modal.is-active .modal-content {
+    transform: translateY(0); /* Markazga tushadi */
+    opacity: 1; /* To'liq ko'rinadi */
+}
+
+/* --- Select2 sozlamalari (o'zgarishsiz) --- */
+.select2-container {
+    width: 100% !important;
+}
+
+.select2-container--default .select2-selection--single {
+    border-color: #d1d5db !important;
+    height: 2.5rem !important;
+    padding: 0.25rem 0.75rem !important;
+    border-radius: 0.375rem !important;
+    box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05) !important;
+}
+
+.select2-container--default .select2-selection--single .select2-selection__rendered {
+    line-height: 1.5rem;
+}
+
+.select2-dropdown {
+    z-index: 10001;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container mx-auto p-4 md:p-8 max-w-7xl">
+    <div class="bg-white shadow-2xl rounded-2xl p-6 md:p-8 border border-gray-100">
+        <h2 class="text-3xl font-extrabold text-gray-900 mb-6">{{ title }}</h2>
+        
+        {# Create New Center Button #}
+        <div class="flex justify-end mb-6">
+            <a href="{% url 'center_create' %}" class="inline-flex items-center px-4 py-2 bg-indigo-600 text-white font-semibold rounded-lg hover:bg-indigo-700 transition-colors duration-200">
+                <i class="fas fa-plus mr-2"></i>{% trans "Yangi Markaz qo'shish" %}
+            </a>
+        </div>
+        
+        {# Messages #}
+        {% for message in messages %}
+            <div class="p-4 mb-4 text-sm rounded-lg {% if message.tags == 'success' %}text-green-800 bg-green-50{% elif 'warning' in message.tags %}text-yellow-800 bg-yellow-50{% else %}text-red-800 bg-red-50{% endif %}" role="alert">
+                {{ message }}
+            </div>
+        {% endfor %}
+
+        {# Centers List #}
+        {% if centers %}
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{% trans "Markaz / SLUG" %}</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{% trans "Status" %}</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{% trans "Obuna muddati" %}</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{% trans "O'qituvchilar" %}</th>
+                        
+                        {# 💥 YANGI USTUN 1: O'quvchilar Soni #}
+                        <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            <i class="fas fa-users-class mr-1"></i>{% trans "O'quvchilar" %}
+                        </th>
+                        
+                        {# 💥 YENGI USTUN 2: Guruhlar #}
+                        <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            <i class="fas fa-layer-group mr-1"></i>{% trans "Guruhlar" %}
+                        </th>
+
+                        <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">{% trans "Amallar" %}</th>
+                    </tr>
+                </thead>
+                <tbody class="bg-white divide-y divide-gray-200">
+                    {% for center in centers %}
+                    <tr class="hover:bg-gray-50 transition-colors duration-150">
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <div class="text-sm font-medium text-gray-900">{{ center.name }}</div>
+                            <div class="text-xs text-gray-500">/{{ center.slug }}</div>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            {% if center.is_valid %}
+                                <span class="px-3 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">{% trans "Aktiv" %}</span>
+                            {% else %}
+                                <span class="px-3 py-1 text-xs font-semibold rounded-full bg-red-100 text-red-800">{% trans "Bloklangan" %}</span>
+                            {% endif %}
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                            {% if center.active_subscription %}
+                                {% trans "Tugash sanasi" %}: <span class="font-semibold">{{ center.active_subscription.end_date|date:"Y-m-d" }}</span>
+                            {% else %}
+                                <span class="text-red-500">{% trans "Obuna yo'q" %}</span>
+                            {% endif %}
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ center.members.username }}</td>
+                        
+                        {# 💥 O'quvchilar Soni #}
+                        <td class="px-6 py-4 whitespace-nowrap text-center text-sm font-bold text-indigo-600">
+                            {{ center.student_count }}
+                        </td>
+
+                        {# 💥 Guruhlar ro'yxati (Modal tugmasi) #}
+                        <td class="px-6 py-4 whitespace-nowrap text-center text-sm text-gray-900">
+                            {% if center.all_groups %}
+                                <button onclick="openGroupsModal({{ center.id }}, '{{ center.name|escapejs }}', {% if center.all_groups %}{{ center.all_groups|length }}{% else %}0{% endif %})" 
+                                        class="text-blue-600 hover:text-blue-800 font-semibold text-sm">
+                                    {{ center.all_groups|length }} {% trans "ta guruh" %}
+                                </button>
+                            {% else %}
+                                <span class="text-gray-500 text-xs">0 {% trans "guruh" %}</span>
+                            {% endif %}
+                        </td>
+                        
+                        <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                            <div class="flex justify-end space-x-2">
+                                {# Assign Teacher Button #}
+                                <button onclick="openAssignmentModal({{ center.id }}, '{{ center.name|escapejs }}')" class="p-2 text-indigo-600 hover:bg-indigo-100 rounded-full transition-colors duration-150" title="{% trans "O'qituvchi tayinlash" %}">
+                                    <i class="fas fa-user-plus"></i>
+                                </button>
+                                {# Edit Button #}
+                                <a href="{% url 'center_update' center_id=center.id %}" class="p-2 text-blue-600 hover:bg-blue-100 rounded-full transition-colors duration-150" title="{% trans 'Tahrirlash' %}">
+                                    <i class="fas fa-edit"></i>
+                                </a>
+                                {# Delete Center Button #}
+                                <button onclick="openDeleteCenterModal({{ center.id }}, '{{ center.name|escapejs }}')" class="p-2 text-red-600 hover:bg-red-100 rounded-full transition-colors duration-150" title="{% trans "Markazni o'chirish" %}">
+                                    <i class="fas fa-trash-alt"></i>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="text-center py-10 bg-gray-50 rounded-lg">
+            <i class="fas fa-building text-4xl text-gray-400 mb-3"></i>
+            <p class="text-gray-500">{% trans "Hali hech qanday o'quv markazi yaratilmagan." %}</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+{# ================================================================================= #}
+{# 💥 MODALLARNI YO'QOLGAN ID LAR BILAN QAYTA QURISH #}
+{# ================================================================================= #}
+
+
+{# 1. Assign Teacher Modal #}
+<div id="assignment-modal" class="modal">
+    <div class="modal-content">
+        <span class="close text-gray-500 hover:text-gray-700 text-2xl font-bold float-right cursor-pointer" onclick="closeModal('assignment-modal')">&times;</span>
+        <h3 class="text-xl font-bold text-gray-800 mb-4">
+            {% trans "Markazga xodim tayinlash" %}: <span id="modal-center-name" class="text-indigo-600"></span>
+        </h3>
+        
+        <form id="assignment-form" method="post" action="{% url 'assign_teacher_to_center' center_id=0 %}">
+            {% csrf_token %}
+            {# TeacherAssignmentForm yuborilgan deb faraz qilib, uning maydonini chiqaramiz #}
+            <div class="mb-4">
+                <label for="id_user_to_assign" class="block text-sm font-medium text-gray-700 mb-1">{% trans "Foydalanuvchini tanlash" %}</label>
+                {# 💥 MUHIM: Bu ID 'id_user_to_assign' bo'lishi shart, chunki JS uni chaqirmoqda #}
+                {% render_field TeacherAssignmentForm.user_to_assign id="id_user_to_assign" class="form-select" %}
+            </div>
+
+            <div class="flex justify-end space-x-3">
+                <button type="button" onclick="closeModal('assignment-modal')" class="px-4 py-2 bg-gray-500 text-white rounded-md hover:bg-gray-600 transition-colors duration-200">{% trans "Bekor qilish" %}</button>
+                
+                {# 💥 MUHIM: Bu ID 'assign-btn' bo'lishi shart, chunki JS uni chaqirmoqda #}
+                <button type="submit" id="assign-btn" class="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition-colors duration-200 opacity-50 cursor-not-allowed" disabled>
+                    <i class="fas fa-check mr-2"></i>{% trans "Tayinlash" %}
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+{# 2. Delete Center Modal #}
+<div id="delete-center-modal" class="modal">
+    <div class="modal-content">
+        <span class="close text-gray-500 hover:text-gray-700 text-2xl font-bold float-right cursor-pointer" onclick="closeModal('delete-center-modal')">&times;</span>
+        <h3 class="text-xl font-bold text-red-600 mb-4">{% trans "Markazni o'chirishni tasdiqlash" %}</h3>
+        
+        <p class="text-gray-600 mb-4">
+            {% trans "Haqiqatan ham" %} "<span id="delete-center-name" class="font-semibold text-red-700"></span>" {% trans "o'quv markazini o'chirmoqchimisiz? Barcha bog'liq ma'lumotlar o'chiriladi." %}
+        </p>
+        
+        {# 💥 MUHIM: Bu ID 'delete-center-form' bo'lishi shart, chunki JS uni chaqirmoqda #}
+        <form id="delete-center-form" method="post" action="{% url 'center_delete' center_id=0 %}">
+            {% csrf_token %}
+            <div class="flex justify-end space-x-3">
+                <button type="button" onclick="closeModal('delete-center-modal')" class="px-4 py-2 bg-gray-500 text-white rounded-md hover:bg-gray-600 transition-colors duration-200">{% trans "Bekor qilish" %}</button>
+                <button type="submit" class="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors duration-200">{% trans "O'chirish" %}</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+{# 3. Guruhlar ro'yxati uchun Modal (O'zgarishsiz qoldi) #}
+<div id="groups-list-modal" class="modal">
+    <div class="modal-content">
+        <span class="close text-gray-500 hover:text-gray-700 text-2xl font-bold float-right cursor-pointer" onclick="closeModal('groups-list-modal')">&times;</span>
+        <h3 class="text-xl font-bold text-gray-800 mb-4">
+            <i class="fas fa-layer-group mr-2 text-indigo-600"></i><span id="groups-modal-center-name" class="text-indigo-600"></span> {% trans "Guruhlari" %} 
+            (<span id="groups-modal-count"></span>)
+        </h3>
+        <div id="groups-list-container" class="space-y-3 max-h-96 overflow-y-auto pr-2">
+            {# Guruhlar ro'yxati bu yerga JS orqali joylashtiriladi #}
+        </div>
+        <div class="mt-6 flex justify-end">
+              <button type="button" onclick="closeModal('groups-list-modal')" class="px-4 py-2 bg-gray-500 text-white rounded-md hover:bg-gray-600 transition-colors duration-200">{% trans "Yopish" %}</button>
+        </div>
+    </div>
+</div>
+
+
+{# 4. Remove Teacher Modals (Bu qismda ID-lar to'g'ri bo'lgani uchun o'zgarishsiz qoldirildi) #}
+{% for center in centers %}
+    {% for teacher in center.teachers %}
+    <div id="remove-teacher-modal-{{ teacher.id }}" class="modal">
+        <div class="modal-content">
+            <span class="close text-gray-500 hover:text-gray-700 text-2xl font-bold float-right cursor-pointer" onclick="closeModal('remove-teacher-modal-{{ teacher.id }}')">&times;</span>
+            <h3 class="text-xl font-bold text-red-600 mb-4">{% trans "Xodimni chiqarishni tasdiqlash" %}</h3>
+            <p class="text-gray-600 mb-4">
+                {% trans "Haqiqatan ham" %} "<span class="font-semibold">{{ teacher.username }}</span>" {% trans "foydalanuvchisini" %} "<span class="font-semibold">{{ center.name }}</span>" {% trans "markazidan chiqarmoqchimisiz?" %}
+            </p>
+            <form method="post" action="{% url 'center_remove_teacher' center_id=center.id user_id=teacher.id %}">
+                {% csrf_token %}
+                <div class="flex justify-end space-x-3">
+                    <button type="button" onclick="closeModal('remove-teacher-modal-{{ teacher.id }}')" class="px-4 py-2 bg-gray-500 text-white rounded-md hover:bg-gray-600 transition-colors duration-200">{% trans "Bekor qilish" %}</button>
+                    <button type="submit" class="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors duration-200">{% trans "Chiqarish" %}</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    {% endfor %}
+{% endfor %}
+{% endblock %}
+
+
+{% block extra_js %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+<script>
+// =================================================================================
+// MODAL VA TUGMA FUNKSIYALARI
+// =================================================================================
+
+// Universal modal yopish funksiyasi
+function closeModal(modalId) {
+    const modal = document.getElementById(modalId);
+    if (modal) {
+        const modalContent = modal.querySelector('.modal-content');
+        if (modalContent) {
+            modalContent.style.transform = 'translateY(-50px)';
+        }
+        modal.style.opacity = '0';
+        setTimeout(() => {
+            // is-active klassini olib tashlash orqali ko'rinmas qilish
+            modal.classList.remove('is-active'); 
+        }, 300);
+    }
+}
+
+// Universal modal ochish funksiyasi
+function openModal(modalId) {
+    // Avvalgi ochiq modalni yopish
+    document.querySelectorAll('.modal.is-active').forEach(modal => {
+        if (modal.id !== modalId) { // Joriy modalni yopmaslik
+             modal.classList.remove('is-active'); 
+        }
+    });
+    
+    const modal = document.getElementById(modalId);
+    if (modal) {
+        modal.classList.add('is-active');
+        
+        setTimeout(() => {
+            modal.style.opacity = '1';
+            const modalContent = modal.querySelector('.modal-content');
+            if (modalContent) {
+                 modalContent.style.transform = 'translateY(0)';
+            }
+        }, 10);
+    }
+}
+
+// O'chirish (Delete Center) Modalini ochish
+function openDeleteCenterModal(centerId, centerName) {
+    // 💥 XATO TUZATILDI: 'delete-center-name' va 'delete-center-form' ID lari topiladi
+    const deleteForm = document.getElementById('delete-center-form');
+    const centerNameSpan = document.getElementById('delete-center-name'); 
+
+    if (centerNameSpan) {
+        centerNameSpan.textContent = centerName;
+    }
+
+    if (deleteForm) {
+        // Form action URL ni dinamik o'zgartirish
+        deleteForm.action = "{% url 'center_delete' center_id=0 %}".replace('0', centerId);
+    }
+
+    openModal('delete-center-modal');
+}
+
+
+// O'qituvchi tayinlash (Assign Teacher) Modalini ochish
+function openAssignmentModal(centerId, centerName) {
+    // 💥 XATO TUZATILDI: Barcha kerakli elementlar topiladi
+    const selectUser = $('#id_user_to_assign');
+    const assignBtn = document.getElementById('assign-btn');
+    const assignmentForm = document.getElementById('assignment-form');
+    const modalCenterName = document.getElementById('modal-center-name');
+    
+    // Formalarni boshlang'ich holatga qaytarish
+    if (selectUser.length) {
+        selectUser.val(null).trigger('change');
+    }
+    
+    // Tugmani bloklash (foydalanuvchi tanlanmaguncha)
+    if (assignBtn) {
+        assignBtn.disabled = true;
+        assignBtn.classList.add('opacity-50', 'cursor-not-allowed');
+        assignBtn.classList.remove('opacity-100', 'cursor-pointer');
+    }
+    
+    // Markaz nomini yozish
+    if (modalCenterName) {
+        modalCenterName.textContent = centerName;
+    }
+    
+    // Form action URL ni dinamik o'zgartirish
+    if (assignmentForm) {
+        assignmentForm.action = "{% url 'assign_teacher_to_center' center_id=0 %}".replace('0', centerId);
+    }
+    
+    openModal('assignment-modal');
+}
+
+
+// Guruhlar Modalini ochish (O'zgarishsiz qoldi)
+function openGroupsModal(centerId, centerName, groupCount) {
+    const container = document.getElementById('groups-list-container');
+    document.getElementById('groups-modal-center-name').textContent = centerName;
+    document.getElementById('groups-modal-count').textContent = groupCount;
+    container.innerHTML = `<p class="text-center text-gray-500 pt-4"><i class="fas fa-spinner fa-spin mr-2"></i>{% trans "Guruhlar yuklanmoqda..." %}</p>`;
+    
+    // AJAX so'rovi orqali guruhlar ro'yxatini olish
+    $.ajax({
+        url: `{% url 'center_groups_ajax' center_id=0 %}`.replace('0', centerId),
+        method: 'GET',
+        success: function(data) {
+            let html = '';
+            if (data.groups && data.groups.length > 0) {
+                data.groups.forEach(group => {
+                    html += `
+                        <div class="flex items-start justify-between p-3 bg-gray-50 border border-gray-200 rounded-lg shadow-sm">
+                            <div>
+                                <strong class="text-gray-900">${group.name}</strong> 
+                                <span class="text-xs text-gray-500">(${group.is_active ? "{% trans "Aktiv" %}" : "{% trans "Nofaol" %}"})</span>
+                                <div class="text-sm text-indigo-600"><i class="fas fa-chalkboard-teacher mr-1"></i> ${group.teacher_username}</div>
+                            </div>
+                            <div class="text-right flex items-center">
+                                <span class="text-sm font-semibold text-gray-700 mr-3">
+                                    <i class="fas fa-user-graduate mr-1"></i> ${group.student_count}
+                                </span>
+                                <a href="${group.manage_url}" target="_blank" class="p-1 text-blue-500 hover:text-blue-700" title="{% trans "Boshqarish" %}">
+                                    <i class="fas fa-arrow-right"></i>
+                                </a>
+                            </div>
+                        </div>
+                    `;
+                });
+            } else {
+                html = `<div class="text-center py-6 text-gray-500">{% trans "Bu markazda hali guruhlar yaratilmagan." %}</div>`;
+            }
+            container.innerHTML = html;
+        },
+        error: function() {
+            container.innerHTML = `<div class="text-center py-6 text-red-500">{% trans "Guruhlarni yuklashda xatolik yuz berdi." %}</div>`;
+        }
+    });
+
+    openModal('groups-list-modal');
+}
+
+// Modal tashqarisiga bosilganda yopish (o'zgarishsiz)
+window.onclick = function(event) {
+    if (event.target.classList.contains('modal') && event.target.style.opacity === '1') {
+        closeModal(event.target.id);
+    }
+};
+
+// Select2 AJAX konfiguratsiyasi (o'zgarishsiz)
+$(document).ready(function() {
+    // 💥 selectUser elementining mavjudligini tekshirish
+    const selectUser = $('#id_user_to_assign');
+    const assignBtn = document.getElementById('assign-btn');
+    
+    if (selectUser.length) {
+        selectUser.select2({
+            dropdownParent: $('#assignment-modal'),
+            placeholder: "{% trans "Foydalanuvchini (username/ism) qidirish" %}",
+            minimumInputLength: 2,
+            allowClear: true,
+            ajax: {
+                url: "{% url 'search_unassigned_teachers_ajax' %}",
+                dataType: 'json',
+                delay: 250,
+                data: function(params) {
+                    return { q: params.term, page: params.page };
+                },
+                processResults: function(data, params) {
+                    params.page = params.page || 1;
+                    return {
+                        results: data.items,
+                        pagination: { more: (params.page * 10) < data.total_count }
+                    };
+                },
+                cache: true
+            }
+        });
+
+        // 💥 Select2 qiymati o'zgarganda tugmani faollashtirish/bloklash
+        selectUser.on('change', function() {
+            const selectedId = $(this).val();
+            if (assignBtn) {
+                if (selectedId) {
+                    assignBtn.disabled = false;
+                    assignBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+                    assignBtn.classList.add('opacity-100', 'cursor-pointer');
+                } else {
+                    assignBtn.disabled = true;
+                    assignBtn.classList.add('opacity-50', 'cursor-not-allowed');
+                    assignBtn.classList.remove('opacity-100', 'cursor-pointer');
+                }
+            }
+        });
+    }
+});
+</script>
+
+{% endblock %}

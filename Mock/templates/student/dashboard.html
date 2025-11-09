@@ -54,7 +54,13 @@
                     {% for player in leaderboard_users %}
                     <li class="flex items-center gap-3 p-2 rounded-lg {% if player.id == user.id %} bg-indigo-100 ring-2 ring-indigo-300 {% endif %}">
                         <span class="font-bold text-base sm:text-lg text-slate-400 w-6 text-center">{{ forloop.counter }}.</span>
-                        <img src="{{ player.profile_picture.url|default:'/static/images/default-avatar.png' }}" alt="{{ player.username }}" class="w-9 h-9 sm:w-10 sm:h-10 rounded-full object-cover">
+                        <img src="
+                        {% if request.user.profile_picture and request.user.profile_picture.url %}
+                            {{ request.user.profile_picture.url }}
+                        {% else %}
+                            {% static 'images/default-avatar.png' %}
+                        {% endif %}
+                        " alt="Profil">
                         <div class="flex-grow min-w-0">
                             <p class="font-semibold text-sm sm:text-base text-slate-800 truncate">{{ player.get_full_name|default:player.username }}</p>
                         </div>
@@ -104,7 +110,7 @@
 </div>
 
 {% block extra_js %}
-<script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script> <script>
 document.addEventListener('DOMContentLoaded', () => {
     // Haftalik Progress Grafikasi (Line Chart)
     const weeklyCtx = document.getElementById('weeklyProgressChart');
@@ -139,8 +145,34 @@ document.addEventListener('DOMContentLoaded', () => {
                 responsive: true,
                 maintainAspectRatio: false,
                 scales: {
-                    yExams: { type: 'linear', display: true, position: 'left', suggestedMin: 800, suggestedMax: 1600, title: { display: true, text: 'SAT Ball' } },
-                    yFlashcards: { type: 'linear', display: true, position: 'right', beginAtZero: true, grid: { drawOnChartArea: false }, title: { display: true, text: 'So\'zlar soni' } }
+                    yExams: { 
+                        type: 'linear', 
+                        display: true, 
+                        position: 'left', 
+                        suggestedMin: 800, 
+                        suggestedMax: 1600, 
+                        title: { 
+                            display: true, 
+                            text: 'SAT Ball' 
+                        } 
+                    },
+                    // 🔥 TUZATISH: Flashcard Y o'qi (o'ng) shkalasi o'zgartirildi
+                    yFlashcards: { 
+                        type: 'linear', 
+                        display: true, 
+                        position: 'right', 
+                        beginAtZero: true, 
+                        grid: { drawOnChartArea: false }, 
+                        title: { 
+                            display: true, 
+                            text: "So'zlar soni" 
+                        },
+                        // YANGI QO'SHILGAN QISMLAR:
+                        max: 36, // Maksimal qiymat 36 ga o'rnatildi
+                        ticks: {
+                            stepSize: 4 // Belgilar orasidagi qadam 4 ga o'rnatildi (0, 4, 8, 12, ...)
+                        }
+                    }
                 },
                 interaction: {
                     mode: 'index',

@@ -1,0 +1,111 @@
+{% extends 'base.html' %}
+{% load static i18n widget_tweaks %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block extra_css %}
+<link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+<style>
+    /* Asosiy CSS uslublar */
+    .btn { display: inline-flex; align-items: center; padding: 0.5rem 1rem; font-weight: 600; border-radius: 0.375rem; transition: all 0.3s; }
+    .btn-primary { background-color: #4f46e5; color: white; }
+    .btn-primary:hover { background-color: #4338ca; }
+    .btn-secondary { background-color: #6b7280; color: white; }
+    .btn-secondary:hover { background-color: #4b5563; }
+    
+    /* Forma uslublari */
+    .form-control { 
+        border: 1px solid #d1d5db; 
+        border-radius: 0.375rem; 
+        padding: 0.6rem 0.75rem;
+        box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05); 
+        transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out; 
+    }
+    .form-control:focus { 
+        border-color: #4f46e5; 
+        box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.2); 
+        outline: none; 
+    }
+
+    /* Xato xabarlari */
+    .errorlist {
+        list-style: none;
+        padding: 0;
+        margin-top: 0.25rem;
+        color: #ef4444; 
+        font-size: 0.875rem; 
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container mx-auto p-4 md:p-8 max-w-xl">
+    <div class="bg-white shadow-2xl rounded-xl p-6 md:p-8 border border-gray-100">
+        <h2 class="text-3xl font-extrabold text-gray-900 mb-8 border-b pb-4">
+            {{ title }}
+        </h2>
+
+        {# Xabarlar (Messages) #}
+        {% for message in messages %}
+            <div class="p-4 mb-4 text-sm rounded-lg {% if message.tags == 'success' %}text-green-800 bg-green-50{% elif 'warning' in message.tags %}text-yellow-800 bg-yellow-50{% else %}text-red-800 bg-red-50{% endif %}" role="alert">
+                {{ message }}
+            </div>
+        {% endfor %}
+
+        <form method="post" action="" class="space-y-6">
+            {% csrf_token %}
+
+            {# Maydonlarni loop orqali chizish #}
+            {% for field in form %}
+                
+                {# subscription_months va owner maydonlari uchun istisno mantiqi #}
+                
+                {# 1. 'subscription_months' ni faqat yaratish rejimida ko'rsatish #}
+                {% if field.name == 'subscription_months' and not is_create %}
+                    {% comment %} Tahrirlash rejimida obuna maydoni yashirildi {% endcomment %}
+
+                {# 2. 'owner' maydonini butunlay yashirish #}
+                {% elif field.name == 'owner' %}
+                    {% comment %} 'owner' maydoni bu sahifadan o'chirildi {% endcomment %}
+
+                {% else %}
+                    {# 3. Boshqa barcha maydonlarni render qilish #}
+                    <div class="field-container">
+                        {# label #}
+                        <label for="{{ field.id_for_label }}" class="block text-sm font-medium text-gray-700">
+                            {{ field.label }}{% if field.field.required %} <span class="text-red-500">*</span>{% endif %}
+                        </label>
+
+                        {# input/select maydoni #}
+                        {% render_field field class="form-control mt-1 block w-full" %}
+                        
+                        {# Help text va Xatolar #}
+                        {% if field.help_text %}
+                            <p class="mt-2 text-sm text-gray-500">{{ field.help_text }}</p>
+                        {% endif %}
+                        {{ field.errors }}
+                    </div>
+                {% endif %}
+            {% endfor %}
+            
+            <div class="flex justify-between pt-4 border-t mt-8">
+                <a href="{% url 'center_list' %}" class="btn btn-secondary">
+                    <i class="fas fa-arrow-left mr-2"></i>{% trans "Orqaga" %}
+                </a>
+                <button type="submit" class="btn btn-primary">
+                    {% if is_create %}
+                        <i class="fas fa-plus mr-2"></i>{% trans "Yangi Markaz Yaratish" %}
+                    {% else %}
+                        <i class="fas fa-save mr-2"></i>{% trans "O'zgarishlarni saqlash" %}
+                    {% endif %}
+                </button>
+            </div>
+        </form>
+        
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+{% endblock %}

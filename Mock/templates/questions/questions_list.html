@@ -91,14 +91,14 @@
 {% block content %}
 <div class="bg-white p-6 rounded-lg shadow-md max-w-7xl mx-auto">
     <div class="breadcrumb mb-6 text-sm text-gray-500">
-        <a href="{% url 'my_questions' %}" class="hover:text-gray-700 transition-colors">Bosh sahifa</a>
+        <a href="{% url 'my_questions' slug=center.slug %}" class="hover:text-gray-700 transition-colors">Bosh sahifa</a>
         {% if topic %}
             <span>></span>
             <span class="text-gray-700 font-medium">{{ topic.name }}</span>
         {% endif %}
         {% if subtopic %}
             <span>></span>
-            <a href="{% url 'my_questions' %}?topic={{ subtopic.topic.id }}" class="hover:text-gray-700 transition-colors">{{ subtopic.topic.name }}</a>
+            <a href="{% url 'my_questions' slug=center.slug %}?topic={{ subtopic.topic.id }}" class="hover:text-gray-700 transition-colors">{{ subtopic.topic.name }}</a>
             <span>></span>
             <span class="text-gray-700 font-medium">{{ subtopic.name }}</span>
         {% endif %}
@@ -110,18 +110,18 @@
         </h2>
         <div class="flex items-center space-x-2">
             {% if not subtopic and not topic %}
-            <a href="{% url 'create_topic' %}" class="btn btn-info">
+            <a href="{% url 'create_topic' slug=center.slug %}" class="btn btn-info">
                 <i class="fas fa-folder-plus mr-2"></i>Mavzu yaratish
             </a>
             {% endif %}
-            <a href="{% url 'add_question' %}{% if subtopic %}?subtopic={{ subtopic.id }}{% elif topic %}?topic={{ topic.id }}{% endif %}" class="btn btn-primary">
+            <a href="{% url 'add_question' slug=center.slug %}{% if subtopic %}?subtopic={{ subtopic.id }}{% elif topic %}?topic={{ topic.id }}{% endif %}" class="btn btn-primary">
                 <i class="fas fa-plus mr-2"></i>Savol qo'shish
             </a>
         </div>
     </div>
     
     <div class="mb-6">
-        <form method="get" action="{% url 'my_questions' %}" class="flex flex-col sm:flex-row items-center space-y-4 sm:space-y-0 sm:space-x-4">
+        <form method="get" action="{% url 'my_questions' slug=center.slug %}" class="flex flex-col sm:flex-row items-center space-y-4 sm:space-y-0 sm:space-x-4">
             <input type="hidden" name="topic" value="{{ topic.id|default:'' }}">
             <input type="hidden" name="subtopic" value="{{ subtopic.id|default:'' }}">
             <input type="hidden" name="uncategorized" value="{% if uncategorized %}true{% endif %}">
@@ -158,10 +158,10 @@
                     {% endif %}
                 </div>
                 <div class="flex space-x-2 flex-shrink-0 mt-4 md:mt-0">
-                    <a href="{% url 'edit_question' pk=question.pk %}" class="btn-icon text-yellow-600 hover:text-yellow-800" title="Tahrirlash">
+                    <a href="{% url 'edit_question' slug=center.slug pk=question.pk %}" class="btn-icon text-yellow-600 hover:text-yellow-800" title="Tahrirlash">
                         <i class="fas fa-edit"></i>
                     </a>
-                    <form action="{% url 'delete_question' pk=question.pk %}" method="post" class="inline" onsubmit="return confirm('Bu savolni oʻchirishni xohlaysizmi?');">
+                    <form action="{% url 'delete_question' slug=center.slug pk=question.pk %}" method="post" class="inline" onsubmit="return confirm('Bu savolni oʻchirishni xohlaysizmi?');">
                         {% csrf_token %}
                         <button type="submit" class="btn-icon text-red-600 hover:text-red-800" title="O'chirish">
                             <i class="fas fa-trash-alt"></i>
@@ -203,7 +203,7 @@
     <div class="text-center py-4 bg-gray-50 rounded-lg">
         <i class="fas fa-exclamation-triangle text-6xl text-gray-400 mb-4"></i>
         <p class="text-gray-500 text-lg mb-4">Bu ichki mavzuda hali savollar mavjud emas.</p>
-        <a href="{% url 'add_question' %}?subtopic={{ subtopic.id }}" class="btn btn-primary">
+        <a href="{% url 'add_question' slug=center.slug %}?subtopic={{ subtopic.id }}" class="btn btn-primary">
             Birinchi savolni qo'shing
         </a>
     </div>
@@ -225,7 +225,7 @@
     <div class="text-center py-4 bg-gray-50 rounded-lg">
         <i class="fas fa-exclamation-triangle text-6xl text-gray-400 mb-4"></i>
         <p class="text-gray-500 text-lg mb-4">Bu mavzuda hali ichki mavzular mavjud emas.</p>
-        <a href="{% url 'create_subtopic_for_topic' topic_id=topic.id %}" class="btn btn-info">
+        <a href="{% url 'create_subtopic' topic_id=topic.id slug=center.slug %}" class="btn btn-info">
             Birinchi ichki mavzuni yarating
         </a>
     </div>
@@ -244,7 +244,7 @@
         {% endfor %}
         
         {% if uncategorized_questions_count > 0 %}
-        <a href="{% url 'my_questions' %}?uncategorized=true" class="folder-item bg-gray-100 hover:bg-gray-200 rounded-lg p-6 flex flex-col items-center justify-center text-center transition duration-300">
+        <a href="{% url 'my_questions' slug=center.slug %}?uncategorized=true" class="folder-item bg-gray-100 hover:bg-gray-200 rounded-lg p-6 flex flex-col items-center justify-center text-center transition duration-300">
             <i class="fas fa-question-circle text-5xl text-gray-400 mb-2"></i>
             <h3 class="text-xl font-semibold text-gray-800 truncate w-full">Mavzulanmagan savollar</h3>
             <p class="text-sm text-gray-500">{{ uncategorized_questions_count }} ta savol</p>
@@ -257,10 +257,10 @@
         <h3 class="text-xl font-semibold text-gray-700 mb-2">Hali savollar yoki mavzular mavjud emas</h3>
         <p class="text-gray-500 mb-6">Dastlabki mavzuingizni yoki savolingizni qo'shish orqali boshlang</p>
         <div class="flex justify-center space-x-4">
-            <a href="{% url 'add_question' %}" class="btn btn-primary">
+            <a href="{% url 'add_question' slug=center.slug %}" class="btn btn-primary">
                 Savol qo'shish
             </a>
-            <a href="{% url 'create_topic' %}" class="btn btn-info">
+            <a href="{% url 'create_topic' slug=center.slug %}" class="btn btn-info">
                 Mavzu yaratish
             </a>
         </div>

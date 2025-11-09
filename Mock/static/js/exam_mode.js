@@ -1,41 +1,34 @@
-// exam_mode.js
-// Bu fayl Digital SAT (DSAT) imtihon rejimini boshqarish uchun ishlatiladi.
-
-// =================================================================
-// Global O'zgaruvchilar va DOM Elementlari
-// =================================================================
 
 const timerElement = document.getElementById('timer');
 const hideTimerBtn = document.getElementById('hide-timer-btn');
 const calculatorBtn = document.getElementById('calculator-btn');
 const referenceBtn = document.getElementById('reference-btn');
 const directionsBtn = document.getElementById('directions-btn');
-
+const dictionaryBtn = document.getElementById('dictionary-btn'); 
 const exitExamBtn = document.getElementById('exit-btn');
 const confirmFinishModal = document.getElementById('confirm-exit-modal');
 const confirmFinishYesBtn = document.getElementById('final-finish-btn');
-
+const flashcardsContainer = document.getElementById('flashcards-container'); 
 const nextBtn = document.getElementById('next-btn');
 const prevBtn = document.getElementById('prev-btn');
 const navGrid = document.getElementById('question-nav-grid');
 const markReviewBtn = document.getElementById('mark-review-btn');
 const questionNumberEl = document.getElementById('question-number');
 const navModalBtn = document.getElementById('nav-btn');
-
 const questionTextEl = document.getElementById('question-text');
 const questionImageContainer = document.getElementById('question-image-container');
 const questionImageEl = document.getElementById('question-image');
 const answerOptionsContainer = document.getElementById('answer-options-container');
+const questionNumberHeaderEl = document.getElementById('question-number-header'); // Header sarlavhasi
 
-// Global Holat O'zgaruvchilari
 let questionIds = [];
 let currentQuestionIndex = 0;
 let answeredQuestionIds = new Set();
 let reviewedQuestionIds = new Set();
 let timerInterval;
-let syncTimerInterval; // Yangi: Sinxronlash intervali
-let desmosLoaded = false; // Desmos yuklanganligini tekshirish
-let lastSyncTime = 0; // Debounce uchun
+let syncTimerInterval; 
+let desmosLoaded = false; 
+let lastSyncTime = 0; 
 
 // LocalStorage kalitlari
 const STORAGE_KEYS = {
@@ -43,10 +36,6 @@ const STORAGE_KEYS = {
     CURRENT_SECTION: 'exam_current_section',
     LAST_SYNC: 'exam_last_sync'
 };
-
-// =================================================================
-// YORDAMCHI FUNKSIYALAR
-// =================================================================
 
 function formatTime(totalSeconds) {
     if (totalSeconds < 0) totalSeconds = 0;
@@ -70,8 +59,8 @@ function toggleTimerVisibility() {
 
 // LocalStorage ga saqlash va tiklash
 function saveToLocalStorage() {
-    localStorage.setItem(STORAGE_KEYS.TIME_REMAINING, timeRemaining.toString());
-    localStorage.setItem(STORAGE_KEYS.CURRENT_SECTION, currentSectionId);
+    localStorage.setItem(STORAGE_KEYS.TIME_REMAINING, window.timeRemaining.toString());
+    localStorage.setItem(STORAGE_KEYS.CURRENT_SECTION, window.currentSectionId);
     localStorage.setItem(STORAGE_KEYS.LAST_SYNC, Date.now().toString());
 }
 
@@ -79,17 +68,16 @@ function loadFromLocalStorage() {
     const savedTime = localStorage.getItem(STORAGE_KEYS.TIME_REMAINING);
     const savedSection = localStorage.getItem(STORAGE_KEYS.CURRENT_SECTION);
     if (savedTime && !isNaN(parseInt(savedTime))) {
-        timeRemaining = parseInt(savedTime);
+        // timeRemaining - bu yerda globalda aniqlangan bo'lishi shart
+        window.timeRemaining = parseInt(savedTime); 
     }
-    if (savedSection && SECTION_ATTEMPTS_DATA[savedSection]) {
-        currentSectionId = savedSection;
+    if (savedSection && window.SECTION_ATTEMPTS_DATA[savedSection]) {
+        // currentSectionId - bu yerda globalda aniqlangan bo'lishi shart
+        window.currentSectionId = savedSection; 
     }
     lastSyncTime = parseInt(localStorage.getItem(STORAGE_KEYS.LAST_SYNC) || '0');
 }
 
-/**
- * Javob variantlari UI holatini yangilash.
- */
 function updateOptionUI(optionItem, isSelected) {
     const input = optionItem.querySelector('input');
     if(input) input.checked = isSelected;
@@ -107,6 +95,7 @@ function updateOptionUI(optionItem, isSelected) {
         if (isSelected) {
             customElement.classList.add('bg-blue-600', 'border-blue-600');
             customElement.classList.remove('border-gray-400');
+            // Checkmark SVG
             customElement.innerHTML = '<svg class="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20"><path d="M0 11l2-2 5 5L18 3l2 2L7 18z"/></svg>';
         } else {
             customElement.classList.remove('bg-blue-600', 'border-blue-600');
@@ -116,9 +105,6 @@ function updateOptionUI(optionItem, isSelected) {
     }
 }
 
-/**
- * HTML Teglarni Tozalash (MathJax renderlashdan oldin)
- */
 function cleanOptionText(element) {
     function decodeHtml(html) {
         var txt = document.createElement("textarea");
@@ -141,27 +127,23 @@ function cleanOptionText(element) {
     });
 }
 
-// =================================================================
-// TAYMER VA SERVER SINXRONIZATSIYASI (OPTIMIZATSIYALASHGAN)
-// =================================================================
-
 function startTimer() {
     if (timerInterval) clearInterval(timerInterval);
     if (syncTimerInterval) clearInterval(syncTimerInterval);
 
-    if (timerElement && timeRemaining !== undefined && timeRemaining >= 0) {
-        timerElement.textContent = formatTime(timeRemaining);
+    if (timerElement && window.timeRemaining !== undefined && window.timeRemaining >= 0) {
+        timerElement.textContent = formatTime(window.timeRemaining);
         
         timerInterval = setInterval(async () => {
-            if (timeRemaining <= 0) {
+            if (window.timeRemaining <= 0) {
                 clearInterval(timerInterval);
                 timerElement.textContent = "00:00";
-                const sectionData = SECTION_ATTEMPTS_DATA[currentSectionId];
-                const action = sectionData?.order === Object.keys(SECTION_ATTEMPTS_DATA).length ? 'finish_exam' : 'finish_section';
+                // Mavzu testi bo'lsa darhol yakunlash
+                const action = (typeof IS_SUBJECT_EXAM !== 'undefined' && IS_SUBJECT_EXAM) ? 'finish_exam' : 'finish_section';
                 handleFinishAction(action); 
             } else {
-                timeRemaining--;
-                timerElement.textContent = formatTime(timeRemaining);
+                window.timeRemaining--;
+                timerElement.textContent = formatTime(window.timeRemaining);
                 saveToLocalStorage(); // Har soniyada local saqlash
 
                 // Tarmoq onlayn bo'lsa, har 30 soniyada sinxronlash (debounce)
@@ -172,7 +154,7 @@ function startTimer() {
             }
         }, 1000);
     } else {
-        console.error("Timer ishga tushmadi: timeRemaining aniqlanmadi yoki noto‘g‘ri", timeRemaining);
+        console.error("Timer ishga tushmadi: timeRemaining aniqlanmadi yoki noto‘g‘ri", window.timeRemaining);
     }
 }
 
@@ -184,8 +166,8 @@ async function syncTimer() {
             body: JSON.stringify({
                 action: 'sync_timer', 
                 attempt_id: ATTEMPT_ID,
-                section_attempt_id: currentSectionId,
-                time_remaining: timeRemaining,
+                section_attempt_id: window.currentSectionId,
+                time_remaining: window.timeRemaining,
             })
         });
     } catch (error) {
@@ -209,30 +191,52 @@ window.addEventListener('beforeunload', () => {
     if (timerInterval) clearInterval(timerInterval);
 });
 
-// =================================================================
-// TUGMA BOSHQARUVI VA NAVIGATSIYA MANTIQI
-// =================================================================
 
 function updateNavigationButtons() {
     prevBtn.disabled = (currentQuestionIndex === 0);
+
+    const totalQuestions = questionIds.length;
+    const isLastQuestion = currentQuestionIndex === totalQuestions - 1;
+
+    // NEXT tugmasini yangilash
+    if (isLastQuestion) {
+        // Mavzu Testi bo'lsa (bitta bo'lim = butun imtihon)
+        if (typeof IS_SUBJECT_EXAM !== 'undefined' && IS_SUBJECT_EXAM) {
+            nextBtn.innerHTML = '<span class="nav-btn-text">Imtihonni Yakunlash</span> <i class="fa-solid fa-check"></i>';
+            nextBtn.dataset.action = 'finish_exam';
+        } else {
+            // To'liq SAT Testi uchun
+            nextBtn.innerHTML = '<span class="nav-btn-text">Keyingi Bo\'lim</span> <i class="fa-solid fa-chevron-right"></i>';
+            nextBtn.dataset.action = 'finish_section';
+        }
+    } else {
+        // Oddiy 'Next'
+        nextBtn.innerHTML = '<span class="nav-btn-text">Next</span> <i class="fa-solid fa-chevron-right"></i>';
+        nextBtn.dataset.action = 'next_question';
+    }
+    nextBtn.disabled = false;
 }
+
 
 async function handleNextOrFinish() {
     await saveAnswer(true);
 
     const totalQuestions = questionIds.length;
     
+    // Agar oxirgi savol bo'lmasa, keyingisiga o'tish
     if (currentQuestionIndex < totalQuestions - 1) {
         currentQuestionIndex++;
         await loadQuestion(questionIds[currentQuestionIndex]);
     } else {
-        const sectionData = SECTION_ATTEMPTS_DATA[currentSectionId];
-        const currentSectionOrder = sectionData ? sectionData.order : 1;
-
-        if (currentSectionOrder === Object.keys(SECTION_ATTEMPTS_DATA).length) {
-            await handleFinishAction('finish_exam'); 
+        // Agar oxirgi savol bo'lsa, actionni aniqlash
+        const action = (typeof IS_SUBJECT_EXAM !== 'undefined' && IS_SUBJECT_EXAM) ? 'finish_exam' : 'finish_section';
+        
+        // Agar finish_exam bo'lsa, modalni ochish
+        if (action === 'finish_exam') {
+            openModal('confirm-exit-modal');
         } else {
-            await handleFinishAction('finish_section'); 
+            // SAT uchun keyingi bo'limga o'tish
+            await handleFinishAction(action); 
         }
     }
 
@@ -243,10 +247,9 @@ async function handleFinishAction(action) {
     // Stop all timers to prevent further execution
     if (timerInterval) clearInterval(timerInterval);
     if (syncTimerInterval) clearInterval(syncTimerInterval);
-
-    // Show a loading indicator to the user
-    // (You can implement a function like showLoadingOverlay())
     
+    closeModal('confirm-exit-modal'); // Yakunlash modalini yopish
+
     try {
         const response = await fetch(EXAM_AJAX_URL, {
             method: 'POST',
@@ -257,8 +260,8 @@ async function handleFinishAction(action) {
             body: JSON.stringify({
                 action: action,
                 attempt_id: ATTEMPT_ID,
-                section_attempt_id: currentSectionId,
-                time_remaining: timeRemaining // Send final remaining time
+                section_attempt_id: window.currentSectionId,
+                time_remaining: window.timeRemaining // Send final remaining time
             })
         });
 
@@ -266,10 +269,8 @@ async function handleFinishAction(action) {
         console.log("Server response on finish:", data);
 
         if (response.ok && data.redirect_url) {
-            // If the server provides a redirect URL (for the next section or results), go there.
             window.location.href = data.redirect_url;
         } else {
-            // If there is an error, display it.
             showError(`Finishing action failed: ${data.message || 'An unknown error occurred.'}`);
         }
     } catch (error) {
@@ -278,10 +279,6 @@ async function handleFinishAction(action) {
     }
 }
 
-
-// =================================================================
-// ASOSIY FUNKSIYALAR: JAVOB, SAVOL, NAVIGATSIYA
-// =================================================================
 
 function restoreUserAnswer(questionData) {
     const format = questionData.question_format;
@@ -315,6 +312,8 @@ function restoreUserAnswer(questionData) {
 
 function attachAnswerListeners(format) {
     const optionItems = document.querySelectorAll('.option-item');
+    
+    // 🔥 Tinglovchilarni ikki marta biriktirmaslik uchun avvalgisini o'chiramiz
     optionItems.forEach(item => {
         item.onclick = null; 
 
@@ -325,37 +324,47 @@ function attachAnswerListeners(format) {
             let willBeSelected;
 
             if (format === 'single') {
+                // Single choice: Boshqa variantlarni tanlanmagan holatga qaytarish
                 document.querySelectorAll('.option-item').forEach(opt => {
-                    updateOptionUI(opt, false); 
+                    if (opt !== item) {
+                        updateOptionUI(opt, false); 
+                    }
                 });
+                
+                // Tanlangan variantni belgilash. Agar u allaqachon tanlangan bo'lsa ham, yana tanlash kerak.
                 willBeSelected = true;
+                
             } else if (format === 'multiple') {
+                // Multiple choice: Tanlanmagan bo'lsa -> Tanlash, Tanlangan bo'lsa -> O'chirish
                 willBeSelected = !item.classList.contains('selected');
             }
 
+            // UI ni yangilash va javobni saqlash
             updateOptionUI(item, willBeSelected);
             saveAnswer();
         };
     });
     
+    // Short Answer uchun tinglovchi
     const shortAnswerInput = document.getElementById('short-answer-input');
     if (shortAnswerInput) {
+        // Har doim avvalgi tinglovchini o'chirish kerak, chunki savollar qayta yuklanadi
         shortAnswerInput.onchange = null;
         shortAnswerInput.onchange = () => saveAnswer();
     }
 }
 
 async function saveAnswer(isNavigating = false) {
+    console.log("Saving answer for section_attempt_id:", window.currentSectionId); 
     const questionId = questionIds[currentQuestionIndex];
     if (questionId === undefined) return Promise.resolve(null);
     
-    // Savol formatini aniqlash (bu sizda bor)
     const questionFormat = document.getElementById('question_format')?.value || 'single';
 
     let payload = {
         action: 'save_answer', 
         attempt_id: ATTEMPT_ID,
-        section_attempt_id: currentSectionId,
+        section_attempt_id: window.currentSectionId,
         question_id: questionId,
         is_marked_for_review: reviewedQuestionIds.has(questionId)
     };
@@ -367,11 +376,13 @@ async function saveAnswer(isNavigating = false) {
         const selectedOptionItems = Array.from(document.querySelectorAll('.option-item.selected'));
         payload.selected_options = selectedOptionItems.map(item => parseInt(item.dataset.optionId)); 
     } else if (questionFormat === 'short_answer') {
-        // MUHIM O'ZGARISH: `id` to'g'ri ekanligiga ishonch hosil qiling
         const shortAnswerInput = document.getElementById('short-answer-input');
         payload.short_answer_text = shortAnswerInput ? shortAnswerInput.value.trim() : ''; 
     }
-    
+        
+    // Javob belgilanmagan bo'lsa, 'answered' ro'yxatidan o'chirishni ta'minlaymiz
+    const isAnsweredNow = payload.selected_option || (payload.selected_options && payload.selected_options.length > 0) || payload.short_answer_text;
+
     return fetch(EXAM_AJAX_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF_TOKEN },
@@ -379,7 +390,17 @@ async function saveAnswer(isNavigating = false) {
     }).then(response => response.json())
     .then(data => {
         if (data.status === 'success') {
-            answeredQuestionIds = new Set(data.answered_question_ids);
+            // Serverdan kelgan yangilangan ro'yxatni olish kutiladi (yoki biz lokal yangilaymiz)
+            if (data.answered_question_ids) {
+                answeredQuestionIds = new Set(data.answered_question_ids);
+            } else {
+                // Agar server ro'yxatni yubormasa, lokal yangilaymiz
+                if (isAnsweredNow) {
+                    answeredQuestionIds.add(questionId);
+                } else {
+                    answeredQuestionIds.delete(questionId);
+                }
+            }
             generateNavButtons();
         } else {
             console.error("Javobni saqlashda xato:", data.message);
@@ -388,15 +409,19 @@ async function saveAnswer(isNavigating = false) {
         return data;
     })
     .catch(error => {
-        console.error("Javobni saqlashda xato:", error);
-        showError("Tarmoq xatosi. Javob local saqlanmoqda.");
+        console.error("Javobni saqlashda tarmoq xatosi:", error);
+        showError("Tarmoq xatosi. Javob saqlanmadi.");
         return { status: 'error', message: error.message };
     });
 }
 
+
 async function loadQuestion(questionId, data = null) {
-    if (!data && typeof fetchQuestionData === 'function') {
-        const result = await fetchQuestionData(questionId);
+    console.log("loadQuestion chaqirildi. Yuklanayotgan ID:", questionId); 
+    console.log("Mavzu testi holati:", (typeof IS_SUBJECT_EXAM !== 'undefined' && IS_SUBJECT_EXAM));     
+    if (!data && typeof window.fetchQuestionData === 'function') { 
+        // window.fetchQuestionData - bu HTML ichidagi script blokidan keladi
+        const result = await window.fetchQuestionData(questionId);
         if (result.status === 'success') {
             data = result.question_data;
         }
@@ -404,7 +429,6 @@ async function loadQuestion(questionId, data = null) {
     
     if (!data) {
         console.error("Savol ma'lumotlari topilmadi.");
-        showError("Savolni yuklashda muammo yuz berdi. Qayta urinib ko'ring.");
         return;
     }
 
@@ -414,18 +438,38 @@ async function loadQuestion(questionId, data = null) {
 
     // UI elementlarini yangilash
     questionNumberEl.textContent = `${currentQuestionIndex + 1}`;
-    const sectionData = SECTION_ATTEMPTS_DATA[currentSectionId] || { section_type: 'math_no_calc', module_number: 1 };
-    console.log("SECTION_ATTEMPTS_DATA:", SECTION_ATTEMPTS_DATA); // Debugging uchun
-    const sectionTitle = sectionData.section_type === 'math_no_calc' ? 'Section 2, Module 1' : 
-                        sectionData.section_type === 'math_calc' ? 'Section 2, Module 2' : 
-                        sectionData.section_type === 'read_write_m1' ? 'Reading' : 
-                        sectionData.section_type === 'read_write_m2' ? 'Writing and Language' : 
-                        'Unknown Section';
-    document.getElementById('question-number-header').textContent = `${sectionTitle}`;
+    
+    const isSubject = (typeof IS_SUBJECT_EXAM !== 'undefined' && IS_SUBJECT_EXAM);
+
+    if (isSubject) {
+        // Mavzu testi bo'lsa, faqat imtihonning umumiy nomini ko'rsatish
+        // data.exam_title serverdan kelishi kerak
+        questionNumberHeaderEl.textContent = data.exam_title || "Mavzu Imtihoni";
+    } else {
+        // To'liq SAT bo'lsa, bo'lim nomini ko'rsatish
+        const sectionData = window.SECTION_ATTEMPTS_DATA[window.currentSectionId] || { section_type: 'math_no_calc', module_number: 1 };
+        
+        let sectionTitle = 'Unknown Section';
+        if (sectionData.section_type.startsWith('math')) {
+            sectionTitle = `Math (Module ${sectionData.module_number})`;
+        } else if (sectionData.section_type.startsWith('read_write')) {
+            sectionTitle = `Reading & Writing (Module ${sectionData.module_number})`;
+        }
+        
+        questionNumberHeaderEl.textContent = `${sectionTitle}`;
+    }
+
+    // Lug'at tugmasini boshqarish
+    if (dictionaryBtn) {
+        dictionaryBtn.style.display = isSubject ? 'flex' : 'none'; 
+    }
+    
     navModalBtn.querySelector('span').textContent = `Question ${currentQuestionIndex + 1} of ${questionIds.length}`;
     
     questionTextEl.innerHTML = data.question_text || "Savol matni mavjud emas.";
     answerOptionsContainer.innerHTML = data.options_html;
+    
+    // Savol formati ma'lumotini saqlash
     document.getElementById('question_format').value = data.question_format || '';
     
     if (data.question_image_url && questionImageEl && questionImageContainer) {
@@ -488,7 +532,9 @@ function generateNavButtons() {
     });
 }
 
-async function loadInitialData(sectionAttemptId = currentSectionId) {
+async function loadInitialData(sectionAttemptId = window.currentSectionId) {
+    console.log("loadInitialData chaqirildi. Bo'lim ID:", sectionAttemptId); // 🔥 DEBUG QATORI
+    
     if (!sectionAttemptId) {
         console.error("Section ID yuklanmadi.");
         return; 
@@ -505,24 +551,31 @@ async function loadInitialData(sectionAttemptId = currentSectionId) {
             })
         });
         const data = await response.json();
-        console.log("Serverdan olingan ma'lumotlar:", data);
+        console.log("Serverdan olingan bo'lim ma'lumotlari:", data);
 
         if (data.status === 'success') {
-            questionIds = data.question_ids || [];
-            answeredQuestionIds = new Set(data.answered_question_ids || []);
-            reviewedQuestionIds = new Set(data.marked_for_review || []); 
-            timeRemaining = 2100; // Yangi bo'lim uchun 35 daqiqa (serverdan yangi vaqt olingan bo'lsa, uni ishlatish mumkin)
             
-            const initialQuestionData = data.initial_question_data;
-            const initialQuestionId = data.initial_question_id;
+            const questions = data.questions || [];
+            
+            // Savol IDlarini ajratib olish
+            questionIds = questions.map(q => q.id);
+            
+            // Answered va Reviewed IDlarni tiklash
+            answeredQuestionIds = new Set(questions.filter(q => q.is_answered).map(q => q.id));
+            reviewedQuestionIds = new Set(questions.filter(q => q.is_marked).map(q => q.id));
+            
+            if (questionIds.length > 0) {
+                
+                currentQuestionIndex = 0; 
+                console.log("loadInitialData: Birinchi savol IDsi:", questionIds[currentQuestionIndex]); // 🔥 DEBUG QATORI
 
-            if (questionIds.length > 0 && initialQuestionId) {
-                currentQuestionIndex = questionIds.indexOf(initialQuestionId) > -1 ? questionIds.indexOf(initialQuestionId) : 0;
-                await loadQuestion(questionIds[currentQuestionIndex], initialQuestionData);
+                await loadQuestion(questionIds[currentQuestionIndex]);
+                
                 startTimer(); // Faqat bir marta ishga tushirish
             } else {
                 questionTextEl.innerHTML = "<p>Ushbu bo'limda savollar mavjud emas.</p>";
             }
+            
             generateNavButtons();
             updateNavigationButtons();
             saveToLocalStorage();
@@ -531,26 +584,73 @@ async function loadInitialData(sectionAttemptId = currentSectionId) {
             showError(`Bo'lim yuklashda xato: ${data.message || 'Qayta urinib koring.'}`);
         }
     } catch (error) {
-        console.error("Initial data yuklanishida xato:", error);
+        console.error("Initial data yuklanishida tarmoq xatosi:", error);
         showError("Tarmoq xatosi. Internet aloqangizni tekshiring.");
     }
 }
 
-// =================================================================
-// MODALLARNI BOSHQARISH (KALKULYATOR, FORMULA) - DESMOS LAZY-LOAD
-// =================================================================
+async function loadFlashcardsForCurrentQuestion() {
+    const questionId = questionIds[currentQuestionIndex];
+    if (!questionId || !flashcardsContainer) return;
+    
+    flashcardsContainer.innerHTML = '<div class="text-center p-4">Lug\'atlar yuklanmoqda...</div>';
+
+    try {
+        const response = await fetch(EXAM_AJAX_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF_TOKEN },
+            body: JSON.stringify({
+                action: 'get_flashcards', 
+                attempt_id: ATTEMPT_ID,
+                question_id: questionId,
+            })
+        });
+
+        const data = await response.json();
+
+        if (data.status === 'success' && data.flashcards && data.flashcards.length > 0) {
+            flashcardsContainer.innerHTML = generateFlashcardsHTML(data.flashcards);
+            
+            if (window.MathJax) {
+                MathJax.typesetPromise([flashcardsContainer]).catch(err => console.warn("Flashcard MathJax xatosi:", err));
+            }
+            
+        } else {
+            flashcardsContainer.innerHTML = '<div class="text-center p-4 text-gray-500">Bu savolga tegishli lug\'atlar (Flashcardlar) topilmadi.</div>';
+        }
+    } catch (error) {
+        console.error("Flashcard yuklashda xato:", error);
+        flashcardsContainer.innerHTML = '<div class="text-center p-4 text-red-500">Tarmoq xatosi yoki serverga ulanishda muammo.</div>';
+    }
+}
+
+function generateFlashcardsHTML(flashcards) {
+    let html = '<div class="grid gap-4">';
+    flashcards.forEach(card => {
+        html += `
+            <div class="border rounded-lg shadow-md p-4 bg-white">
+                <h4 class="font-bold text-lg mb-1 text-blue-700">${card.term || 'Atama Nomi'}</h4>
+                <p class="text-gray-700">${card.definition || 'Ta’rifi'}</p>
+            </div>
+        `;
+    });
+    html += '</div>';
+    return html;
+}
+
 
 let desmosCalculator;
 
-async function initDesmosCalculator() {
+// Global funksiya sifatida window.initDesmosCalculator deb e'lon qilish
+window.initDesmosCalculator = async function() {
     if (desmosLoaded) {
-        if (desmosCalculator) return; // Allaqachon ishga tushgan
+        if (desmosCalculator) return;
     } else {
-        // Dinamik yuklash: Skriptni faqat birinchi marta yuklash
         try {
             await new Promise((resolve, reject) => {
                 const script = document.createElement('script');
-                script.src = 'https://www.desmos.com/api/v1.11/calculator.js?apiKey=b9fd3844def64e0ca90a786a646dd712';
+                // Desmos uchun ruxsatnomangizni ishlatish
+                script.src = 'https://www.desmos.com/api/v1.11/calculator.js?apiKey=b9fd3844def64e0ca90a786a646dd712'; 
                 script.onload = () => {
                     desmosLoaded = true;
                     resolve();
@@ -576,17 +676,29 @@ async function initDesmosCalculator() {
     }
 }
 
-
-// =================================================================
-// GLOBAL HODISALARNI BIRIKTIRISH
-// =================================================================
-
 document.addEventListener('DOMContentLoaded', () => {
     // LocalStorage dan tiklash
     loadFromLocalStorage();
+    
+    // 🔥 Flashcards uchun modalni qo'shamiz (Agar HTMLda bo'lmasa)
+    if (!document.getElementById('flashcards-modal')) {
+        // Agar sizning HTMLingizda bo'lmasa, uni qo'shish kerak. Hozircha bu yerni o'tkazib yuboramiz.
+    }
 
-    nextBtn?.addEventListener('click', handleNextOrFinish);
 
+    // NEXT tugmasi bosilganda
+    nextBtn?.addEventListener('click', () => {
+        const action = nextBtn.dataset.action;
+        if (action === 'finish_exam') {
+            openModal('confirm-exit-modal'); // Mavzu testi tugatilishi
+        } else if (action === 'finish_section') {
+            handleFinishAction('finish_section'); // SAT bo'limini tugatish
+        } else {
+            handleNextOrFinish(); // Keyingi savolga o'tish
+        }
+    });
+
+    // PREV tugmasi bosilganda
     prevBtn?.addEventListener('click', () => {
         saveAnswer(true).then(() => { 
             let prevIndex = currentQuestionIndex - 1;
@@ -600,11 +712,25 @@ document.addEventListener('DOMContentLoaded', () => {
 
     calculatorBtn?.addEventListener('click', () => openModal('calculator-modal'));
     referenceBtn?.addEventListener('click', () => {
-        loadReferenceFormulas(); 
+        // loadReferenceFormulas global funksiya mavjud deb hisoblanadi
+        if (typeof window.loadReferenceFormulas === 'function') {
+            window.loadReferenceFormulas(); 
+        }
         openModal('reference-modal');
     });
     directionsBtn?.addEventListener('click', () => openModal('directions-modal'));
     
+    // 🔥 YANGI O'ZGARTIRISH: Lug'at (Flashcard) tugmasi
+    dictionaryBtn?.addEventListener('click', () => {
+        // Faqat Mavzu Testi bo'lsa ko'rsatish
+        if (typeof IS_SUBJECT_EXAM !== 'undefined' && IS_SUBJECT_EXAM) {
+            loadFlashcardsForCurrentQuestion(); 
+            openModal('flashcards-modal'); // 🔥 Modal ID to'g'ri bo'lishi kerak
+        } else {
+            showError("Lug'at funksiyasi faqat mavzu testida mavjud."); 
+        }
+    });
+
     navModalBtn?.addEventListener('click', () => {
         generateNavButtons(); 
         openModal('question-nav-modal');
@@ -618,7 +744,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     document.querySelectorAll('.close-btn').forEach(btn => {
         btn.addEventListener('click', (e) => {
-            const modalId = e.currentTarget.dataset.modal || e.currentTarget.closest('.modal')?.id;
+            const modalId = e.currentTarget.dataset.modal || e.currentTarget.closest('.modal, .center-modal, .nav-modal')?.id;
             if (modalId) {
                 closeModal(modalId);
             }
@@ -639,14 +765,14 @@ document.addEventListener('DOMContentLoaded', () => {
         saveAnswer(); 
     });
     
-    // Section tablarini faqat bu yerda biriktirish
+    // Section tablarini faqat bu yerda biriktirish (SAT uchun)
     document.querySelectorAll('.section-tab').forEach(tab => {
         tab.addEventListener('click', (e) => {
             const newSectionId = e.currentTarget.dataset.sectionId;
-            if (newSectionId !== currentSectionId) {
+            if (newSectionId !== window.currentSectionId) {
                 saveAnswer().then(() => {
                     syncTimer().then(() => {
-                        const sectionData = SECTION_ATTEMPTS_DATA[newSectionId];
+                        const sectionData = window.SECTION_ATTEMPTS_DATA[newSectionId];
                         if (sectionData && sectionData.is_completed) {
                             showError("Bu bo'lim allaqachon yakunlangan. Qayta kirib bo'lmaydi.");
                             return; 
@@ -655,14 +781,17 @@ document.addEventListener('DOMContentLoaded', () => {
                         document.querySelectorAll('.section-tab').forEach(t => t.classList.remove('active'));
                         e.currentTarget.classList.add('active');
 
-                        currentSectionId = newSectionId;
+                        window.currentSectionId = newSectionId;
                         questionIds = []; 
                         
                         if (timerInterval) clearInterval(timerInterval);
                         timerInterval = null;
-                        timeRemaining = 2100; // Yangi bo'lim uchun
+                        // Yangi bo'lim uchun vaqtni tiklash kerak. 
+                        // Ammo loadInitialData() ham serverdan vaqtni yangilashi mumkin.
+                        // window.timeRemaining = sectionData.time_limit_seconds || 2100; 
+                        
                         saveToLocalStorage();
-                        loadInitialData(currentSectionId);
+                        loadInitialData(window.currentSectionId);
                     });
                 });
             }

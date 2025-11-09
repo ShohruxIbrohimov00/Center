@@ -44,7 +44,7 @@
             {% endif %}
 
             <div class="flex justify-end space-x-3 mt-6">
-                <a href="{% url 'my_questions' %}" class="btn btn-secondary">Bekor qilish</a>
+                <a href="{% url 'my_questions' slug=center.slug %}" class="btn btn-secondary">Bekor qilish</a>
                 <button type="submit" class="btn btn-danger">O'chirish</button>
             </div>
         </form>

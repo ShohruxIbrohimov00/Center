@@ -1,0 +1,29 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}{{ page_title }}{% endblock %}
+
+{% block content %}
+<div class="container mx-auto px-4 py-8 max-w-xl">
+    <div class="bg-white p-8 rounded-xl shadow-xl border border-red-300">
+        <div class="text-center">
+            <i class="fas fa-trash-alt text-red-500 text-5xl mb-4"></i>
+            <h1 class="text-2xl font-bold text-gray-900 mb-4">{{ page_title }}</h1>
+            <p class="text-gray-600 mb-6">
+                Siz rostdan ham <b>"{{ course.title }}"</b> kursini o'chirmoqchimisiz? Ushbu amal ortga qaytarilmaydi.
+                Bu kursga bog'liq barcha modullar va darslar ham o'chiriladi.
+            </p>
+        </div>
+        
+        <form method="post" class="mt-6">
+            {% csrf_token %}
+            <div class="flex justify-center space-x-4">
+                <a href="{% url 'course_list' slug=center.slug %}" class="btn btn-secondary">Bekor qilish</a>
+                <button type="submit" class="btn bg-red-600 hover:bg-red-700 text-white">
+                    <i class="fas fa-exclamation-triangle mr-2"></i> O'chirishni tasdiqlash
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

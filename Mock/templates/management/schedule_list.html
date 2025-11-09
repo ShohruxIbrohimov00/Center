@@ -1,0 +1,97 @@
+{% extends 'base.html' %}
+{% load static i18n %}
+
+{% block title %}'{{ course.title }}' Jadvali{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Delete tugmasini bosganda tasdiqlash so'rovini chiqarish
+    function confirmDelete(formId) {
+        // NOTE: alert() va confirm() o'rniga custom modal ishlatish tavsiya etiladi.
+        if (confirm("{% translate 'Haqiqatan ham ushbu jadvalni oʻchirmoqchimisiz?' %}")) {
+            document.getElementById(formId).submit();
+        }
+    }
+</script>
+{% endblock %}
+
+{% block content %}
+<div class="container mx-auto p-4 md:p-8 max-w-7xl">
+    
+    <div class="flex items-center mb-6 space-x-4">
+        <a href="{% url 'course_list' slug=center.slug %}" class="text-gray-500 hover:text-indigo-600 transition">
+            <i class="fas fa-arrow-left text-xl"></i>
+        </a>
+        <h1 class="text-3xl font-extrabold text-gray-900">
+            <span class="text-indigo-600">{{ course.title }}</span>: Dars Jadvali
+        </h1>
+    </div>
+
+    <div class="flex justify-between items-center mb-8 bg-white p-4 rounded-xl shadow-md border border-gray-100">
+        <div class="space-y-1">
+            <p class="text-sm text-gray-700">
+                <i class="fas fa-clock mr-2"></i> Kurs Turi: <span class="font-semibold">{{ course.get_course_type_display }}</span>
+                {% if course.is_online %}(Muddatli){% endif %}
+            </p>
+            <p class="text-sm text-gray-700">
+                <i class="fas fa-calendar-check mr-2"></i> Jadvallar soni: <span class="font-semibold">{{ schedules|length }}</span>
+            </p>
+        </div>
+        <a href="{% url 'schedule_create' course_id=course.id %}" class="px-4 py-2 bg-indigo-600 text-white font-semibold rounded-lg shadow-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition duration-150">
+            <i class="fas fa-plus mr-2"></i> Yangi Jadval Qo'shish
+        </a>
+    </div>
+
+    {# Jadvallar Ro'yxati Jadvali #}
+    <div class="overflow-x-auto bg-white rounded-xl shadow-lg border border-gray-200">
+        <table class="min-w-full divide-y divide-gray-200">
+            <thead class="bg-gray-50">
+                <tr>
+                    <th class="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Dars nomi</th>
+                    <th class="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Boshlanish vaqti</th>
+                    <th class="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Tugash vaqti</th>
+                    <th class="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Manzil</th>
+                    <th class="px-6 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">Harakatlar</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-100">
+                {% for schedule in schedules %}
+                <tr class="hover:bg-gray-50 transition duration-150">
+                    <td class="px-6 py-4 max-w-xs text-sm font-medium text-indigo-600">{{ schedule.related_lesson.title }}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700">{{ schedule.start_time|date:"Y-m-d H:i" }}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700">{{ schedule.end_time|default:"-"|date:"Y-m-d H:i" }}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700">{{ schedule.location|default:"Online" }}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-center text-sm font-medium">
+                        <div class="flex items-center justify-center space-x-2">
+                            
+                            {# Tahrirlash: course.id dan foydalanishga o'tkazildi #}
+                            <a href="{% url 'schedule_update' course_id=course.id schedule_id=schedule.id %}" class="action-btn text-indigo-600 hover:text-indigo-800" title="Tahrirlash">
+                                <i class="fas fa-edit text-base"></i>
+                            </a>
+
+                            {# O'chirish: course.id dan foydalanishga o'tkazildi #}
+                            <form id="delete-form-{{ schedule.id }}" method="post" action="{% url 'schedule_delete' course_id=course.id schedule_id=schedule.id %}" class="inline-block m-0 p-0">
+                                {% csrf_token %}
+                                <button type="button" 
+                                        onclick="confirmDelete('delete-form-{{ schedule.id }}')" 
+                                        class="action-btn text-red-600 hover:text-red-800 p-0 border-none bg-transparent cursor-pointer" 
+                                        title="O'chirish">
+                                    <i class="fas fa-trash-alt text-base"></i>
+                                </button>
+                            </form>
+                        </div>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="5" class="px-6 py-8 text-center text-lg text-gray-500">
+                        <i class="fas fa-calendar-alt text-5xl text-gray-300 mb-3"></i>
+                        <p>Dars jadvallari yaratilmagan.</p>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock content %}

@@ -1,0 +1,122 @@
+{% extends 'base.html' %}
+{% load static i18n widget_tweaks %} 
+
+{% block title %}Modul {{ form.instance.pk|yesno:'Tahrirlash,Yaratish' }}{% endblock %}
+
+{% block extra_css %}
+{# Bu CSS blokini base.html fayliga o'tkazish tavsiya etiladi. #}
+<link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+<style>
+    .form-field-style {
+        display: block;
+        width: 100%;
+        padding: 0.625rem 0.75rem;
+        font-size: 1rem;
+        color: #4a5568;
+        background-color: #ffffff;
+        border: 1px solid #d1d5db;
+        border-radius: 0.5rem;
+        box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+        transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+    }
+    .form-field-style:focus {
+        border-color: #4f46e5;
+        box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.4);
+        outline: none;
+    }
+    .form-check-style {
+        height: 1.25rem;
+        width: 1.25rem;
+        color: #4f46e5;
+        border-radius: 0.25rem;
+        border: 1px solid #d1d5db;
+        margin-right: 0.5rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container mx-auto p-4 md:p-8 max-w-2xl">
+ 
+    <div class="flex items-center mb-6 space-x-4">
+        <a href="{% url 'module_list' course_id=course.id %}" class="text-gray-500 hover:text-indigo-600 transition p-2 rounded-full hover:bg-gray-100" title="{% trans "Modullar ro'yxatiga qaytish" %}">
+            <i class="fas fa-arrow-left text-xl"></i>
+        </a>
+        <h1 class="text-3xl font-extrabold text-gray-900">
+            Modul {{ form.instance.pk|yesno:'Tahrirlash,Yaratish' }}
+        </h1>
+    </div>
+
+    <div class="bg-white p-6 md:p-10 rounded-xl shadow-xl border border-gray-100">
+        <p class="text-lg font-medium text-gray-700 mb-6">Kurs: <span class="text-indigo-600 font-semibold">{{ course.title }}</span></p>
+
+        <form method="post" class="space-y-6">
+            {% csrf_token %}
+            
+            {# 🔥 Forma bo'yicha umumiy xatolarni ko'rsatish (Non-Field Errors) #}
+            {% if form.non_field_errors %}
+                <div class="p-3 bg-red-100 border border-red-400 text-red-700 rounded-lg mb-4">
+                    <p class="font-bold">Iltimos, quyidagi xatolarni to'g'irlang:</p>
+                    <ul class="list-disc list-inside ml-4 mt-1">
+                        {% for error in form.non_field_errors %}
+                            <li>{{ error }}</li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            {% endif %}
+
+            {# Forma maydonlarini to'g'ri aylanish siklida render qilish #}
+            {% for field in form %}
+ 
+                {# 🔥 Agar maydon nomi 'order' bo'lsa, uni o'tkazib yuboramiz. #}
+                {% if field.name == 'order' %}
+                    {# 'order' maydoni avtomatik to'ldiriladi, shuning uchun shablonda ko'rsatilmaydi. #}
+
+                {% elif field.is_hidden %}
+                    {{ field }}
+                {% else %}
+                    <div class="field-wrapper">
+
+                        {# Checkboxlar uchun maxsus ishlov #}
+                        {% if field.field.widget.input_type == 'checkbox' %}
+                            <div class="flex items-center h-full">
+                                {{ field|add_class:"form-check-style" }}
+                                <label for="{{ field.id_for_label }}" class="text-sm font-semibold text-gray-800">
+                                    {{ field.label }}
+                                </label>
+                            </div>
+                        {% else %}
+                            {# Boshqa barcha maydonlar uchun oddiy ko'rinish #}
+                            <label for="{{ field.id_for_label }}" class="block text-sm font-semibold text-gray-800 mb-1">
+                                {{ field.label }}{% if field.field.required %}<span class="text-red-500 ml-1">*</span>{% endif %}
+                            </label>
+
+                            {# widget_tweaks yordamida klass qo'shish #}
+                            {% if field.field.widget.input_type == 'textarea' %}
+                                {{ field|add_class:"form-field-style h-24" }}
+                            {% else %}
+                                {{ field|add_class:"form-field-style" }}
+                            {% endif %}
+
+                        {% endif %}
+
+                        {% if field.errors %}
+                            <p class="text-red-500 text-xs italic mt-1 font-medium">{{ field.errors.as_text|cut:"*" }}</p>
+                        {% endif %}
+                        {% if field.help_text %}
+                            <p class="text-gray-500 text-xs italic mt-1">{{ field.help_text }}</p>
+                        {% endif %}
+                    </div>
+                {% endif %}
+            {% endfor %}
+
+            <div class="flex justify-end pt-4 border-t border-gray-100">
+                <button type="submit" class="w-full sm:w-auto px-6 py-3 bg-indigo-600 text-white font-semibold rounded-lg shadow-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition duration-150">
+                    <i class="fas fa-save mr-2"></i> Saqlash
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock content %}

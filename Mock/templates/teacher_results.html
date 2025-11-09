@@ -8,12 +8,6 @@
     <div class="bg-white rounded-lg shadow-md p-6">
         <h2 class="text-3xl font-bold text-gray-800 mb-6 text-center">Talabalar natijalari</h2>
 
-        {% for message in messages %}
-            <div class="p-4 mb-4 text-sm rounded-lg {% if message.tags == 'success' %}bg-green-100 text-green-700{% elif message.tags == 'error' %}bg-red-100 text-red-700{% endif %}" role="alert">
-                {{ message }}
-            </div>
-        {% endfor %}
-
         <div class="space-y-8">
             {% for exam_result in results %}
             <div>
@@ -54,10 +48,6 @@
             {% empty %}
             <p class="text-gray-500 text-center">Hozircha natijalar mavjud emas.</p>
             {% endfor %}
-        </div>
-
-        <div class="mt-6">
-            <a href="{% url 'my_exams' %}" class="text-blue-500 hover:underline">Orqaga qaytish</a>
         </div>
     </div>
 </div>

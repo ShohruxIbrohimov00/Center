@@ -1,0 +1,359 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}{{ course.title }} | Kurs Tarkibi{% endblock %}
+
+{% block content %}
+<div class="container mx-auto px-4 py-8 md:py-12 max-w-6xl">
+
+    {# KURS NOMI VA UMUMIY PROGRESS BLOKI #}
+    <div class="bg-white p-6 md:p-10 rounded-2xl shadow-xl mb-10 border border-gray-100 flex flex-col md:flex-row items-center justify-between">
+        <div class="md:w-3/4">
+            <h1 class="text-4xl font-extrabold text-gray-800 mb-2">{{ course.title }}</h1>
+            <p class="text-lg text-indigo-600 mb-4">Siz kursni <b>{{ course_progress }}%ni</b> tugatdingiz</p>
+            
+            {# Umumiy progress bar #}
+            <div class="w-full bg-gray-200 rounded-full h-2.5">
+                <div class="bg-indigo-600 h-2.5 rounded-full" style="width: {{ course_progress }}%"></div>
+            </div>
+            <div class="flex justify-between text-xs text-gray-500 mt-1">
+                <span>0%</span>
+                <span>20%</span>
+                <span>40%</span>
+                <span>60%</span>
+                <span>80%</span>
+                <span>100%</span>
+            </div>
+        </div>
+        
+        <div class="md:w-1/4 flex justify-end mt-6 md:mt-0">
+            <i class="fas fa-graduation-cap text-8xl text-indigo-500 opacity-80"></i> 
+        </div>
+    </div>
+    
+    {# KURS TARQIBI VA DARS SONI #}
+    <div class="text-center md:text-left mb-6">
+        <h2 class="text-3xl font-bold text-gray-800">Kurs tarkibi</h2>
+        <div class="text-gray-500 text-sm mt-1 flex items-center justify-center md:justify-start space-x-4">
+            <span><i class="fas fa-book mr-1"></i> {{ total_lessons_count }} ta dars</span> 
+            {# QO'SHILDI: Online/Offline va Jadval ma'lumoti #}
+            {% if course.is_online %}
+                <span class="font-bold text-indigo-600">
+                    <i class="fas fa-globe mr-1"></i> Online kurs 
+                    ({% if course.is_scheduled %} Jadval asosida {% else %} Ixtiyoriy {% endif %})
+                </span>
+            {% endif %}
+        </div>
+    </div>
+
+    {# ACCESS MUAMMOLARI #}
+    {% if not has_access %}
+    <div class="bg-red-50 border-l-4 border-red-400 text-red-700 p-4 mb-6 rounded-lg shadow-sm" role="alert">
+        <p class="font-bold"><i class="fas fa-exclamation-circle mr-2"></i> Kirish taqiqlangan</p>
+        <p>Siz bu pullik kursga obuna bo'lmagansiz yoki obuna muddati tugagan. Davom etish uchun obuna sotib oling.</p>
+    </div>
+    {% endif %}
+
+
+    {# ACCORDION TUTZILMASI (Alpine.js yordamida) #}
+    <div class="space-y-6">
+        {% for module_data in roadmap_data %}
+        
+        <div class="bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden" x-data="{ open: {% if forloop.first %}true{% else %}false{% endif %} }">
+            
+            {# MODUL SARLAVHASI (Accordion Header) #}
+            <div class="p-5 border-b border-gray-100 cursor-pointer hover:bg-gray-50 transition duration-150" @click="open = !open">
+                <div class="flex justify-between items-center">
+                    <div class="flex items-center space-x-3">
+                        <i class="fas fa-chevron-right text-indigo-600 transition-transform duration-300" 
+                            :class="{ 'rotate-90': open }"></i>
+                        <h2 class="text-xl font-bold text-gray-800 flex-grow">
+                            {{ module_data.module.order }}. {{ module_data.module.title }}
+                        </h2>
+                    </div>
+                    
+                    <div class="flex items-center space-x-4">
+                        {# MODUL ICHIDAGI DARS SONI #}
+                        <span class="text-sm font-medium text-gray-500 hidden sm:inline">
+                            {{ module_data.completed_count }}/{{ module_data.total_count }} ta dars
+                        </span>
+
+                        {# MODUL PROGRESSI #}
+                        <span class="text-lg font-semibold {% if module_data.progress_perc == 100 %} text-green-500 {% else %} text-indigo-500 {% endif %}">
+                            {{ module_data.progress_perc }}% 
+                        </span>
+                    </div>
+                </div>
+                {# MODUL PROGRESS BARI #}
+                <div class="w-full bg-gray-200 rounded-full h-1.5 mt-3">
+                    <div class="bg-indigo-500 h-1.5 rounded-full" style="width: {{ module_data.progress_perc }}%"></div>
+                </div>
+            </div>
+            
+            {# DARS RO'YXATI #}
+            <div x-show="open" x-collapse.duration.500ms>
+                <ul class="divide-y divide-gray-100">
+                    {% for lesson_data in module_data.lessons %}
+                    
+                    <li class="p-4 flex justify-between items-center transition duration-100 
+                        {% if lesson_data.is_locked %} 
+                            bg-white text-gray-500 
+                        {% else %} 
+                            hover:bg-indigo-50 
+                        {% endif %}">
+                        
+                        <div class="flex items-center flex-grow">
+                            
+                            {# DARS NOMI VA ICON #}
+                            <div class="flex items-center flex-grow">
+                                {# ICON: Play/Video/Test/Book #}
+                                <div class="flex-shrink-0 w-5 text-center mr-3">
+                                    {% if lesson_data.is_locked %}
+                                        <i class="fas fa-lock text-gray-400"></i>
+                                    {% elif lesson_data.lesson_is_finished %}
+                                        <i class="fas fa-check-circle text-green-500"></i>
+                                    {% elif lesson_data.exam_id %}
+                                        <i class="fas fa-pencil-alt text-indigo-500"></i>
+                                    {% elif lesson_data.resources %}
+                                        <i class="fas fa-book-open text-blue-500"></i> 
+                                    {% else %}
+                                        <i class="fas fa-circle text-gray-400 text-xs"></i> 
+                                    {% endif %}
+                                </div>
+
+                                {# NOMI #}
+                                <div class="text-base font-medium {% if lesson_data.is_locked %} text-gray-500 {% else %} text-gray-700 {% endif %}">
+                                    <div class="flex flex-col sm:flex-row items-start sm:items-center">
+                                        <span>{{ lesson_data.lesson.order }}. {{ lesson_data.lesson.title }}</span>
+                                        
+                                        {# YANGI QO'SHILGAN: Jadval ma'lumoti yoki bloklash sababi #}
+                                        {% if lesson_data.is_time_locked %}
+                                            <span class="text-xs font-semibold text-red-500 ml-0 sm:ml-2 mt-1 sm:mt-0 whitespace-nowrap">
+                                                (Bloklangan - {{ lesson_data.start_time_str }} da ochiladi)
+                                            </span>
+                                        {% elif lesson_data.start_time_str and course.is_scheduled and not lesson_data.is_locked %}
+                                            <span class="text-xs text-indigo-500 ml-0 sm:ml-2 mt-1 sm:mt-0 whitespace-nowrap">
+                                                (Jadval: {{ lesson_data.start_time_str }})
+                                            </span>
+                                        {% endif %}
+
+                                        {# Kichik test infosi #}
+                                        {% if lesson_data.exam_info and not lesson_data.is_locked %}
+                                            <span class="text-xs text-gray-500 ml-0 sm:ml-2 mt-1 sm:mt-0">({{ lesson_data.exam_info }})</span>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {# YAKUNLANGANLIK BELGISI VA HARAKAT TUGMALARI (ACTIONS) #}
+                        <div class="flex-shrink-0 ml-4 flex items-center space-x-2">
+                            
+                            {% if lesson_data.is_locked %}
+                                {# 1. BLOKLANGAN HOLAT #}
+                                <i class="fas fa-lock text-gray-400 text-lg"></i>
+                                
+                            {% else %}
+                                {# 🔥 RESURS TUGMALARI 🔥 #}
+                                {% for resource in lesson_data.resources %}
+                                    {% with res_type=resource.resource_type %}
+                                        {% if res_type == 'video' %}
+                                            {% with icon="fas fa-video" text="Video" color="blue" %}
+                                                <a href="{{ resource.link }}" target="_blank" rel="noopener noreferrer"
+                                                class="text-sm font-medium px-2 py-1 sm:px-3 sm:py-2 rounded-full whitespace-nowrap
+                                                        bg-{{ color }}-100 text-{{ color }}-700 hover:bg-{{ color }}-200 
+                                                        transition duration-150 shadow-sm">
+                                                    <i class="{{ icon }}"></i>
+                                                    <span class="hidden sm:inline">{{ text }}</span>
+                                                </a>
+                                            {% endwith %}
+                                        {% elif res_type == 'task' %}
+                                            {% with icon="fas fa-clipboard-list" text="Vazifa" color="green" %}
+                                                <a href="{{ resource.link }}" target="_blank" rel="noopener noreferrer"
+                                                class="text-sm font-medium px-2 py-1 sm:px-3 sm:py-2 rounded-full whitespace-nowrap
+                                                        bg-{{ color }}-100 text-{{ color }}-700 hover:bg-{{ color }}-200 
+                                                        transition duration-150 shadow-sm">
+                                                    <i class="{{ icon }}"></i>
+                                                    <span class="hidden sm:inline">{{ text }}</span>
+                                                </a>
+                                            {% endwith %}
+                                        {% elif res_type == 'solution_video' %}
+                                            {% with icon="fas fa-laptop-code" text="Yechim Video" color="yellow" %}
+                                                <a href="{{ resource.link }}" target="_blank" rel="noopener noreferrer"
+                                                class="text-sm font-medium px-2 py-1 sm:px-3 sm:py-2 rounded-full whitespace-nowrap
+                                                        bg-{{ color }}-100 text-{{ color }}-700 hover:bg-{{ color }}-200 
+                                                        transition duration-150 shadow-sm">
+                                                    <i class="{{ icon }}"></i>
+                                                    <span class="hidden sm:inline">{{ text }}</span>
+                                                </a>
+                                            {% endwith %}
+                                        {% elif res_type == 'solution_file' %}
+                                            {% with icon="fas fa-file-download" text="Yechim Fayli" color="red" %}
+                                                <a href="{{ resource.link }}" target="_blank" rel="noopener noreferrer"
+                                                class="text-sm font-medium px-2 py-1 sm:px-3 sm:py-2 rounded-full whitespace-nowrap
+                                                        bg-{{ color }}-100 text-{{ color }}-700 hover:bg-{{ color }}-200 
+                                                        transition duration-150 shadow-sm">
+                                                    <i class="{{ icon }}"></i>
+                                                    <span class="hidden sm:inline">{{ text }}</span>
+                                                </a>
+                                            {% endwith %}
+                                        {% elif res_type == 'other' %}
+                                            {% with icon="fas fa-file-alt" text="Hujjat" color="purple" %}
+                                                <a href="{{ resource.link }}" target="_blank" rel="noopener noreferrer"
+                                                class="text-sm font-medium px-2 py-1 sm:px-3 sm:py-2 rounded-full whitespace-nowrap
+                                                        bg-{{ color }}-100 text-{{ color }}-700 hover:bg-{{ color }}-200 
+                                                        transition duration-150 shadow-sm">
+                                                    <i class="{{ icon }}"></i>
+                                                    <span class="hidden sm:inline">{{ text }}</span>
+                                                </a>
+                                            {% endwith %}
+                                        {% else %}
+                                            {% with icon="fas fa-link" text="Resurs" color="gray" %}
+                                                <a href="{{ resource.link }}" target="_blank" rel="noopener noreferrer"
+                                                class="text-sm font-medium px-2 py-1 sm:px-3 sm:py-2 rounded-full whitespace-nowrap
+                                                        bg-{{ color }}-100 text-{{ color }}-700 hover:bg-{{ color }}-200 
+                                                        transition duration-150 shadow-sm">
+                                                    <i class="{{ icon }}"></i>
+                                                    <span class="hidden sm:inline">{{ text }}</span>
+                                                </a>
+                                            {% endwith %}
+                                        {% endif %}
+                                    {% endwith %}
+                                {% endfor %}
+
+                                {# --------------------------- #}
+                                {# TESTNI BOSHLASH TUGMASI (Endi AJAX orqali ishlaydi) #}
+                                {# --------------------------- #}
+                                {% if lesson_data.exam_id %}
+                                    {% if lesson_data.exam_passed %}
+                                        {# 2. TEST MUVAFFAQIYATLI O'TILGAN (Yashil check) #}
+                                        <i class="fas fa-check-circle text-green-500 text-lg ml-2 mr-1"></i>
+                                        
+                                        {# Qayta ishlash: ENDI AJAX FORM ORQALI #}
+                                        <form method="POST" action="{% url 'start_exam' center.slug lesson_data.exam_id %}" class="inline-block exam-start-form"> 
+                                            {% csrf_token %}
+                                            <button type="submit" 
+                                                class="text-sm font-medium px-2 py-1 sm:px-3 sm:py-2 rounded-full whitespace-nowrap
+                                                bg-green-50 text-green-700 hover:bg-green-100 border border-green-300 transition duration-150 shadow-sm">
+                                                <i class="fas fa-redo"></i> 
+                                                <span class="hidden sm:inline">Qayta ishlash</span> 
+                                            </button>
+                                        </form>
+                                        
+                                    {% elif lesson_data.exam_completed %}
+                                        {# 3. TEST TUGATILGAN (Lekin o'tilmagan): ENDI AJAX FORM ORQALI #}
+                                        <i class="fas fa-times-circle text-red-500 text-lg ml-2 mr-1"></i>
+                                        
+                                        <form method="POST" action="{% url 'start_exam' center.slug lesson_data.exam_id %}" class="inline-block exam-start-form">
+                                            {% csrf_token %}
+                                            <button type="submit"
+                                                class="text-sm font-medium px-2 py-1 sm:px-3 sm:py-2 rounded-full whitespace-nowrap
+                                                bg-red-50 text-red-700 hover:bg-red-100 border border-red-300 transition duration-150 shadow-sm">
+                                                <i class="fas fa-redo"></i> 
+                                                <span class="hidden sm:inline">Qayta urinish</span> 
+                                            </button>
+                                        </form>
+                                        
+                                    {% else %}
+                                        {# 4. TESTNI BOSHLASH (Tugatilmadi): ENDI AJAX FORM ORQALI #}
+                                        <form method="POST" action="{% url 'start_exam' center.slug lesson_data.exam_id %}" class="inline-block exam-start-form">
+                                            {% csrf_token %}
+                                            <button type="submit" 
+                                                class="text-sm font-medium px-2 py-1 sm:px-3 sm:py-2 rounded-full whitespace-nowrap
+                                                bg-indigo-600 text-white hover:bg-indigo-700 transition duration-150 shadow-sm">
+                                                <i class="fas fa-pencil-alt"></i>
+                                                <span class="hidden sm:inline">Testni boshlash</span>
+                                            </button>
+                                        </form>
+                                        
+                                    {% endif %}
+                                
+                                {% endif %}
+
+                                {# 5. Resurs va test bo'lmasa, yakunlanmagan holat #}
+                                {% if not lesson_data.resources and not lesson_data.exam_id and not lesson_data.lesson_is_finished %}
+                                    <span class="text-sm text-gray-400 whitespace-nowrap">Element yo‘q</span>
+                                {% endif %}
+                            
+                            {% endif %}
+                        </div>
+                    </li>
+                    {% endfor %}
+                </ul>
+            </div>
+        </div>
+        {% empty %}
+        <div class="text-center py-16 border-2 border-dashed border-gray-300 rounded-xl bg-gray-50 text-gray-500">
+            <i class="fas fa-exclamation-triangle mb-3 text-3xl text-yellow-500"></i>
+            <p class="text-lg font-semibold">Uzur, bu kursda hali modullar yoki darslar qo'shilmagan.</p>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}
+
+
+{# -------------------------------------------------------------------------------- #}
+{# 🔥 MUAMMONI HAL QILUVCHI JAVASCRIPT BLOKI (AJAX HANDLER) 🔥 #}
+{# -------------------------------------------------------------------------------- #}
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        // exam-start-form sinfiga ega barcha formalarni tanlash
+        const examForms = document.querySelectorAll('.exam-start-form');
+
+        examForms.forEach(form => {
+            form.addEventListener('submit', function(e) {
+                e.preventDefault(); // Standart forma yuborilishini (sahifani yangilashni) to'xtatish
+
+                const button = form.querySelector('button[type="submit"]');
+                const originalText = button.innerHTML;
+
+                // Yuklanish holatini ko'rsatish
+                button.disabled = true;
+                button.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i> Boshlanmoqda...';
+
+                // AJAX (fetch) so'rovini yuborish
+                fetch(form.action, {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': form.querySelector('input[name="csrfmiddlewaretoken"]').value,
+                        'Content-Type': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    // Agar view'da POST so'rovidan ma'lumot qabul qilmasa, bo'sh JSON yuborish
+                    body: JSON.stringify({}) 
+                })
+                .then(response => {
+                    // Agar HTTP status 200 (OK) bo'lmasa, uni xato deb qabul qilish
+                    if (!response.ok) {
+                        return response.json().then(error => { 
+                            // Serverdan kelgan xato xabarini chiqarishga urinish
+                            throw new Error(error.message || `HTTP xato: ${response.status}`);
+                        });
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    if (data.status === 'success' && data.redirect_url) {
+                        // JSON javobda qaytgan URL manziliga yo'naltirish
+                        window.location.href = data.redirect_url;
+                    } else {
+                        // Status 'success' bo'lmasa
+                        alert('Imtihonni boshlashda xato: ' + (data.message || 'Serverdan noto‘g‘ri javob keldi.'));
+                        button.disabled = false;
+                        button.innerHTML = originalText;
+                    }
+                })
+                .catch(error => {
+                    // Tarmoq yoki JS xatosi yuz berganda
+                    alert('Server bilan aloqada xato: ' + error.message);
+                    console.error('AJAX XATOSI:', error);
+                    button.disabled = false;
+                    button.innerHTML = originalText;
+                });
+            });
+        });
+    });
+</script>
+{% endblock extra_js %}

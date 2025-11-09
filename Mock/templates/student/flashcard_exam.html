@@ -4,7 +4,7 @@
 {% block title %}{{ session_title|default:"Flashcardlar" }}{% endblock %}
 
 {% block content %}
-<div class="bg-slate-50 min-h-screen flex flex-col justify-center items-center py-4">
+<div class="bg-slate-50 min-h-screen flex flex-col justify-center items-center py-2">
     <div class="w-full max-w-lg mx-auto px-4">
         <div class="text-center mb-6">
             <h1 class="text-2xl sm:text-3xl font-bold text-slate-800 tracking-tight">
@@ -56,8 +56,9 @@
 
 {% csrf_token %}
 <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js" async></script>
-
 <script>
+const CENTER_SLUG = "{{ center.slug }}"; 
+
 document.addEventListener('DOMContentLoaded', function() {
     const flashcard = document.getElementById('flashcard');
     const flashcardContainer = document.getElementById('flashcard-container');
@@ -129,6 +130,9 @@ document.addEventListener('DOMContentLoaded', function() {
     function showQuizEndScreen() {
         const successRate = totalCards > 0 ? Math.round((knownCardsCount / totalCards) * 100) : 0;
         
+        // Bu funksiya template ichida (HTML qismida) bo'lgani uchun, u yerda tuzatish kiritilgan edi.
+        // Yuqoridagi HTML qismni yopganingiz uchun, faqat JSni qoldiraman.
+        // Aslida bu yerda DOM manipulyatsiyasi bor
         flashcardContainer.parentElement.innerHTML = `
             <div class="text-center p-8 bg-white rounded-2xl shadow-xl h-full flex flex-col justify-center items-center">
                 <h2 class="text-3xl font-bold text-slate-800 mb-4">Mashg'ulot yakunlandi! 🎉</h2>
@@ -139,7 +143,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 </p>
                 <p class="text-xl text-indigo-600 font-bold">O'zlashtirish darajasi: <strong>${successRate}%</strong></p>
                 <div class="mt-8">
-                    <a href="{% url 'my_flashcards' %}" class="btn btn-primary px-8 py-3 text-lg">
+                    <a href="{% url 'my_flashcards' center.slug %}" class="btn btn-primary px-8 py-3 text-lg">
                         Statistika sahifasiga
                     </a>
                 </div>
@@ -238,9 +242,14 @@ document.addEventListener('DOMContentLoaded', function() {
         startX = 0;
     });
 
+    // 🛑 TUZATILGAN sendProgress funksiyasi: URL'ga slug qo'shildi!
     function sendProgress(cardId, userResponse) {
         const csrftoken = document.querySelector('[name=csrfmiddlewaretoken]').value;
-        fetch('/update-flashcard-progress/', {
+        
+        // ✅ URL endi CENTER_SLUG bilan birga tuziladi
+        const url = `/${CENTER_SLUG}/update-flashcard-progress/`;
+        
+        fetch(url, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',

@@ -1,44 +1,67 @@
 {% extends 'base.html' %}
 {% load static %}
+{% load widget_tweaks %}
 
 {% block title %}Yangi matn qo'shish{% endblock %}
 
 {% block content %}
-<div class="container mx-auto p-4 md:p-8">
-    <div class="bg-white rounded-lg shadow-md p-6 max-w-3xl mx-auto">
-        <h2 class="text-3xl font-bold text-gray-800 mb-6 text-center">Yangi matn qo'shish</h2>
+<div class="container mx-auto p-2 sm:p-4 md:p-8">
+    <div class="bg-white rounded-xl shadow-2xl p-4 sm:p-6 md:p-10 max-w-4xl mx-auto">
+        
+        {# Sarlavha: Mobil uchun kichikroq, desktop uchun kattaroq #}
+        <h2 class="text-2xl sm:text-3xl md:text-4xl font-extrabold text-gray-900 mb-6 sm:mb-8 text-center border-b-2 border-indigo-100 pb-3">
+            Yangi Matn Qo'shish 🚀
+        </h2>
         
         {% if form.non_field_errors %}
-            <div class="p-4 mb-4 text-sm text-red-700 bg-red-100 rounded-lg" role="alert">
-                {{ form.non_field_errors }}
+            <div class="p-4 mb-6 text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg" role="alert">
+                <span class="font-bold">Xato!</span> {{ form.non_field_errors }}
             </div>
         {% endif %}
 
         <form method="POST">
             {% csrf_token %}
             
+            {# 1. Title Maydoni #}
             <div class="mb-6">
-                <label for="{{ form.title.id_for_label }}" class="block text-gray-700 font-medium mb-2">{{ form.title.label }}</label>
-                {{ form.title }}
+                <label for="{{ form.title.id_for_label }}" class="block text-base sm:text-lg text-gray-800 font-semibold mb-2">
+                    {{ form.title.label }} <span class="text-red-500">*</span>
+                </label>
+                
+                {% render_field form.title type="text" placeholder="Matn sarlavhasini kiriting..." class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 transition duration-150 shadow-sm text-base" %}
+                
                 {% for error in form.title.errors %}
-                    <p class="text-red-500 text-sm mt-1">{{ error }}</p>
+                    <p class="text-red-600 text-sm mt-1">{{ error }}</p>
                 {% endfor %}
             </div>
 
-            <div class="mb-6">
-                <label for="{{ form.content.id_for_label }}" class="block text-gray-700 font-medium mb-2">{{ form.content.label }}</label>
-                {{ form.content }}
+            {# 2. Content Maydoni (CKEditor) #}
+            <div class="mb-8">
+                <label for="{{ form.content.id_for_label }}" class="block text-base sm:text-lg text-gray-800 font-semibold mb-2">
+                    {{ form.content.label }} <span class="text-red-500">*</span>
+                </label>
+                
+                {# CKEditor o'zining responsivligini boshqaradi #}
+                {{ form.content }} 
+                
                 {% for error in form.content.errors %}
-                    <p class="text-red-500 text-sm mt-1">{{ error }}</p>
+                    <p class="text-red-600 text-sm mt-1">{{ error }}</p>
                 {% endfor %}
             </div>
 
-            <div class="flex justify-end items-center mt-8">
-                <a href="{% url 'passage_list' %}" class="bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-2 px-6 rounded-md mr-4">
+            {# Tugmalar bloki: Mobil ekranda ustma-ust, katta ekranda yonma-yon #}
+            <div class="flex flex-col sm:flex-row justify-end items-center border-t border-gray-100 pt-6 mt-6 space-y-3 sm:space-y-0">
+                
+                {# Bekor qilish tugmasi #}
+                <a href="{% url 'passage_list' slug=center.slug %}" 
+                   class="w-full sm:w-auto bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-3 px-8 rounded-full transition duration-300 ease-in-out sm:mr-4 text-center order-2 sm:order-1">
                     Bekor qilish
                 </a>
-                <button type="submit" class="bg-blue-600 hover:bg-blue-800 text-white font-bold py-2 px-6 rounded-md transition duration-300">
-                    Saqlash
+                
+                {# Saqlash tugmasi #}
+                <button type="submit" 
+                        class="w-full sm:w-auto bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-8 rounded-full transition duration-300 ease-in-out shadow-lg shadow-indigo-200 hover:shadow-indigo-300 order-1 sm:order-2">
+                    <i class="fas fa-save mr-2"></i> Saqlash
                 </button>
             </div>
         </form>
@@ -47,4 +70,5 @@
 {% endblock %}
 
 {% block extra_body %}
+    {{ form.media }}
 {% endblock %}

@@ -1,0 +1,84 @@
+{% extends 'base.html' %}
+{% load static i18n %}
+
+{% block title %}'{{ course.title }}' Modullari{% endblock %}
+
+{% block content %}
+<div class="container mx-auto p-4 md:p-8 max-w-7xl">
+    
+    {# Sarlavha va Orqaga Tugmasi #}
+    <div class="flex items-center mb-6 space-x-4">
+        <a href="{% url 'course_list' slug=center.slug %}" class="text-gray-500 hover:text-indigo-600 transition">
+            <i class="fas fa-arrow-left text-xl"></i>
+        </a>
+        <h1 class="text-3xl font-extrabold text-gray-900">
+            <span class="text-indigo-600">{{ course.title }}</span>: Modullarni Boshqarish
+        </h1>
+    </div>
+
+    {# Yordamchi ma'lumotlar va Yangi Tugma #}
+    <div class="flex justify-between items-center mb-8 bg-white p-4 rounded-xl shadow-md border border-gray-100">
+        <div class="space-y-1">
+            <p class="text-sm text-gray-700">
+                <i class="fas fa-chalkboard-teacher mr-2"></i> O'qituvchi: {{ course.teacher.full_name|default:"Tayinlanmagan" }}
+            </p>
+            <p class="text-sm text-gray-700">
+                <i class="fas fa-tags mr-2"></i> Turi: <span class="font-semibold">{{ course.get_course_type_display }} / {{ course.get_online_lesson_flow_display }}</span>
+            </p>
+        </div>
+        <a href="{% url 'module_create' course_id=course.id %}" class="px-4 py-2 bg-indigo-600 text-white font-semibold rounded-lg shadow-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition duration-150">
+            <i class="fas fa-plus mr-2"></i> Yangi Modul Qo'shish
+        </a>
+    </div>
+
+    {# Modullar Ro'yxati #}
+    <div class="space-y-4">
+        {% for module in modules %}
+        <div class="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden hover:shadow-xl transition duration-300">
+            <div class="p-5 flex justify-between items-center border-b border-gray-100">
+                <div class="flex items-center space-x-3">
+                    <span class="text-2xl font-bold text-indigo-600 mr-2">{{ module.order }}.</span>
+                    <div>
+                        <h2 class="text-xl font-semibold text-gray-900">{{ module.title }}</h2>
+                        <p class="text-sm text-gray-500 mt-1">{{ module.lessons_list|length }} ta dars</p>
+                    </div>
+                </div>
+
+                {# Harakatlar #}
+                <div class="flex space-x-2 items-center">
+                    {# Darslarni boshqarish #}
+                    <a href="{% url 'lesson_list' module_id=module.id %}" class="action-btn bg-blue-50 text-blue-600 hover:bg-blue-100 p-2 rounded-full" title="Darslarni boshqarish">
+                        <i class="fas fa-book-open text-base"></i>
+                    </a>
+                    
+                    {# Tahrirlash #}
+                    <a href="{% url 'module_update' course_id=course.id module_id=module.id %}" class="action-btn text-yellow-600 hover:text-yellow-800 p-2 rounded-full" title="Tahrirlash">
+                        <i class="fas fa-edit text-base"></i>
+                    </a>
+                    
+                    {# 🔥 O'chirish - GET o'rniga POST forma ishlatiladi #}
+                    <form method="post" action="{% url 'module_delete' course_id=course.id module_id=module.id %}" 
+                          onsubmit="return confirm('«{{ module.title }}» modulini haqiqatan ham o‘chirmoqchimisiz? Bunga tegishli barcha darslar ham o‘chiriladi.');" class="inline-block">
+                        {% csrf_token %}
+                        <button type="submit" class="action-btn text-red-600 hover:text-red-800 p-2 rounded-full" title="O'chirish">
+                            <i class="fas fa-trash-alt text-base"></i>
+                        </button>
+                    </form>
+                </div>
+            </div>
+            
+            {% if module.description %}
+            <div class="p-5 pt-0">
+                <p class="text-sm text-gray-600 mt-2">{{ module.description }}</p>
+            </div>
+            {% endif %}
+        </div>
+        {% empty %}
+        <div class="text-center p-10 bg-white rounded-xl shadow-lg border border-gray-200">
+            <i class="fas fa-box-open text-6xl text-gray-300 mb-4"></i>
+            <p class="text-lg text-gray-600">Hozircha modul yo'q. Boshlash uchun modul yarating.</p>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endblock content %}

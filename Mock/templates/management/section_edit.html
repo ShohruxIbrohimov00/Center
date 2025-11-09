@@ -1,0 +1,203 @@
+{% extends 'base.html' %}
+{% load static i18n %}
+
+{% block title %}Bo'limni tahrirlash: {{ section.name }}{% endblock %}
+
+{% block head %}
+<link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet">
+
+<script src="https://cdn.jsdelivr.net/npm/jquery@3.6.0/dist/jquery.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+
+<style>
+    .errorlist { color: #ef4444; font-size: 0.875rem; margin-top: 0.25rem; }
+    /* Select2 uchun stilni chiroyli qilib to'g'irladik */
+    .select2-container .select2-selection--single { 
+        height: 2.5rem !important; 
+        border: 1px solid #d1d5db !important; 
+        border-radius: 0.375rem !important; 
+    }
+    .select2-container--default .select2-selection--single .select2-selection__rendered {
+        line-height: 2.5rem !important; /* Vertikal joylashuv */
+        padding-left: 0.75rem !important;
+    }
+    .select2-container--default .select2-selection--single .select2-selection__arrow {
+        height: 2.5rem !important;
+    }
+
+    /* Tugmalar stili (section_create ga mos) */
+    .btn { 
+        display: inline-flex; 
+        align-items: center; 
+        padding: 0.5rem 1rem; 
+        font-weight: 600; 
+        border-radius: 0.5rem; /* Kichikroq va chiroyliroq */
+        transition: all 0.2s; 
+        font-size: 0.9rem;
+    }
+    .btn-primary { background-color: #4f46e5; color: white; }
+    .btn-primary:hover { background-color: #4338ca; }
+    .btn-secondary { background-color: #6b7280; color: white; }
+    .btn-secondary:hover { background-color: #4b5563; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container mx-auto p-4 md:p-8 max-w-5xl">
+    <div class="bg-white shadow-xl rounded-xl p-6 md:p-8 border border-gray-100">
+        <h2 class="text-3xl font-extrabold text-gray-900 mb-2">{% trans "Bo'limni tahrirlash" %} <span class="text-indigo-600">({{ section.name }})</span></h2>
+        <p class="text-gray-600 mb-8 border-b pb-4">{% trans "Bo'limning asosiy ma'lumotlarini va savollar ro'yxatini yangilang." %}</p>
+
+        {% if messages %}
+        <div class="mb-6">
+            {% for message in messages %}
+            <div class="p-4 mb-3 text-sm rounded-lg shadow-sm 
+                {% if message.tags == 'success' %}bg-green-100 text-green-800 border-green-400{% elif message.tags == 'error' or message.tags == 'danger' %}bg-red-100 text-red-800 border-red-400{% else %}bg-blue-100 text-blue-800 border-blue-400{% endif %} border-l-4" role="alert">
+                {{ message }}
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        <form action="{% url 'section_edit' slug=center.slug section_id=section.id %}" method="POST" id="section-form" class="space-y-8">
+            {% csrf_token %}
+            
+            {{ form.selected_questions_ids }} 
+
+            <div class="bg-gray-50 p-6 rounded-xl border border-gray-200">
+                <h3 class="text-xl font-bold text-gray-800 mb-4 flex items-center">
+                    <i class="fas fa-cubes mr-3 text-indigo-600"></i>{% trans "Bo'lim ma'lumotlari" %}
+                </h3>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    
+                    {% for field in form %}
+                    {% if field.name != 'selected_questions_ids' and field.name != 'exam_type' %}
+                    <div class="space-y-1">
+                        <label for="{{ field.id_for_label }}" class="block text-gray-700 font-medium">{{ field.label }}</label>
+                        {{ field }}
+                        {% if field.help_text %}
+                            <p class="text-xs text-gray-500">{{ field.help_text }}</p>
+                        {% endif %}
+                        {% if field.errors %}
+                        <ul class="errorlist">{{ field.errors }}</ul>
+                        {% endif %}
+                    </div>
+                    {% endif %}
+                    {% endfor %}
+                    
+                </div>
+            </div>
+
+            <div class="bg-gray-50 p-6 rounded-xl border border-gray-200 mb-6">
+                <h3 class="text-xl font-bold text-gray-800 mb-4 flex items-center">
+                    <i class="fas fa-list-ul mr-3 text-indigo-600"></i>{% trans "Savollar ro'yxati" %}
+                </h3>
+                
+                <a href="{% url 'static_questions_add' slug=center.slug section_id=section.id %}" id="select-questions-btn" class="btn btn-primary mb-4">
+                    <i class="fas fa-edit mr-2"></i>{% trans "Savollarni tahrirlash" %} (2-Bosqich)
+                </a>
+                
+                <div id="selected-questions" class="mt-4 p-4 bg-white border border-gray-200 rounded-lg">
+                    <h4 class="text-lg font-semibold text-gray-700 mb-2 flex items-center">
+                        <i class="fas fa-check-circle mr-2 text-green-500"></i>
+                        {% trans "Hozirgi tanlangan savollar" %}
+                    </h4>
+                    <p class="text-md text-gray-600 font-medium">{% trans "Jami savollar" %}: <span id="total-questions" class="font-bold text-indigo-600">{{ section.static_questions.count }}</span> / {{ section.max_questions }}</p>
+                    
+                    <ul id="selected-questions-list" class="list-disc list-inside text-sm text-gray-600 mt-3 max-h-40 overflow-y-auto">
+                        {% for sq in section.static_questions.all %}
+                        <li class="py-1">Savol ID: <span class="font-semibold">{{ sq.question.id }}</span> ({{ sq.question.subtopic.name }})</li>
+                        {% empty %}
+                        <li class="py-1 text-red-500">{% trans "Hozircha savollar tanlanmagan" %}</li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            </div>
+
+
+            <div class="flex flex-col sm:flex-row justify-between mt-6 space-y-3 sm:space-y-0 sm:space-x-3 border-t pt-6">
+                <button type="button" id="delete-section-btn" class="btn bg-red-600 text-white hover:bg-red-700">
+                    <i class="fas fa-trash-alt mr-2"></i>{% trans "Bo'limni o'chirish" %}
+                </button>
+                
+                <div class="flex flex-col sm:flex-row space-y-3 sm:space-y-0 sm:space-x-3">
+                    <a href="{% url 'section_list' slug=center.slug %}" class="btn btn-secondary">
+                        <i class="fas fa-times mr-2"></i>{% trans "Bekor qilish" %}
+                    </a>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-save mr-2"></i>{% trans "Saqlash" %}
+                    </button>
+                </div>
+            </div>
+        </form>
+
+        <form id="delete-form" method="POST" action="{% url 'section_delete' slug=center.slug section_id=section.id %}" style="display: none;">
+            {% csrf_token %}
+        </form>
+
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    $(document).ready(function() {
+        // Select2 ni ishga tushirish
+        $('select').select2({
+            theme: "classic",
+            width: '100%',
+            allowClear: true,
+            placeholder: "{% trans 'Tanlang...' %}"
+        });
+
+        // Backenddan kelgan savollar IDlarini olish (initial data)
+        const initialQuestionsData = [
+            {% for sq in section.static_questions.all %}
+                { id: {{ sq.question.id }}, subtopic: "{{ sq.question.subtopic.name|escapejs }}" },
+            {% endfor %}
+        ];
+        
+        // localStorage ni tozalash va initial data bilan to'ldirish
+        localStorage.setItem('selected_questions', JSON.stringify(initialQuestionsData));
+        
+        // --- Tanlangan savollarni ro'yxatni va yashirin maydonni yangilash funksiyasi ---
+        function updateSelectedQuestionsList() {
+            // LocalStorage'dan ma'lumotni olish
+            const selectedQuestions = JSON.parse(localStorage.getItem('selected_questions') || '[]');
+            
+            // Hisoblash
+            $('#total-questions').text(selectedQuestions.length);
+            
+            // HTML ro'yxatini yaratish
+            const questionsHtml = selectedQuestions.length > 0
+                ? selectedQuestions.map(q => `<li class="py-1">Savol ID: <span class="font-semibold">${q.id}</span> (${q.subtopic})</li>`).join('')
+                : `<li class="py-1 text-red-500">{% trans "Hozircha savollar tanlanmagan" %}</li>`;
+                
+            $('#selected-questions-list').html(questionsHtml);
+
+            // Yashirin formaga ID'larni kiritish (Backendga yuborish uchun)
+            $('#id_selected_questions_ids').val(selectedQuestions.map(q => q.id).join(','));
+        }
+
+        // Sahifa yuklanganda ro'yxatni yangilash
+        updateSelectedQuestionsList();
+
+        // --- LocalStorage o'zgarishini kuzatish (Agar 2-bosqichda saqlab qaytilsa) ---
+        $(window).on('pageshow', function() {
+              updateSelectedQuestionsList();
+        });
+
+
+        // --- O'chirish Tugmasi Funksiyasi ---
+        // Bu funksiya modal o'rniga oddiy JS confirm() ishlatyapti, bu xato emas, lekin avvalgi modalga mos emas.
+        $('#delete-section-btn').on('click', function(e) {
+            e.preventDefault();
+            if (confirm("{% trans "Bolimni ochirishga ishonchingiz komilmi? Bu qaytarib bolmaydigan amal!" %}")) {
+                $('#delete-form').submit();
+            }
+        });
+    });
+</script>
+{% endblock %}

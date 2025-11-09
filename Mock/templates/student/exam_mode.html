@@ -1,4 +1,6 @@
 {% load static %}
+{% load custom_filters %}
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -7,9 +9,23 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
     <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        // Tailwind CSS konfiguratsiyasi
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'sat-blue': '#0070c0',
+                        'sat-dark': '#1e1e1e',
+                    }
+                }
+            }
+        }
+    </script>
     <link rel="stylesheet" href="{% static 'css/exam_mode.css' %}">
     <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
-    <!-- MathJax sozlamalari -->
+
+    {# MathJax KONFIGURATSIYASI #}
     <script>
         MathJax = {
             tex: {
@@ -19,28 +35,51 @@
             },
             chtml: {
                 fontURL: 'https://cdn.jsdelivr.net/npm/mathjax@3/es5/output/chtml/fonts/woff-v2'
+            },
+            // Avtomatik renderingni o'chiramiz, typeset ni faqat kerakli joyda chaqiramiz
+            startup: {
+                ready: () => {
+                    MathJax.startup.defaultReady();
+                }
             }
         };
     </script>
+    {# MathJax Yuklanishi #}
     <script async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
-    <script src="https://kit.fontawesome.com/your-kit-id.js" crossorigin="anonymous"></script>
-    <script src="{% static 'js/sat_formulas.js' %}"></script> 
+    
+    {# sat_formulas.js ni faqat subject exam bo'lmaganda yuklash #}
+    {% if not is_subject_exam %}
+        <script src="{% static 'js/sat_formulas.js' %}"></script>
+    {% endif %}
+
 </head>
 <body>
     <div class="sat-wrapper">
         <header class="sat-header">
             <div class="container header-content">
                 <div class="header-left">
-                    <span class="question-number-header" id="question-number-header">{{ section_attempt.section.get_section_type_display }} (Module {{ section_attempt.section.module_number }})</span> 
-                    <div class="section-tabs">
-                        {% for section_attempt in section_attempts %}
-                            <span class="section-tab 
-                                {% if section_attempt.id|slugify == section_attempt_id|slugify %}active{% endif %}" 
-                                data-section-id="{{ section_attempt.id }}" data-section-type="{{ section_attempt.section.section_type }}" data-module-number="{{ section_attempt.section.module_number }}">
-                                {{ section_attempt.section.get_section_type_display }} (Module {{ section_attempt.section.module_number }})
-                            </span>
-                        {% endfor %}
-                    </div>
+                    <span class="question-number-header" id="question-number-header">
+                        {% if is_subject_exam %}
+                            {{ attempt.exam.title }}
+                        {% else %}
+                            {{ section_attempt.section.get_section_type_display }} (Module {{ section_attempt.section.module_number }})
+                        {% endif %}
+                    </span> 
+
+                    {% if not is_subject_exam %}
+                        <div class="section-tabs">
+                            {% for sa in section_attempts %}
+                                <span class="section-tab 
+                                    {% if sa.id == section_attempt_id %}active{% endif %}" 
+                                    data-section-id="{{ sa.id }}" 
+                                    data-section-type="{{ sa.section.section_type }}" 
+                                    data-module-number="{{ sa.section.module_number }}">
+                                    {{ sa.section.get_section_type_display }} (Module {{ sa.section.module_number }})
+                                </span>
+                            {% endfor %}
+                        </div>
+                    {% endif %}
+                    
                     <button class="directions-btn" id="directions-btn" aria-label="Yo'riqnoma ochish">
                         Directions
                         <i class="fa-solid fa-caret-down"></i>
@@ -53,12 +92,19 @@
                 </div>
                 
                 <div class="header-right">
-                    {% if section_attempt.section.section_type == 'math_calc' %}
+                    {% if section_attempt.section.section_type == 'math_calc' or is_subject_exam %}
                         <button class="header-btn" id="calculator-btn" aria-label="Kalkulyator ochish">
                             <i class="fa-solid fa-calculator"></i>
                             <span>Calculator</span>
                         </button>
                     {% endif %}
+                    
+                    <button class="header-btn" id="dictionary-btn" aria-label="Lug'at (Flashcards) ochish" 
+                        style="display: {% if is_subject_exam %}flex{% else %}none{% endif %};">
+                        <i class="fa-solid fa-book"></i>
+                        <span>Lug'at</span>
+                    </button>
+                    
                     <button class="header-btn" id="reference-btn" aria-label="Formulalar sahifasini ochish">
                         <i class="fa-solid fa-xmark squared"></i>
                         <span>Reference</span>
@@ -100,7 +146,7 @@
                 </div>
                 <div class="footer-center">
                     <button class="question-info nav-toggle-btn" id="nav-btn" aria-label="Savol navigatsiyasini ochish">
-                        <span id="nav-btn-text">Question 1 of 22</span>
+                        <span id="nav-btn-text">Question 1 of N</span>
                         <i class="fa-solid fa-chevron-up"></i>
                     </button>
                 </div>
@@ -118,6 +164,7 @@
         </footer>
     </div>
     
+    {# MODALLAR QISMI #}
     <div id="question-nav-modal" class="nav-modal hidden">
         <div class="modal-content">
             <div id="question-nav-grid" class="grid grid-cols-5 md:grid-cols-8 gap-3 p-4"> 
@@ -126,23 +173,41 @@
     </div>
 
     <div id="calculator-modal" class="modal hidden">
-        <div class="modal-header">
-            <h2 class="text-xl font-semibold">Desmos Scientific Calculator</h2>
-            <button class="close-btn" data-modal="calculator-modal" aria-label="Yopish">&times;</button>
-        </div>
-        <div class="modal-content overflow-hidden flex-grow p-0">
-            <div id="desmos-calculator" class="w-full h-full" style="height: 100%;"></div> 
+        <div class="modal-content-wrapper max-w-2xl w-full h-full sm:max-w-xl md:max-w-2xl lg:max-w-3xl xl:max-w-4xl" style="height: 90vh;">
+            <div class="modal-header">
+                <h2 class="text-xl font-semibold">Desmos Scientific Calculator</h2>
+                <button class="close-btn" data-modal="calculator-modal" aria-label="Yopish" onclick="closeModal('calculator-modal')">&times;</button>
+            </div>
+            <div class="modal-content overflow-hidden flex-grow p-0">
+                <div id="desmos-calculator" class="w-full h-full" style="height: 100%;"></div> 
+            </div>
         </div>
     </div>
     
     <div id="reference-modal" class="modal hidden">
-        <div class="modal-header">
-            <h2 class="text-xl font-semibold">Reference Sheet (Formulalar)</h2>
-            <button class="close-btn" data-modal="reference-modal" aria-label="Yopish">&times;</button>
+        <div class="modal-content-wrapper max-w-2xl w-full h-full sm:max-w-xl md:max-w-2xl lg:max-w-3xl xl:max-w-4xl" style="height: 90vh;">
+            <div class="modal-header">
+                <h2 class="text-xl font-semibold">Reference Sheet (Formulalar)</h2>
+                <button class="close-btn" data-modal="reference-modal" aria-label="Yopish" onclick="closeModal('reference-modal')">&times;</button>
+            </div>
+            <div class="modal-content p-4 overflow-y-auto">
+                <div class="formula-panel" id="formula-panel">
+                    <p>Formulalar yuklanmoqda...</p>
+                </div>
+            </div>
         </div>
-        <div class="modal-content p-4">
-            <div class="formula-panel" id="formula-panel">
-                <p>Formulalar yuklanmoqda...</p>
+    </div>
+    
+    <div id="flashcards-modal" class="center-modal hidden"> 
+        <div class="modal-content-wrapper max-w-lg">
+            <div class="modal-header">
+                <h2 class="text-xl font-semibold">Savol Lug'atlari (Flashcards)</h2>
+                <button class="close-btn" data-modal="flashcards-modal" aria-label="Yopish" onclick="closeModal('flashcards-modal')">&times;</button>
+            </div>
+            <div class="modal-content p-4 overflow-y-auto max-h-[80vh]">
+                <div id="flashcards-container">
+                    <p class="text-center text-gray-500">Lug'atlar yuklanmoqda...</p>
+                </div>
             </div>
         </div>
     </div>
@@ -151,19 +216,17 @@
         <div class="modal-content-wrapper">
             <div class="modal-header">
                 <h2 class="text-xl font-semibold">Imtihonni yakunlash</h2>
-                <button class="close-btn" data-modal="confirm-exit-modal" aria-label="Yopish">&times;</button>
+                <button class="close-btn" data-modal="confirm-exit-modal" aria-label="Yopish" onclick="closeModal('confirm-exit-modal')">&times;</button>
             </div>
             <div class="modal-content p-4">
                 <p>Siz haqiqatan ham <strong>{{ attempt.exam.title }}</strong> imtihonini yakunlamoqchimisiz?</p>
                 <p class="font-bold mt-2 text-red-600">Yakunlanganidan so'ng qayta kirish imkoni bo'lmaydi!</p>
                 <div class="mt-4 flex justify-end space-x-3">
                     <button id="final-finish-btn" class="nav-btn bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700" aria-label="Ha, yakunlash">
-                        <i class="fas fa-check mr-1"></i> <!-- Tasdiqlash ikoni -->
-                        <span class="nav-btn-text">Ha, Yakunlash</span>
+                        <i class="fas fa-check mr-1"></i> <span class="nav-btn-text">Ha, Yakunlash</span>
                     </button>
                     <button class="nav-btn bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600" onclick="closeModal('confirm-exit-modal')" aria-label="Bekor qilish">
-                        <i class="fas fa-times mr-1"></i> <!-- Bekor qilish ikoni -->
-                        <span class="nav-btn-text">Bekor Qilish</span>
+                        <i class="fas fa-times mr-1"></i> <span class="nav-btn-text">Bekor Qilish</span>
                     </button>
                 </div>
             </div>
@@ -174,9 +237,9 @@
         <div class="modal-content-wrapper">
             <div class="modal-header">
                 <h2 class="text-xl font-semibold">Directions (Yo'riqnoma)</h2>
-                <button class="close-btn" data-modal="directions-modal" aria-label="Yopish">&times;</button>
+                <button class="close-btn" data-modal="directions-modal" aria-label="Yopish" onclick="closeModal('directions-modal')">&times;</button>
             </div>
-            <div class="modal-content p-4">
+            <div class="modal-content p-4 overflow-y-auto max-h-[80vh]">
                 <p>Bu bo'lim bo'yicha imtihon qoidalari va yo'riqnomalari bu yerda bo'ladi.</p>
                 {% if section_attempt.section.directions %}
                     <div class="mt-3">{{ section_attempt.section.directions|safe }}</div>
@@ -185,12 +248,11 @@
         </div>
     </div>
 
-    <!-- Yangi: Xato xabarlari uchun modal -->
     <div id="error-modal" class="center-modal hidden">
         <div class="modal-content-wrapper">
             <div class="modal-header">
                 <h2 class="text-xl font-semibold">Xato yuz berdi</h2>
-                <button class="close-btn" data-modal="error-modal" aria-label="Yopish">&times;</button>
+                <button class="close-btn" data-modal="error-modal" aria-label="Yopish" onclick="closeModal('error-modal')">&times;</button>
             </div>
             <div class="modal-content p-4">
                 <p id="error-message"></p>
@@ -200,41 +262,50 @@
             </div>
         </div>
     </div>
-
+    
     <script>
-        // Global o'zgaruvchilar (Django kontekstidan olinadi)
-        const EXAM_AJAX_URL = "{% url 'handle_exam_ajax' %}"; 
-        const ATTEMPT_ID = "{{ attempt_id|safe }}"; 
-        const CSRF_TOKEN = "{{ csrf_token|safe }}"; 
-        
-        let currentSectionId = "{{ section_attempt_id|default:'' }}"; 
-        let timeRemaining = parseInt("{{ time_remaining_seconds|default:0 }}", 10);
-        if (isNaN(timeRemaining)) timeRemaining = 0; 
-        
-        // Agar bo'lim ID bo'lmasa, birinchi bo'limni tanlash
-        if (!currentSectionId || currentSectionId === 'None' || currentSectionId === '') {
-            currentSectionId = "{% for sa in section_attempts %}{% if forloop.first %}{{ sa.id }}{% endif %}{% endfor %}"; 
-        }
+        // =================================================================
+        // 🛠️ GLOBAL O'ZGARUVCHILARNI WINDOW OB'EKTIGA BOG'LASH
+        // =================================================================
+        window.EXAM_AJAX_URL = "{% url 'handle_exam_ajax' %}"; 
+        window.CSRF_TOKEN = "{{ csrf_token|safe }}"; 
+        window.IS_SUBJECT_EXAM = {{ is_subject_exam|yesno:"true,false" }};
+        window.ATTEMPT_ID = "{{ attempt_id|default:''|safe }}";
+        window.currentSectionId = "{{ section_attempt_id|default:''|safe }}"; 
 
+        window.timeRemaining = parseInt("{{ time_remaining_seconds|default:0 }}", 10);
+        if (isNaN(window.timeRemaining)) window.timeRemaining = 0;
+        
         // Bo'lim ma'lumotlarini JS ga uzatish
-        const SECTION_ATTEMPTS_DATA = {
+        window.SECTION_ATTEMPTS_DATA = {
             {% for sa in section_attempts %}
                 '{{ sa.id }}': {
                     'order': {{ forloop.counter }},
                     'section_type': '{{ sa.section.section_type }}',
                     'module_number': {{ sa.section.module_number }},
                     'is_completed': {{ sa.is_completed|yesno:"true,false" }},
-                    'total_questions': {{ sa.questions.count|default:0 }}
+                    'total_questions': {{ sa.questions.count|default:0 }}, 
+                    'time_limit_seconds': {{ sa.section.duration_minutes|mul:60 }}
                 }{% if not forloop.last %},{% endif %}
             {% endfor %}
         };
     
-        if (!currentSectionId) {
-            console.error("KRITIK XATO: currentSectionId topilmadi. Kontekstni tekshiring.");
+        // Agar currentSectionId bo'lmasa, birinchi bo'lim ID ni avtomatik tanlash
+        if (!window.currentSectionId && !window.IS_SUBJECT_EXAM) { 
+            const firstSectionId = Object.keys(window.SECTION_ATTEMPTS_DATA)[0];
+            if (firstSectionId) {
+                window.currentSectionId = firstSectionId;
+            } else {
+                 console.error("KRITIK XATO: currentSectionId topilmadi. Kontekstni tekshiring.");
+            }
         }
-        
-        // Yordamchi Funksiyalar (Modal) - CSS sinflari: .modal, .center-modal, .nav-modal
-        function openModal(modalId) {
+
+        // =================================================================
+        // 🛠️ Yordamchi Funksiyalar (Modal & Xato) - Global funksiyalar
+        // =================================================================
+
+        // Modal ochish
+        window.openModal = function(modalId) {
             document.querySelectorAll('.modal, .center-modal, .nav-modal').forEach(m => {
                 m.classList.add('hidden');
                 m.classList.remove('open');
@@ -243,26 +314,28 @@
             if (modal) {
                 modal.classList.remove('hidden');
                 if (modalId !== 'question-nav-modal') {
-                    document.body.classList.add('overflow-hidden'); // Sahifani muzlatish
+                    document.body.classList.add('overflow-hidden'); 
                 }
                 setTimeout(() => {
                     modal.classList.add('open');
+                    // Maxsus modal funksiyalarini chaqirish
                     if (modalId === 'reference-modal' && typeof window.loadReferenceFormulas === 'function') {
-                        window.loadReferenceFormulas();
+                        window.loadReferenceFormulas(); 
                     }
-                    if (modalId === 'calculator-modal' && typeof initDesmosCalculator === 'function') {
-                        initDesmosCalculator();
+                    if (modalId === 'calculator-modal' && typeof window.initDesmosCalculator === 'function') {
+                        window.initDesmosCalculator();
                     }
                 }, 10);
             }
         }
         
-        function closeModal(modalId) {
+        // Modal yopish
+        window.closeModal = function(modalId) {
             const modal = document.getElementById(modalId);
             if (modal) {
                 modal.classList.remove('open');
                 if (modalId !== 'question-nav-modal') {
-                    document.body.classList.remove('overflow-hidden'); // Muzlatishni olib tashlash
+                    document.body.classList.remove('overflow-hidden'); 
                 }
                 setTimeout(() => {
                     modal.classList.add('hidden');
@@ -270,40 +343,57 @@
             }
         }
 
-        // Yangi: Xato modalini ochish
-        function showError(message) {
-            const errorModal = document.getElementById('error-modal');
+        // Xato modalini ochish
+        window.showError = function(message) {
             const errorMsg = document.getElementById('error-message');
             if (errorMsg) errorMsg.textContent = message;
-            openModal('error-modal');
+            window.openModal('error-modal');
         }
 
         // Savol ma'lumotlarini AJAX orqali yuklash
-        async function fetchQuestionData(questionId) {
+        window.fetchQuestionData = async function(questionId) {
             try {
-                const response = await fetch(EXAM_AJAX_URL, {
+                const payload = {
+                    action: 'load_question_data', 
+                    attempt_id: window.ATTEMPT_ID, 
+                    question_id: questionId,
+                    section_attempt_id: window.currentSectionId,
+                    exam_title: "{{ attempt.exam.title|safe }}",
+                    is_subject_exam: window.IS_SUBJECT_EXAM,
+                };
+                
+                const response = await fetch(window.EXAM_AJAX_URL, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF_TOKEN },
-                    body: JSON.stringify({
-                        action: 'get_question_by_id',
-                        attempt_id: ATTEMPT_ID,
-                        question_id: questionId,
-                        section_attempt_id: currentSectionId,
-                    })
+                    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': window.CSRF_TOKEN },
+                    body: JSON.stringify(payload)
                 });
+                
+                // Serverdan javobni to'g'ri JSON formatida qaytarish
                 const data = await response.json();
                 return data;
+                
             } catch (error) {
                 console.error("Savol ma'lumotlarini yuklashda xato:", error);
-                return { status: 'error', message: "Yuklashda xato." };
+                // Xatolik yuz berganda xato ma'lumotini qaytarish
+                return { status: 'error', message: "Savolni yuklashda kutilmagan xato." };
             }
         }
 
-        // Sahifa yuklanganda MathJaxni qayta ishlash
         document.addEventListener('DOMContentLoaded', () => {
+            // MathJax-ni boshlang'ich rendering qilish
             if (window.MathJax) {
                 MathJax.typesetPromise().catch(err => console.error('MathJax boshlang\'ich rendering xato:', err));
             }
+            
+            // Tugmalar uchun global funksiyalarni bog'lash (Modalni yopish)
+            document.querySelectorAll('.close-btn').forEach(btn => {
+                btn.onclick = function() {
+                    const modalId = this.dataset.modal || this.closest('.modal, .center-modal, .nav-modal')?.id;
+                    if (modalId) {
+                        window.closeModal(modalId);
+                    }
+                };
+            });
         });
     </script>
     <script src="{% static 'js/exam_mode.js' %}"></script>

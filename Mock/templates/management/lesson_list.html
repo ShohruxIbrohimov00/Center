@@ -1,0 +1,305 @@
+{% extends 'base.html' %}
+{% load static i18n %}
+
+{% block title %}'{{ module.title }}' Darslari{% endblock %}
+
+{% block content %}
+<style>
+/* --- Custom Button Styles (Enhanced) --- */
+.action-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    transition: all 0.2s ease-in-out;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+}
+.action-btn.link-add {
+    background-color: #ecfdf5; /* Green-50 */
+    color: #059669; /* Green-600 */
+}
+.action-btn.link-add:hover {
+    background-color: #d1fae5; /* Green-100 */
+    transform: translateY(-1px);
+}
+.action-btn.edit {
+    background-color: #eef2ff; /* Indigo-50 */
+    color: #4f46e5; /* Indigo-600 */
+}
+.action-btn.edit:hover {
+    background-color: #e0e7ff; /* Indigo-100 */
+    transform: translateY(-1px);
+}
+.action-btn.delete {
+    background-color: #fef2f2; /* Red-50 */
+    color: #dc2626; /* Red-600 */
+}
+.action-btn.delete:hover {
+    background-color: #fee2e2; /* Red-100 */
+    transform: translateY(-1px);
+}
+
+/* --- Modal Styles (Improved) --- */
+.modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.6); /* Darker overlay */
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.3s ease-in-out;
+}
+.modal-overlay.active {
+    opacity: 1;
+    visibility: visible;
+}
+.modal-content {
+    background-color: white;
+    padding: 2.5rem; /* Kichikroq padding */
+    border-radius: 16px;
+    max-width: 450px;
+    width: 95%;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+    transform: translateY(-20px);
+    transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); /* Springy effect */
+}
+.modal-overlay.active .modal-content {
+    transform: translateY(0);
+}
+
+/* --- Responsive Table Styling --- */
+@media (max-width: 768px) {
+    .table-responsive thead {
+        display: none; /* Mobilda sarlavhani yashiramiz */
+    }
+    .table-responsive tbody tr {
+        display: block;
+        margin-bottom: 1rem;
+        border-bottom: 2px solid #e5e7eb;
+        border-radius: 8px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+        background-color: white;
+    }
+    .table-responsive tbody td {
+        display: block;
+        text-align: right;
+        padding-left: 50%;
+        position: relative;
+    }
+    .table-responsive tbody td::before {
+        content: attr(data-label);
+        position: absolute;
+        left: 0;
+        width: 45%;
+        padding-left: 1rem;
+        font-weight: 600;
+        text-align: left;
+        color: #4b5563;
+    }
+}
+</style>
+
+<div class="container mx-auto p-4 md:p-8 max-w-7xl">
+    
+    {# --- 1. Xabarlar Bloki (Messages) --- #}
+    {% if messages %}
+        {% for message in messages %}
+            <div class="mb-6 px-4 py-3 rounded-lg shadow-md flex items-center 
+                 {% if message.tags == 'success' %}bg-green-100 text-green-800 border border-green-300{% endif %}
+                 {% if message.tags == 'error' %}bg-red-100 text-red-800 border border-red-300{% endif %}
+                 {% if message.tags == 'warning' %}bg-yellow-100 text-yellow-800 border border-yellow-300{% endif %}">
+                <i class="fas {% if message.tags == 'success' %}fa-check-circle{% else %}fa-exclamation-triangle{% endif %} mr-3 text-lg"></i>
+                <p class="font-medium">{{ message }}</p>
+            </div>
+        {% endfor %}
+    {% endif %}
+
+    {# --- 2. Sarlavha va Orqaga Qaytish --- #}
+    <div class="flex items-center mb-6 space-x-4">
+        <a href="{% url 'module_list' course_id=module.course.id %}" class="text-gray-500 hover:text-indigo-600 transition p-2 rounded-full hover:bg-gray-100" title="Modullar ro'yxatiga qaytish">
+            <i class="fas fa-arrow-left text-xl"></i>
+        </a>
+        <h1 class="text-3xl lg:text-4xl font-extrabold text-gray-900">
+            <span class="text-indigo-600">{{ module.title }}</span>: Darslarni Boshqarish
+        </h1>
+    </div>
+
+    {# --- 3. Boshqaruv Paneli (Karta) --- #}
+    <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 bg-white p-6 rounded-xl shadow-xl border border-gray-100">
+        <div class="space-y-2 mb-4 md:mb-0">
+            <p class="text-sm text-gray-700"><i class="fas fa-folder-open mr-2 text-indigo-500"></i> Kurs: <span class="font-semibold text-gray-900">{{ module.course.title }}</span></p>
+            <p class="text-sm text-gray-700"><i class="fas fa-list-ol mr-2 text-indigo-500"></i> Darslar soni: <span class="font-bold text-lg text-indigo-600">{{ lessons|length }}</span></p>
+        </div>
+        <a href="{% url 'lesson_create' module_id=module.id %}" class="w-full md:w-auto px-6 py-3 bg-indigo-600 text-white font-semibold rounded-xl shadow-lg hover:bg-indigo-700 focus:outline-none focus:ring-4 focus:ring-indigo-500 focus:ring-opacity-50 transition duration-300 flex items-center justify-center">
+            <i class="fas fa-plus mr-2"></i> Yangi Dars Qo'shish
+        </a>
+    </div>
+
+    {# --- 4. Darslar Ro'yxati Jadvali --- #}
+    <div class="overflow-x-auto bg-white rounded-xl shadow-2xl border border-gray-200 table-responsive">
+        <table class="min-w-full divide-y divide-gray-200">
+            <thead class="bg-indigo-50">
+                <tr>
+                    <th class="px-6 py-3 text-left text-xs font-bold text-indigo-700 uppercase tracking-wider w-16">Tartib</th>
+                    <th class="px-6 py-3 text-left text-xs font-bold text-indigo-700 uppercase tracking-wider">Dars Nomi / Tavsif</th>
+                    <th class="px-6 py-3 text-center text-xs font-bold text-indigo-700 uppercase tracking-wider">Test</th>
+                    <th class="px-6 py-3 text-center text-xs font-bold text-indigo-700 uppercase tracking-wider">Resurslar</th>
+                    <th class="px-6 py-3 text-center text-xs font-bold text-indigo-700 uppercase tracking-wider">Harakatlar</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-100">
+                {% for lesson in lessons %}
+                <tr class="{% cycle 'bg-white' 'bg-gray-50' %} hover:bg-indigo-50 transition duration-150">
+                    <td class="px-6 py-4 whitespace-nowrap text-sm font-bold text-gray-900" data-label="Tartib">{{ lesson.order }}</td>
+                    <td class="px-6 py-4 max-w-lg text-sm font-medium text-gray-900" data-label="Dars Nomi">
+                        <p class="font-semibold">{{ lesson.title }}</p>
+                        <p class="text-xs text-gray-500 mt-1 truncate">{{ lesson.description|default:"Tavsif yo'q" }}</p>
+                    </td>
+                    
+                    {# Test Holati #}
+                    <td class="px-6 py-4 whitespace-nowrap text-center text-sm" data-label="Test Holati">
+                        {% if lesson.related_exam %}
+                            <span class="px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800" title="{{ lesson.related_exam.title }}">
+                                <i class="fas fa-check mr-1"></i> Mavjud
+                            </span>
+                        {% else %}
+                            <span class="px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-red-100 text-red-800">
+                                <i class="fas fa-times mr-1"></i> Yo'q
+                            </span>
+                        {% endif %}
+                    </td>
+                    
+                    {# Resurslar Holati #}
+                    <td class="px-6 py-4 whitespace-nowrap text-center text-sm" data-label="Resurslar Holati">
+                        {% if lesson.resources_list %}
+                            <span class="px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800">
+                                {{ lesson.resources_list|length }} ta
+                            </span>
+                        {% else %}
+                            <span class="px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-yellow-100 text-yellow-800">
+                                Yo'q
+                            </span>
+                        {% endif %}
+                    </td>
+                    
+                    {# Harakatlar #}
+                    <td class="px-6 py-4 whitespace-nowrap text-center text-sm font-medium" data-label="Harakatlar">
+                        <div class="flex items-center justify-center space-x-2">
+                            {# Resurs qo'shish #}
+                            <a href="{% url 'resource_create' lesson_id=lesson.id %}" class="action-btn link-add" title="Resurslar qo'shish/boshqarish">
+                                <i class="fas fa-link text-base"></i>
+                            </a>
+                            {# Tahrirlash #}
+                            <a href="{% url 'lesson_update' lesson_id=lesson.id %}" class="action-btn edit" title="Tahrirlash">
+                                <i class="fas fa-edit text-base"></i>
+                            </a>
+                            {# O'chirish - Modal orqali #}
+                            <button type="button" 
+                                data-lesson-id="{{ lesson.id }}" 
+                                data-lesson-title="{{ lesson.title }}" 
+                                data-delete-url="{% url 'lesson_delete' lesson_id=lesson.id %}"
+                                class="action-btn delete js-open-delete-modal" 
+                                title="O'chirish">
+                                <i class="fas fa-trash-alt text-base"></i>
+                            </button>
+                        </div>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr class="bg-white">
+                    <td colspan="5" class="px-6 py-10 text-center text-lg text-gray-500">
+                        <i class="fas fa-box-open text-6xl text-gray-300 mb-4"></i>
+                        <p class="font-semibold">Bu modulda darslar hali mavjud emas.</p>
+                        <p class="text-sm mt-1">Boshlash uchun yuqoridagi "Yangi Dars Qo'shish" tugmasini bosing.</p>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+{# O'chirishni Tasdiqlash Modali (Custom Modal UI) #}
+<div id="deleteModal" class="modal-overlay">
+    <div class="modal-content">
+        <div class="flex flex-col items-center">
+            <div class="bg-red-100 p-3 rounded-full mb-5">
+                 <i class="fas fa-exclamation-triangle text-3xl text-red-600"></i>
+            </div>
+            <h3 class="text-2xl font-extrabold text-gray-900 mb-2">O'chirishni Tasdiqlash</h3>
+            <p class="text-center text-gray-600 mb-6 text-sm">
+                Siz rostanam **<span id="lessonTitle" class="font-bold text-red-600"></span>** darsini o'chirmoqchimisiz? 
+                Bu harakatni ortga qaytarib bo'lmaydi va barcha resurslar ham o'chiriladi.
+            </p>
+        </div>
+
+        <div class="flex justify-end space-x-3">
+            <button type="button" id="cancelDeleteBtn" class="px-5 py-2 border border-gray-300 text-gray-700 font-semibold rounded-xl shadow-sm hover:bg-gray-100 transition duration-150">
+                Bekor qilish
+            </button>
+            <button type="button" id="confirmDeleteBtn" class="px-5 py-2 bg-red-600 text-white font-semibold rounded-xl shadow-md hover:bg-red-700 focus:outline-none focus:ring-4 focus:ring-red-500 focus:ring-opacity-50 transition duration-150">
+                Ha, O'chirilsin
+            </button>
+        </div>
+    </div>
+</div>
+
+{# Darsni O'chirish uchun Yashirin Forma #}
+<form id="deleteForm" method="POST" style="display: none;">
+    {% csrf_token %}
+</form>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const modal = document.getElementById('deleteModal');
+    const lessonTitleSpan = document.getElementById('lessonTitle');
+    const confirmBtn = document.getElementById('confirmDeleteBtn');
+    const cancelBtn = document.getElementById('cancelDeleteBtn');
+    const deleteForm = document.getElementById('deleteForm');
+
+    let currentDeleteUrl = '';
+
+    // Modalni ochish funksiyasi
+    document.querySelectorAll('.js-open-delete-modal').forEach(button => {
+        button.addEventListener('click', function() {
+            const lessonTitle = this.getAttribute('data-lesson-title');
+            currentDeleteUrl = this.getAttribute('data-delete-url');
+
+            lessonTitleSpan.textContent = lessonTitle;
+            modal.classList.add('active');
+            
+            // Confirm tugmasini yangi URL bilan bog'laymiz
+            // onclick o'rniga remove/addEventListener ishlatish xotira tozaligi uchun afzalroq, 
+            // lekin bu yerda oddiylik uchun onclick qoldirildi.
+            confirmBtn.onclick = function() {
+                deleteForm.action = currentDeleteUrl;
+                deleteForm.submit();
+            };
+        });
+    });
+
+    // Modalni yopish funksiyasi
+    function closeModal() {
+        modal.classList.remove('active');
+        currentDeleteUrl = '';
+    }
+
+    cancelBtn.addEventListener('click', closeModal);
+
+    // Overlay bosilganda modalni yopish
+    modal.addEventListener('click', function(e) {
+        if (e.target === modal) {
+            closeModal();
+        }
+    });
+});
+</script>
+{% endblock content %}

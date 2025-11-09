@@ -4,12 +4,16 @@
 {% block title %}Yangi Flashcard yaratish{% endblock %}
 
 {% block content %}
-<div class="container mx-auto p-4 md:p-8">
-    <div class="bg-white rounded-lg shadow-md p-6 max-w-3xl mx-auto">
-        <h2 class="text-3xl font-bold text-gray-800 mb-6 text-center">Yangi Flashcard yaratish</h2>
+<div class="container mx-auto px-4 py-8 md:p-10">
+    {# Kichik ekranda max-w-full, o'rta ekranda esa max-w-4xl #}
+    <div class="bg-white rounded-xl shadow-2xl p-6 md:p-10 max-w-4xl mx-auto border border-gray-100">
+        
+        <h2 class="text-2xl md:text-3xl font-extrabold text-gray-900 mb-2 text-center">Flashcard Yaratish 🧠</h2>
+        <p class="text-center text-gray-500 mb-8 text-sm md:text-base">Markaz: <span class="font-semibold text-indigo-600">{{ center.name }}</span></p>
 
         {% if form.non_field_errors %}
-            <div class="p-4 mb-4 text-sm text-red-700 bg-red-100 rounded-lg" role="alert">
+            <div class="p-4 mb-4 text-sm text-red-700 bg-red-100 rounded-lg border border-red-200" role="alert">
+                <p class="font-bold">Xatolik:</p>
                 {{ form.non_field_errors }}
             </div>
         {% endif %}
@@ -17,44 +21,52 @@
         <form method="POST" enctype="multipart/form-data">
             {% csrf_token %}
             
-            <div class="mb-6">
-                <label for="{{ form.content_type.id_for_label }}" class="block text-gray-700 font-medium mb-2">{{ form.content_type.label }}</label>
+            {# 1. Kontent turi tanlovi (Select2 yordamida chiroyli tanlov) #}
+            <div class="mb-8 p-4 bg-indigo-50 rounded-lg border border-indigo-200">
+                <label for="{{ form.content_type.id_for_label }}" class="block text-gray-800 font-bold mb-3 text-base md:text-lg">{{ form.content_type.label }} <span class="text-indigo-600 font-normal text-sm">(Tanlang)</span></label>
+                
+                {# Select2 widgeti bu yerda chiqadi #}
                 {{ form.content_type }}
+
                 {% for error in form.content_type.errors %}
-                    <p class="text-red-500 text-sm mt-1">{{ error }}</p>
+                    <p class="text-red-500 text-sm mt-2">{{ error }}</p>
                 {% endfor %}
             </div>
 
-            <div class="mb-6">
-                <label for="{{ form.english_content.id_for_label }}" class="block text-gray-700 font-medium mb-2">{{ form.english_content.label }}</label>
+            {# 2. Inglizcha Kontent #}
+            <div class="mb-6 border-l-4 border-indigo-600 pl-4">
+                <label for="{{ form.english_content.id_for_label }}" class="block text-gray-800 font-bold mb-2 text-base md:text-lg">{{ form.english_content.label }} <span class="text-red-500">*</span></label>
                 {{ form.english_content }}
                 {% for error in form.english_content.errors %}
                     <p class="text-red-500 text-sm mt-1">{{ error }}</p>
                 {% endfor %}
             </div>
 
-            <div class="mb-6">
-                <label for="{{ form.uzbek_meaning.id_for_label }}" class="block text-gray-700 font-medium mb-2">{{ form.uzbek_meaning.label }}</label>
+            {# 3. O'zbekcha Ma'nosi #}
+            <div class="mb-6 border-l-4 border-green-600 pl-4">
+                <label for="{{ form.uzbek_meaning.id_for_label }}" class="block text-gray-800 font-bold mb-2 text-base md:text-lg">{{ form.uzbek_meaning.label }} <span class="text-red-500">*</span></label>
                 {{ form.uzbek_meaning }}
                 {% for error in form.uzbek_meaning.errors %}
                     <p class="text-red-500 text-sm mt-1">{{ error }}</p>
                 {% endfor %}
             </div>
 
-            <div class="mb-6">
-                <label for="{{ form.context_sentence.id_for_label }}" class="block text-gray-700 font-medium mb-2">{{ form.context_sentence.label }}</label>
+            {# 4. Kontekst (ixtiyoriy) #}
+            <div class="mb-8 border-l-4 border-yellow-600 pl-4">
+                <label for="{{ form.context_sentence.id_for_label }}" class="block text-gray-800 font-bold mb-2 text-base md:text-lg">{{ form.context_sentence.label }} <span class="text-gray-400">(ixtiyoriy)</span></label>
                 {{ form.context_sentence }}
                 {% for error in form.context_sentence.errors %}
                     <p class="text-red-500 text-sm mt-1">{{ error }}</p>
                 {% endfor %}
             </div>
 
-            <div class="flex justify-end items-center mt-8">
-                <a href="{% url 'list_flashcards' %}" class="bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-2 px-6 rounded-md mr-4">
-                    Bekor qilish
+            {# Tugmalar #}
+            <div class="flex flex-col md:flex-row justify-between items-center pt-6 border-t border-gray-200 space-y-3 md:space-y-0">
+                <a href="{% url 'list_flashcards' slug=center.slug %}" class="w-full md:w-auto text-center bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-3 px-8 rounded-lg transition duration-300">
+                    <i class="fas fa-arrow-left mr-2"></i> Bekor qilish
                 </a>
-                <button type="submit" id="save-button" class="bg-blue-600 hover:bg-blue-800 text-white font-bold py-2 px-6 rounded-md transition duration-300">
-                    Saqlash
+                <button type="submit" id="save-button" class="w-full md:w-auto bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-8 rounded-lg shadow-lg hover:shadow-xl transition duration-300 transform hover:scale-[1.02]">
+                    <i class="fas fa-save mr-2"></i> Saqlash
                 </button>
             </div>
         </form>
@@ -63,4 +75,20 @@
 {% endblock %}
 
 {% block extra_body %}
+    {# Select2 uchun initsializatsiya skripti #}
+    <script>
+        $(document).ready(function() {
+            $('#id_content_type').select2({
+                // MinimumResultsForSearch: Infinity ni o'chirdim, chunki Select2 da qidiruv foydali bo'lishi mumkin.
+                width: '100%', // Moslashuvchanlikni ta'minlaydi
+                theme: 'default' // Standart Select2 dizayni
+            });
+
+            // Agar sizning FlashcardFormangizda hali ham source_question maydoni bo'lsa (lekin fields ichida yo'q bo'lsa),
+            // uni ham Select2 orqali moslashuvchan qilish uchun:
+            // $('#id_source_question').select2({
+            //     width: '100%' 
+            // });
+        });
+    </script>
 {% endblock %}

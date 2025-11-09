@@ -1,24 +1,23 @@
 {% extends 'registration_base.html' %}
 {% load static %}
 
-{% block title %}SAT Makon - Digital SAT Math imtihoniga mukammal yechim{% endblock %}
+{% block title %}{{ CENTER_NAME }} - Digital SAT Math imtihoniga mukammal yechim{% endblock %}
 
 {% block content %}
 
     <header class="bg-white shadow-sm sticky top-0 z-40">
         <div class="container mx-auto px-4">
             <div class="flex justify-between items-center py-4">
-                <a href="{% url 'index' %}" class="text-2xl font-bold text-indigo-600">SAT Makon</a>
+                <a href="{% url 'index' %}" class="text-2xl font-bold text-indigo-600">{{ CENTER_NAME }}</a>
                 <nav class="hidden md:flex items-center space-x-2">
                     <a href="#platforma" class="nav-link">Platforma</a>
                     <a href="#imtihonlar" class="nav-link">Imtihonlar</a>
                     <a href="#flashcards" class="nav-link">Flashcard'lar</a>
                     <a href="#strategiya" class="nav-link">Strategiya</a>
-                    <a href="{% url 'price' %}" class="nav-link">Narxlar</a>
                 </nav>
                 <div class="flex items-center space-x-3">
                     {% if user.is_authenticated %}
-                        <a href="{% url 'dashboard' %}" class="btn btn-primary">Boshqaruv Paneli</a>
+                        <a href="{% url 'dashboard' slug=request.user.center.slug %}" class="btn btn-primary">Boshqaruv Paneli</a>
                     {% else %}
                         <a href="{% url 'login' %}" class="hidden md:inline font-semibold text-gray-600 hover:text-indigo-600 nav-link">Kirish</a>
                         <a href="{% url 'signup' %}" class="btn btn-primary">Boshlash</a>
@@ -154,9 +153,6 @@
                 <p class="text-gray-300 mt-4 mb-8 max-w-xl mx-auto text-lg">
                     Bugunoq ro'yxatdan o'ting va o'z potentsialingizni ro'yobga chiqaring.
                 </p>
-                <a href="{% url 'price' %}" class="btn btn-primary text-lg">
-                    Barcha Narxlarni Ko'rish
-                </a>
             </div>
         </section>
     </main>

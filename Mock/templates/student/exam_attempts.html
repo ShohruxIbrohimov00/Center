@@ -27,7 +27,7 @@
                     <p class="text-3xl font-extrabold text-slate-900">{{ best_attempt.final_total_score }}</p>
                     <p class="text-xs text-slate-500">{{ best_attempt.completed_at|date:"d M, Y" }}</p>
                 </div>
-                <a href="{% url 'view_result_detail' best_attempt.id %}" class="ml-auto btn btn-sm btn-slate self-center">Tahlil</a>
+                <a href="{% url 'view_result_detail' center.slug best_attempt.id %}" class="ml-auto btn btn-sm btn-slate self-center">Tahlil</a>
             </div>
         </div>
         {% endif %}
@@ -42,7 +42,7 @@
                     <p class="text-3xl font-extrabold text-slate-900">{{ latest_attempt.final_total_score }}</p>
                     <p class="text-xs text-slate-500">{{ latest_attempt.completed_at|date:"d M, Y" }}</p>
                 </div>
-                <a href="{% url 'view_result_detail' latest_attempt.id %}" class="ml-auto btn btn-sm btn-slate self-center">Tahlil</a>
+                <a href="{% url 'view_result_detail' center.slug latest_attempt.id %}" class="ml-auto btn btn-sm btn-slate self-center">Tahlil</a>
             </div>
         </div>
         {% endif %}
@@ -113,7 +113,7 @@
                         </div>
                         
                         <div class="mt-5 text-right">
-                             <a href="{% url 'view_result_detail' attempt.id %}" class="btn btn-sm btn-indigo">
+                             <a href="{% url 'view_result_detail' center.slug attempt.id %}" class="btn btn-sm btn-indigo">
                                 Batafsil tahlil <i class="fas fa-arrow-right ml-1 transition-transform group-hover:translate-x-1"></i>
                             </a>
                         </div>
@@ -133,7 +133,7 @@
     {% endif %}
 
     <div class="mt-12 text-center">
-        <a href="{% url 'completed_exams' %}" class="text-indigo-600 hover:underline font-medium">
+        <a href="{% url 'completed_exams' center.slug %}" class="text-indigo-600 hover:underline font-medium">
             &larr; Barcha Natijalar Arxivi
         </a>
     </div>

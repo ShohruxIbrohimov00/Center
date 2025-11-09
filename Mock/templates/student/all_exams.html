@@ -4,83 +4,123 @@
 {% block title %}Imtihonlar Markazi{% endblock %}
 
 {% block content %}
-<div class="container mx-auto px-4 py-4 md:py-4">
-    <div class="text-center mb-10 md:mb-12">
+<div class="container mx-auto px-4 py-4 md:py-6">
+    <div class="text-center mb-10 md:mb-12 page-header">
         <h1 class="text-3xl sm:text-4xl lg:text-5xl font-extrabold text-slate-800 tracking-tight">
             Imtihonlar Markazi
         </h1>
         <p class="mt-3 text-base sm:text-lg text-slate-600 max-w-3xl mx-auto">
-            Bilimingizni sinang, natijalaringizni tahlil qiling va SAT imtihoniga to'liq tayyorlaning.
+            Bilimingizni sinang, natijalaringizni tahlil qiling va SAT imtihoniga mukammal tayyorlaning.
         </p>
         <div class="mt-8 max-w-xl mx-auto">
             <div class="relative flex items-center">
-            
-                <input type="text" id="exam-search-input" placeholder="Imtihon nomini kiriting..." class="w-full pl-5 pr-12 py-3 text-lg border-2 border-slate-200 rounded-full focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition">
-                
+                <input type="text" id="exam-search-input" placeholder="Imtihon nomini qidiring..." 
+                         class="w-full pl-5 pr-12 py-3 text-lg border-2 border-slate-200 rounded-full 
+                         focus:ring-2 focus:ring-success-500 focus:border-success-500 transition">
                 <i class="fa-solid fa-search absolute right-5 text-slate-400 text-xl"></i>
-                
             </div>
+        </div>
+
+        <div class="mt-6 mb-8">
+            <div id="months-container" class="flex flex-row overflow-x-auto gap-3 pb-6 scrollbar-thin scrollbar-thumb-success-200 scrollbar-track-slate-100">
+                <button class="month-filter btn btn-sm rounded-lg whitespace-nowrap {% if not selected_month or selected_month == 'all' %}btn-primary{% else %}btn-outline{% endif %}" data-month="all">Barchasi</button>
+                {% for month in months %}
+                    {% if month.number == selected_month|add:0 %}
+                        <button class="month-filter btn btn-sm rounded-lg whitespace-nowrap btn-primary current-month" data-month="{{ month.number }}">
+                            {{ month.name_uz }}
+                        </button>
+                    {% else %}
+                        <button class="month-filter btn btn-sm rounded-lg whitespace-nowrap btn-outline" data-month="{{ month.number }}">
+                            {{ month.name_uz }}
+                        </button>
+                    {% endif %}
+                {% endfor %}
+            </div>
+            <div class="w-full h-px bg-slate-200"></div>
         </div>
     </div>
 
     <section class="exam-section mb-12">
-        <h2 class="text-2xl font-bold text-slate-800 mb-4">Yangi Qo'shilgan</h2>
+        <div class="flex items-center gap-3 mb-4">
+            <h2 class="text-2xl font-bold text-slate-800">Yangi Qo‘shilgan</h2>
+            <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-success-100 text-success-800">
+                {{ new_exams|length }} ta imtihon
+            </span>
+        </div>
+        <p class="text-sm text-slate-500 mb-4">So‘nggi 3 kun ichida qo‘shilgan imtihonlar</p>
         <div class="horizontal-scroll flex gap-6 pb-4 -mb-4">
             {% for exam_data in new_exams %}
                 {% include 'partials/exam_card.html' with exam_data=exam_data %}
             {% empty %}
-                <p class="text-slate-500">Hozircha yangi imtihonlar yo'q.</p>
+                <p class="text-slate-500">So‘nggi 3 kunda yangi imtihonlar qo‘shilmagan.</p>
             {% endfor %}
         </div>
     </section>
 
     <section class="exam-section mb-12">
-        <h2 class="text-2xl font-bold text-slate-800 mb-4">Eng Ommabop</h2>
+        <div class="flex items-center gap-3 mb-4">
+            <h2 class="text-2xl font-bold text-slate-800">Barcha Imtihonlar</h2>
+            <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-success-100 text-success-800">
+                {{ all_exams|length }} ta imtihon
+            </span>
+        </div>
         <div class="horizontal-scroll flex gap-6 pb-4 -mb-4">
-            {% for exam_data in popular_exams %}
+            {% for exam_data in all_exams %}
                 {% include 'partials/exam_card.html' with exam_data=exam_data %}
             {% empty %}
-                <p class="text-slate-500">Ommabop imtihonlar hali shakllanmadi.</p>
+                <p class="text-slate-500">Hozircha imtihonlar yo‘q.</p>
             {% endfor %}
         </div>
     </section>
 
-    <section class="exam-section">
-        <h2 class="text-2xl font-bold text-slate-800 mb-4">Bepul Imtihonlar</h2>
+    <section class="exam-section mb-12">
+        <div class="flex items-center gap-3 mb-4">
+            <h2 class="text-2xl font-bold text-slate-800">Eng Ko‘p Ishlangan</h2>
+            <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-indigo-100 text-indigo-800">
+                {{ popular_exams|length }} ta imtihon
+            </span>
+        </div>
         <div class="horizontal-scroll flex gap-6 pb-4 -mb-4">
-            {% for exam_data in free_exams %}
+            {% for exam_data in popular_exams %}
                 {% include 'partials/exam_card.html' with exam_data=exam_data %}
             {% empty %}
-                <p class="text-slate-500">Hozircha bepul imtihonlar yo'q.</p>
+                <p class="text-slate-500">Hozircha kamida 10 kishi ishlagan imtihonlar yo‘q.</p>
             {% endfor %}
         </div>
     </section>
 
     <div id="no-search-results" class="hidden text-center mt-12 p-8 bg-slate-50 rounded-lg border-2 border-dashed">
-        <p class="text-lg text-slate-500">Afsuski, qidiruvingiz bo'yicha hech narsa topilmadi.</p>
+        <p class="text-lg text-slate-500">Qidiruvingiz bo‘yicha hech narsa topilmadi.</p>
     </div>
 </div>
-
+{% endblock %}
 
 {% block extra_js %}
 <script>
 document.addEventListener('DOMContentLoaded', () => {
-    // Qidiruv funksiyasi (o'zgarmaydi)
     const searchInput = document.getElementById('exam-search-input');
     const allSections = document.querySelectorAll('.exam-section');
     const noResultsMessage = document.getElementById('no-search-results');
+    const monthButtons = document.querySelectorAll('.month-filter');
+    const monthsContainer = document.getElementById('months-container');
 
-    searchInput.addEventListener('input', (e) => {
-        const searchTerm = e.target.value.toLowerCase().trim();
+    // --- Qidiruv va Filtr Mantiqi (O'zgarishsiz qoldi) ---
+    function filterByMonth(selectedMonth) {
         let totalVisibleCards = 0;
-
         allSections.forEach(section => {
             let sectionHasVisibleCard = false;
             const cardsInSection = section.querySelectorAll('.exam-card');
 
             cardsInSection.forEach(card => {
+                const createdDate = new Date(card.dataset.createdAt);
+                const cardMonth = createdDate.getMonth() + 1; // 1-12
+                const searchTerm = searchInput.value.toLowerCase().trim();
                 const title = card.querySelector('h3').textContent.toLowerCase();
-                if (title.includes(searchTerm)) {
+
+                const matchesMonth = selectedMonth === 'all' || cardMonth == selectedMonth;
+                const matchesSearch = searchTerm === '' || title.includes(searchTerm);
+
+                if (matchesMonth && matchesSearch) {
                     card.style.display = 'flex';
                     sectionHasVisibleCard = true;
                     totalVisibleCards++;
@@ -88,13 +128,51 @@ document.addEventListener('DOMContentLoaded', () => {
                     card.style.display = 'none';
                 }
             });
+
             section.style.display = sectionHasVisibleCard ? 'block' : 'none';
         });
 
-        noResultsMessage.style.display = totalVisibleCards === 0 && searchTerm !== '' ? 'block' : 'none';
+        noResultsMessage.style.display = totalVisibleCards === 0 ? 'block' : 'none';
+    }
+
+    function scrollToCurrentMonth() {
+        const currentMonthButton = document.querySelector('.current-month') || document.querySelector('.month-filter.btn-primary');
+        if (currentMonthButton && monthsContainer) {
+            currentMonthButton.scrollIntoView({
+                behavior: 'smooth',
+                block: 'nearest',
+                inline: 'center'
+            });
+        }
+    }
+
+    searchInput.addEventListener('input', () => {
+        const selectedMonth = document.querySelector('.month-filter.btn-primary')?.dataset.month || 'all';
+        filterByMonth(selectedMonth);
     });
 
-    // Imtihonni boshlash uchun JS
+    monthButtons.forEach(button => {
+        button.addEventListener('click', (e) => {
+            const selectedMonth = e.target.dataset.month;
+            monthButtons.forEach(btn => {
+                btn.classList.remove('btn-primary');
+                btn.classList.add('btn-outline');
+            });
+            e.target.classList.remove('btn-outline');
+            e.target.classList.add('btn-primary');
+            filterByMonth(selectedMonth);
+            if (window.innerWidth <= 768) {
+                e.target.scrollIntoView({
+                    behavior: 'smooth',
+                    block: 'nearest',
+                    inline: 'center'
+                });
+            }
+        });
+    });
+    
+    // --- Imtihonni Boshlash uchun JS (SLUG qo'shildi) ---
+    
     function getCookie(name) {
         let cookieValue = null;
         if (document.cookie && document.cookie !== '') {
@@ -111,51 +189,97 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     const csrftoken = getCookie('csrftoken');
     
+    // 🎯 MARKAZ SLUG'ini kontekstdan olish (View funksiyangiz yuborishi shart)
+    const centerSlug = '{{ center.slug|default:'' }}'; 
+
+    if (!centerSlug) {
+        console.error("Markaz SLUG'i topilmadi. Imtihonni boshlash URL'i noto'g'ri bo'ladi.");
+    }
+    
     document.querySelectorAll('.start-exam-btn').forEach(button => {
         button.addEventListener('click', async (e) => {
             e.preventDefault();
             const examId = button.dataset.examId;
+            
             if (!examId) {
-                console.error('examId not found in button dataset');
+                console.error('Imtihon ID topilmadi');
                 alert('Imtihon ID topilmadi.');
                 return;
             }
+            if (!centerSlug) {
+                alert('Markaz ma\'lumoti topilmadi. Server administratoriga murojaat qiling.');
+                return;
+            }
+            
             const originalHtml = button.innerHTML;
+            const originalClasses = button.className;
+
+            // Yuklanish holati
             button.disabled = true;
+            button.className = originalClasses.replace('btn-success', 'btn-slate-light').replace('btn-outline', 'btn-slate-light'); 
             button.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Yuklanmoqda...';
+
             try {
-                const response = await fetch(`/start-exam/${examId}/`, {
+                // 🔥 TUZATISH: URL'ga SLUG qo'shildi: /<slug>/exams/<exam_id>/start/
+                const startUrl = `/${centerSlug}/exams/${examId}/start/`;
+
+                const response = await fetch(startUrl, {
                     method: 'POST',
                     headers: { 
                         'X-CSRFToken': csrftoken, 
                         'Accept': 'application/json',
-                        'Content-Type': 'application/json' // JSON yuborish uchun
+                        'Content-Type': 'application/json'
                     },
-                    body: JSON.stringify({}) // Bo'sh JSON, agar kerak bo'lsa qo'shimcha ma'lumot yuboriladi
+                    body: JSON.stringify({})
                 });
-                if (!response.ok) {
-                    const text = await response.text();
-                    console.error('Non-JSON response:', text);
-                    throw new Error(`HTTP error! Status: ${response.status}`);
+
+                const text = await response.text();
+                let data = {};
+                
+                try {
+                    if (text) {
+                        data = JSON.parse(text);
+                    }
+                } catch(e) {
+                    if (response.ok) {
+                        throw new Error(`Kutilmagan javob formati. Status: ${response.status}.`);
+                    }
                 }
-                const data = await response.json();
-                if (data.status === 'success' && data.exam_url) {
-                    window.location.href = data.exam_url;
+                
+                if (response.ok) {
+                    if (data.status === 'success' && data.redirect_url) {
+                        // Muvaffaqiyatli yo'naltirish
+                        window.location.href = data.redirect_url;
+                        return; 
+                    } else {
+                        const errorMessage = data.message || 'Server muvaffaqiyatli javob berdi, ammo yo‘naltirish manzili topilmadi. (Backend tekshiruvi)';
+                        console.error('Server javobi xatosi:', errorMessage, data);
+                        alert(errorMessage);
+                    }
                 } else {
-                    console.error('Server response error:', data.message);
-                    alert(data.message || 'Xatolik yuz berdi.');
-                    button.disabled = false;
-                    button.innerHTML = originalHtml;
+                    // 4xx yoki 5xx xato
+                    const errorMessage = data.message || `HTTP xatosi! Status: ${response.status}.`;
+                    throw new Error(errorMessage);
                 }
+
             } catch (error) {
-                console.error('Fetch error:', error);
-                alert('Ulanishda xatolik: ' + error.message);
-                button.disabled = false;
-                button.innerHTML = originalHtml;
-            }
+                console.error('Umumiy/Fetch xatosi:', error);
+                alert('Ulanishda xatolik yuz berdi: ' + error.message);
+            } 
+            
+            // Xato yuz berganda yoki yo'naltirish bo'lmaganda tugmani tiklash
+            button.disabled = false;
+            button.className = originalClasses;
+            button.innerHTML = originalHtml;
         });
     });
+
+    // Sahifa yuklanganda joriy oy bo'yicha filterlash va markazga olib borish
+    setTimeout(() => {
+        scrollToCurrentMonth();
+        const selectedMonth = document.querySelector('.month-filter.btn-primary')?.dataset.month || 'all';
+        filterByMonth(selectedMonth);
+    }, 100);
 });
 </script>
-{% endblock %}
 {% endblock %}

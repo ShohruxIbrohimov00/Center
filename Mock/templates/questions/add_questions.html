@@ -3,224 +3,208 @@
 
 {% block title %}{% trans "Yangi savol qo'shish" %}{% endblock %}
 
-{% block head %}
-    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
-    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet">
-    <script src="https://cdn.jsdelivr.net/npm/jquery@3.6.0/dist/jquery.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
-    <script src="https://cdn.ckeditor.com/4.25.1-lts/standard/ckeditor.js"></script>
+{% block extra_css %}
+<style>
+    /* CSS qismi to'liq saqlangan */
+    .select2-container--classic .select2-selection--single,
+    .select2-container--classic .select2-selection--multiple {
+        border-color: #d1d5db !important;
+        border-radius: 0.375rem !important;
+        padding: 0.5rem !important;
+        height: auto !important;
+        min-height: 42px;
+    }
+    #question-form input:not([type="checkbox"]):not([type="radio"]),
+    #question-form select:not(.select2-hidden-accessible),
+    #question-form textarea:not(.cke_source) {
+        width: 100%;
+        border: 1px solid #d1d5db;
+        border-radius: 0.375rem;
+        padding: 0.5rem;
+        box-shadow: 0 0 0 1px rgba(99, 102, 241, 0);
+    }
+    .option-item input[type="radio"],
+    .option-item input[type="checkbox"] {
+        height: 1.25rem;
+        width: 1.25rem;
+        color: #4f46e5;
+    }
+    /* 💡 Eng muhim o'zgarish: o'chirilgan formlar yashirin bo'ladi */
+    .option-item.deleted {
+        display: none !important;
+    }
+</style>
 {% endblock %}
 
 {% block content %}
 <div class="container mx-auto p-4 md:p-8 max-w-5xl">
-    <div class="bg-white shadow-lg rounded-lg p-6 md:p-8">
-        <h2 class="text-2xl md:text-3xl font-bold text-gray-800 mb-4">{% trans "Yangi savol qo'shish" %}</h2>
-        <p class="text-gray-600 mb-6">{% trans "Savol matni, javoblar va IRT parametrlarni to'g'ri kiriting. SAT Digital formatiga mos savollar yarating." %}</p>
+    <div class="bg-white shadow-xl rounded-xl p-6 md:p-8 border border-gray-100">
+        <h2 class="text-3xl font-extrabold text-gray-900 mb-2">{% trans "Yangi savol qo'shish" %}</h2>
+        <p class="text-gray-600 mb-8 border-b pb-4">{% trans "Savol matni, javoblar va IRT parametrlarni to'g'ri kiriting." %}</p>
 
-        {% if messages %}
-        <div class="mb-6">
-            {% for message in messages %}
-            <div class="p-4 mb-4 text-sm rounded-lg {% if message.tags == 'success' %}bg-green-100 text-green-800{% elif message.tags == 'error' %}bg-red-100 text-red-800{% else %}bg-blue-100 text-blue-800{% endif %}" role="alert">
-                {{ message }}
-            </div>
-            {% endfor %}
-        </div>
-        {% endif %}
-
-        <form action="{% url 'add_question' %}" method="POST" enctype="multipart/form-data" id="question-form" class="space-y-6">
+        <form action="{% url 'add_question' slug=center.slug %}" method="POST" enctype="multipart/form-data" id="question-form" class="space-y-8">
             {% csrf_token %}
+            {{ form.center }}
 
-            <!-- Savol ma'lumotlari -->
-            <div class="bg-gray-50 p-4 rounded-lg">
-                <h3 class="text-lg font-semibold text-gray-800 mb-3 flex items-center">
-                    <i class="fas fa-question-circle mr-2 text-indigo-600"></i>{% trans "Savol ma'lumotlari" %}
+            {# Savol matni va IRT parametrlari qismi #}
+            <div class="bg-gray-50 p-6 rounded-xl border border-gray-200 mb-6">
+                <h3 class="text-xl font-bold text-gray-800 mb-4 flex items-center">
+                    <i class="fas fa-question-circle mr-3 text-indigo-600"></i>{% trans "Savol matni va IRT parametrlari" %}
                 </h3>
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div class="space-y-4">
                     <div>
-                        <label for="id_text" class="block text-gray-700 font-medium mb-1">{% trans "Savol matni" %}</label>
+                        <label for="{{ form.text.id_for_label }}" class="block text-gray-700 font-medium mb-1">{% trans "Savol matni" %} <span class="text-red-500">*</span></label>
                         {{ form.text }}
-                        {% if form.text.errors %}
-                        <p class="text-red-500 text-sm mt-1">{{ form.text.errors }}</p>
-                        {% endif %}
+                        {% if form.text.errors %}<p class="text-red-500 text-sm mt-1">{{ form.text.errors }}</p>{% endif %}
                     </div>
-                    <div>
-                        <label for="id_subtopic" class="block text-gray-700 font-medium mb-1">{% trans "Ichki mavzu" %}</label>
-                        {{ form.subtopic }}
-                        {% if form.subtopic.errors %}
-                        <p class="text-red-500 text-sm mt-1">{{ form.subtopic.errors }}</p>
-                        {% endif %}
-                    </div>
-                    <div>
-                        <label for="id_answer_format" class="block text-gray-700 font-medium mb-1">{% trans "Javob formati" %}</label>
-                        {{ form.answer_format }}
-                        {% if form.answer_format.errors %}
-                        <p class="text-red-500 text-sm mt-1">{{ form.answer_format.errors }}</p>
-                        {% endif %}
-                    </div>
-                    <div>
-                        <label for="id_passage" class="block text-gray-700 font-medium mb-1">{% trans "Matn (Passage)" %}</label>
-                        {{ form.passage }}
-                        {% if form.passage.errors %}
-                        <p class="text-red-500 text-sm mt-1">{{ form.passage.errors }}</p>
-                        {% endif %}
-                    </div>
-                    <div>
-                        <label for="id_image" class="block text-gray-700 font-medium mb-1">{% trans "Rasm (agar kerak bo'lsa)" %}</label>
-                        {{ form.image }}
-                        {% if form.image.errors %}
-                        <p class="text-red-500 text-sm mt-1">{{ form.image.errors }}</p>
-                        {% endif %}
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        {% for field in irt_fields %}
+                            <div>
+                                <label for="{{ field.id_for_label }}" class="block text-gray-700 font-medium mb-1">{{ field.label }}</label>
+                                {{ field }}
+                                {% if field.help_text %}<p class="text-gray-500 text-sm mt-1">{{ field.help_text }}</p>{% endif %}
+                                {% if field.errors %}<p class="text-red-500 text-sm mt-1">{{ field.errors }}</p>{% endif %}
+                            </div>
+                        {% endfor %}
+
+                        <div class="flex items-center h-full pt-6 md:pt-0">
+                            <div class="flex items-center">
+                                {{ form.is_solution_free }}
+                                <label for="{{ form.is_solution_free.id_for_label }}" class="ml-2 text-sm font-medium text-gray-700">{% trans "Yechim bepulmi?" %}</label>
+                            </div>
+                            {% if form.is_solution_free.errors %}<p class="text-red-500 text-sm mt-1">{{ form.is_solution_free.errors }}</p>{% endif %}
+                        </div>
                     </div>
                 </div>
             </div>
 
-            <!-- Javob variantlari -->
-            <div id="options-container" class="bg-gray-50 p-4 rounded-lg hidden">
-                <h3 class="text-lg font-semibold text-gray-800 mb-3">{% trans "Javob variantlari" %}</h3>
+            {# Savol turi va javoblar qismi #}
+            <div class="bg-gray-50 p-6 rounded-xl border border-gray-200 mb-6">
+                <h3 class="text-xl font-bold text-gray-800 mb-4 flex items-center">
+                    <i class="fas fa-edit mr-3 text-indigo-600"></i>{% trans "Savol turi va javoblar" %}
+                </h3>
+                <div class="space-y-4">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label for="{{ form.subtopic.id_for_label }}" class="block text-gray-700 font-medium mb-1">{% trans "Ichki mavzu" %} <span class="text-red-500">*</span></label>
+                            {{ form.subtopic }}
+                            {% if form.subtopic.errors %}<p class="text-red-500 text-sm mt-1">{{ form.subtopic.errors }}</p>{% endif %}
+                        </div>
+                        <div>
+                            <label for="{{ form.answer_format.id_for_label }}" class="block text-gray-700 font-medium mb-1">{% trans "Javob formati" %} <span class="text-red-500">*</span></label>
+                            {{ form.answer_format }}
+                            {% if form.answer_format.errors %}<p class="text-red-500 text-sm mt-1">{{ form.answer_format.errors }}</p>{% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+
+            {# Javob variantlari (Single/Multiple) #}
+            <div id="options-container" class="bg-gray-50 p-6 rounded-xl border border-gray-200">
+                <h3 class="text-xl font-bold text-gray-800 mb-4 flex items-center">
+                    <i class="fas fa-list-ul mr-3 text-indigo-600"></i>{% trans "Javob variantlari" %}
+                </h3>
+                <p class="text-red-500 text-sm mb-4" id="options-formset-errors">
+                    {% if answer_option_formset.non_form_errors %}
+                        {{ answer_option_formset.non_form_errors }}
+                    {% endif %}
+                    {% for form in answer_option_formset %}
+                        {% if form.non_field_errors %}
+                            {{ form.non_field_errors }}
+                        {% endif %}
+                    {% endfor %}
+                </p>
+                
                 <div id="options-list" class="space-y-4">
                     {{ answer_option_formset.management_form }}
                     {% for option_form in answer_option_formset %}
-                    <div class="option-item bg-gray-100 p-3 rounded-md border border-gray-200 mb-3">
-                        <div class="flex items-center mb-2">
-                            {{ option_form.is_correct }}
-                            <label class="text-gray-700 font-medium ml-2">{% trans "To'g'ri javob" %}</label>
-                            <button type="button" class="remove-option ml-auto text-red-500 hover:text-red-700">
+                    {# Formset to'liq 5 ta bo'lishi kerak, ularning hammasi bu yerda chiqadi. #}
+                    <div class="option-item bg-white p-4 rounded-lg border border-gray-300 shadow-sm transition duration-150 {% if option_form.DELETE.value %}deleted{% endif %}">
+                        <div class="flex items-center mb-3 gap-4">
+                            <div class="flex items-center">
+                                {# is_correct maydonining o'rnini JS egallaydi #}
+                                <label for="{{ option_form.is_correct.id_for_label }}" class="text-gray-700 font-medium">{% trans "To'g'ri" %}</label>
+                            </div>
+                            <button type="button" class="remove-option text-red-500 hover:text-red-700 p-2 rounded-full hover:bg-red-50 transition duration-150 ml-auto" title="{% trans 'O‘chirish' %}">
                                 <i class="fas fa-trash-alt"></i>
                             </button>
-                            {{ option_form.DELETE }}
-                            {{ option_form.id }}
+                            {% if option_form.id %} {{ option_form.id }} {% endif %}
+                            
+                            {# Asl Django checkboxlari (yashiriladi) #}
+                            <div class="hidden-fields hidden">
+                                {{ option_form.is_correct }}
+                                {{ option_form.DELETE }} 
+                            </div>
                         </div>
                         {{ option_form.text }}
-                        {% if option_form.text.errors %}
-                        <p class="text-red-500 text-sm mt-1">{{ option_form.text.errors }}</p>
-                        {% endif %}
+                        {% if option_form.text.errors %}<p class="text-red-500 text-sm mt-1">{{ option_form.text.errors }}</p>{% endif %}
                     </div>
                     {% endfor %}
                 </div>
-                <button type="button" id="add-option" class="mt-4 inline-flex items-center px-3 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700">
-                    <i class="fas fa-plus mr-2"></i>{% trans "Javob varianti qo'shish" %}
-                </button>
+                
+                {# 💡 "Javob varianti qo'shish" tugmasini olib tashladik. #}
             </div>
 
-            <!-- Qisqa javob -->
-            <div id="short-answer-field-container" class="bg-gray-50 p-4 rounded-lg hidden">
-                <h3 class="text-lg font-semibold text-gray-800 mb-3">{% trans "Qisqa javob" %}</h3>
-                <label for="id_correct_short_answer" class="block text-gray-700 font-medium mb-1">{% trans "To'g'ri javob" %}</label>
-                {{ form.correct_short_answer }}
-                {% if form.correct_short_answer.errors %}
-                <p class="text-red-500 text-sm mt-1">{{ form.correct_short_answer.errors }}</p>
-                {% endif %}
-            </div>
-
-            <!-- Yechim -->
-            <div class="bg-gray-50 p-4 rounded-lg">
-                <h3 class="text-lg font-semibold text-gray-800 mb-3 flex items-center">
-                    <i class="fas fa-book-open mr-2 text-indigo-600"></i>{% trans "Yechim" %}
+            {# Qisqa javob (Short Answer) qismi #}
+            <div id="short-answer-field-container" class="bg-gray-50 p-6 rounded-xl border border-gray-200 hidden">
+                <h3 class="text-xl font-bold text-gray-800 mb-4 flex items-center">
+                    <i class="fas fa-keyboard mr-3 text-indigo-600"></i>{% trans "Qisqa javob" %}
                 </h3>
-                <div class="grid grid-cols-1 gap-4">
+                <div>
+                    <label for="{{ form.correct_short_answer.id_for_label }}" class="block text-gray-700 font-medium mb-1">{% trans "To'g'ri javob matni" %} <span class="text-red-500">*</span></label>
+                    {{ form.correct_short_answer }}
+                    <p class="text-gray-500 text-sm mt-1">{% trans "Masalan: 42 yoki 3.14. Raqamlar, vergul yoki oddiy matn bo'lishi mumkin." %}</p>
+                    {% if form.correct_short_answer.errors %}<p class="text-red-500 text-sm mt-1">{{ form.correct_short_answer.errors }}</p>{% endif %}
+                </div>
+            </div>
+
+            {# Yechim (Hint/Solution) qismi #}
+            <div class="bg-gray-50 p-6 rounded-xl border border-gray-200">
+                <h3 class="text-xl font-bold text-gray-800 mb-4 flex items-center">
+                    <i class="fas fa-book-open mr-3 text-indigo-600"></i>{% trans "Yechim" %}
+                </h3>
+                <div class="space-y-4">
                     <div>
-                        <label for="id_hint" class="block text-gray-700 font-medium mb-1">{% trans "Maslahat" %}</label>
+                        <label for="{{ form.hint.id_for_label }}" class="block text-gray-700 font-medium mb-1">{% trans "Maslahat (Hint)" %}</label>
                         {{ form.hint }}
-                        {% if form.hint.errors %}
-                        <p class="text-red-500 text-sm mt-1">{{ form.hint.errors }}</p>
-                        {% endif %}
+                        {% if form.hint.errors %}<p class="text-red-500 text-sm mt-1">{{ form.hint.errors }}</p>{% endif %}
                     </div>
                     <div>
-                        <label for="id_detailed_solution" class="block text-gray-700 font-medium mb-1">{% trans "Batafsil yechim" %}</label>
+                        <label for="{{ form.detailed_solution.id_for_label }}" class="block text-gray-700 font-medium mb-1">{% trans "Batafsil yechim" %}</label>
                         {{ form.detailed_solution }}
-                        {% if form.detailed_solution.errors %}
-                        <p class="text-red-500 text-sm mt-1">{{ form.detailed_solution.errors }}</p>
-                        {% endif %}
+                        {% if form.detailed_solution.errors %}<p class="text-red-500 text-sm mt-1">{{ form.detailed_solution.errors }}</p>{% endif %}
                     </div>
                 </div>
             </div>
 
-            <!-- IRT parametrlari -->
-            <div class="bg-gray-50 p-4 rounded-lg">
-                <h3 class="text-lg font-semibold text-gray-800 mb-3 flex items-center">
-                    <i class="fas fa-chart-line mr-2 text-indigo-600"></i>{% trans "IRT parametrlari" %}
+            {# Teglar va Flashcardlar qismi #}
+            <div class="bg-gray-50 p-6 rounded-xl border border-gray-200">
+                <h3 class="text-xl font-bold text-gray-800 mb-4 flex items-center">
+                    <i class="fas fa-tags mr-3 text-indigo-600"></i>{% trans "Teglar va Flashcardlar" %}
                 </h3>
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                        <label for="id_difficulty" class="block text-gray-700 font-medium mb-1">{% trans "Qiyinlik (Difficulty)" %}</label>
-                        {{ form.difficulty }}
-                        <p class="text-gray-500 text-sm mt-1">Oson: -3.0 to -1.0, O‘rta: -1.0 to 1.0, Qiyin: 1.0 to 3.0</p>
-                        {% if form.difficulty.errors %}
-                        <p class="text-red-500 text-sm mt-1">{{ form.difficulty.errors }}</p>
-                        {% endif %}
+                        <label for="{{ form.tags.id_for_label }}" class="block text-gray-700 font-medium mb-1">{% trans "Teglar" %}</label>
+                        {{ form.tags }}
+                        {% if form.tags.errors %}<p class="text-red-500 text-sm mt-1">{{ form.tags.errors }}</p>{% endif %}
                     </div>
                     <div>
-                        <label for="id_discrimination" class="block text-gray-700 font-medium mb-1">{% trans "Diskriminatsiya (Discrimination)" %}</label>
-                        {{ form.discrimination }}
-                        {% if form.discrimination.errors %}
-                        <p class="text-red-500 text-sm mt-1">{{ form.discrimination.errors }}</p>
-                        {% endif %}
-                    </div>
-                    <div>
-                        <label for="id_guessing" class="block text-gray-700 font-medium mb-1">{% trans "Taxmin qilish (Guessing)" %}</label>
-                        {{ form.guessing }}
-                        {% if form.guessing.errors %}
-                        <p class="text-red-500 text-sm mt-1">{{ form.guessing.errors }}</p>
-                        {% endif %}
+                        <label for="{{ form.flashcards.id_for_label }}" class="block text-gray-700 font-medium mb-1">{% trans "Flashcardlar" %}</label>
+                        {{ form.flashcards }}
+                        {% if form.flashcards.errors %}<p class="text-red-500 text-sm mt-1">{{ form.flashcards.errors }}</p>{% endif %}
                     </div>
                 </div>
             </div>
 
-            <!-- Qo'shimcha ma'lumotlar -->
-            <div class="bg-gray-50 p-4 rounded-lg">
-                <h3 class="text-lg font-semibold text-gray-800 mb-3 flex items-center">
-                    <i class="fas fa-info-circle mr-2 text-indigo-600"></i>{% trans "Qo'shimcha ma'lumotlar" %}
-                </h3>
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div>
-                        <label for="id_difficulty_level" class="block text-gray-700 font-medium mb-1">{% trans "Qiyinlik darajasi" %}</label>
-                        {{ form.difficulty_level }}
-                        {% if form.difficulty_level.errors %}
-                        <p class="text-red-500 text-sm mt-1">{{ form.difficulty_level.errors }}</p>
-                        {% endif %}
-                    </div>
-                    <div>
-                        <label for="id_status" class="block text-gray-700 font-medium mb-1">{% trans "Status" %}</label>
-                        {{ form.status }}
-                        {% if form.status.errors %}
-                        <p class="text-red-500 text-sm mt-1">{{ form.status.errors }}</p>
-                        {% endif %}
-                    </div>
-                    <div>
-                        <label for="id_is_solution_free" class="block text-gray-700 font-medium mb-1">{% trans "Yechim bepulmi?" %}</label>
-                        {{ form.is_solution_free }}
-                        {% if form.is_solution_free.errors %}
-                        <p class="text-red-500 text-sm mt-1">{{ form.is_solution_free.errors }}</p>
-                        {% endif %}
-                    </div>
-                </div>
-                <div class="mt-4">
-                    <label for="id_tags" class="block text-gray-700 font-medium mb-1">{% trans "Teglar" %}</label>
-                    {{ form.tags }}
-                    {% if form.tags.errors %}
-                    <p class="text-red-500 text-sm mt-1">{{ form.tags.errors }}</p>
-                    {% endif %}
-                </div>
-                <div class="mt-4">
-                    <label for="id_flashcards" class="block text-gray-700 font-medium mb-1">{% trans "Flashcardlar" %}</label>
-                    {{ form.flashcards }}
-                    {% if form.flashcards.errors %}
-                    <p class="text-red-500 text-sm mt-1">{{ form.flashcards.errors }}</p>
-                    {% endif %}
-                </div>
-            </div>
-
-            <!-- Tugmalar -->
-            <div class="flex flex-col sm:flex-row justify-end mt-6 space-y-3 sm:space-y-0 sm:space-x-3">
-                <a href="{% url 'my_questions' %}" class="inline-flex items-center px-4 py-2 bg-gray-300 text-gray-800 rounded-md hover:bg-gray-400">
+            {# Tugmalar qismi #}
+            <div class="flex flex-col sm:flex-row justify-end mt-6 space-y-3 sm:space-y-0 sm:space-x-3 border-t pt-6">
+                <a href="{% url 'subtopic_questions' slug=center.slug subtopic_id=form.subtopic.value %}" class="inline-flex items-center justify-center px-6 py-3 bg-gray-200 text-gray-800 font-semibold rounded-lg hover:bg-gray-300 transition duration-150 shadow-sm">
                     <i class="fas fa-times mr-2"></i>{% trans "Bekor qilish" %}
                 </a>
-                <button type="submit" name="save" class="inline-flex items-center px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700">
+                <button type="submit" name="save" class="inline-flex items-center justify-center px-6 py-3 bg-indigo-600 text-white font-semibold rounded-lg hover:bg-indigo-700 transition duration-150 shadow-lg">
                     <i class="fas fa-save mr-2"></i>{% trans "Saqlash" %}
-                </button>
-                <button type="submit" name="save_and_add_another" class="inline-flex items-center px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700">
-                    <i class="fas fa-plus mr-2"></i>{% trans "Saqlab, yana qo'shish" %}
                 </button>
             </div>
         </form>
@@ -228,192 +212,286 @@
 </div>
 {% endblock %}
 
-{% block extra_body %}
+{% block extra_js %}
 <script>
-    CKEDITOR.config.mathJaxLib = 'https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.7/MathJax.js?config=TeX-AMS-MML_HTMLorMML';
+    // 💡 MUHIM: CKEDITOR_SECURITY_NOTICE ni yoqamiz
+    window.CKEDITOR_SECURITY_NOTICE = false;
+
+    // --- CKEditor Umumiy Konfiguratsiyasi ---
+    
+    // settings.py dagi upload URL manzillarini kiritamiz (Asosiy yechim)
     const editorConfig = {
+        skin: 'moono-lisa',
         toolbar: [
-            { name: 'basicstyles', items: ['Bold', 'Italic', 'Underline', 'Subscript', 'Superscript'] },
-            { name: 'paragraph', items: ['NumberedList', 'BulletedList'] },
-            { name: 'insert', items: ['Image2', 'Table', 'SpecialChar'] },
-            { name: 'styles', items: ['Format'] },
-            { name: 'tools', items: ['Maximize'] },
-            { name: 'math', items: ['Mathjax'] }
+            ['Styles', 'Format', 'Bold', 'Italic', 'Underline', 'Strike', 'SpellChecker', 'Undo', 'Redo'],
+            ['Link', 'Unlink', 'Anchor'],
+            ['Image', 'Table', 'HorizontalRule'], 
+            ['TextColor', 'BGColor'],
+            ['Smiley', 'SpecialChar'],
+            ['Source', 'Maximize']
         ],
-        extraPlugins: 'image2,mathjax,autogrow',
-        removePlugins: 'image',
-        height: 150,
-        autoGrow_onStartup: true
+        extraPlugins: 'codesnippet,image2,autogrow', 
+        removePlugins: 'exportpdf,flash', 
+        removeButtons: 'Flash,ExportPdf', 
+        
+        // 🚀 CKEditor Yuklash Manzilini qo'shamiz - ASOSIY YECHIM!
+        filebrowserUploadUrl: '/ckeditor/upload/',
+        filebrowserBrowseUrl: '/ckeditor/browse/',
+
+        image2_alignClasses: ['image-left', 'image-center', 'image-right'],
+        image2_toolbar: ['|', 'imageTextAlternative', '|', 'imageWidth', 'imageHeight', 'imageStyle', '|', 'imageResize', 'imageResizeWidth', 'imageResizeHeight'],
+        image2_config: {'maxWidth': 800},
+        resize_enabled: true, 
+        
+        height: 150, 
+        autoGrow_onStartup: true,
+        editorplaceholder: ' ',
+        readOnly: false
     };
 
-    $(document).ready(function() {
-        const answerFormatSelect = $('#id_answer_format');
-        const optionsContainer = $('#options-container');
-        const shortAnswerFieldContainer = $('#short-answer-field-container');
-        const optionsList = $('#options-list');
-        const difficultyLevelSelect = $('#id_difficulty_level');
-        const difficultyInput = $('#id_difficulty');
-        let optionCount = parseInt($('#options-TOTAL_FORMS').val(), 10);
+    // --- Yordamchi Funksiya: HTML Entitiesni Dekodlash ---
+    function decodeHtml(html) {
+        var txt = document.createElement("textarea");
+        txt.innerHTML = html;
+        return txt.value;
+    }
 
-        // Form holatini yangilash
-        function updateForm() {
-            const selectedFormat = answerFormatSelect.val();
-            optionsContainer.addClass('hidden');
-            shortAnswerFieldContainer.addClass('hidden');
-            if (selectedFormat === 'single' || selectedFormat === 'multiple') {
-                optionsContainer.removeClass('hidden');
-                updateOptionInputs(selectedFormat);
-            } else if (selectedFormat === 'short_answer') {
-                shortAnswerFieldContainer.removeClass('hidden');
-                optionsList.find('.option-item').each(function() {
-                    const editorId = $(this).find('textarea').attr('id');
-                    if (editorId && CKEDITOR.instances[editorId]) {
-                        CKEDITOR.instances[editorId].destroy(true);
+    // --- CKEditorni O'rnatish/O'chirish Funksiyasi ---
+    function toggleCKEditor(id, enable = true, config = editorConfig) {
+        if (typeof CKEDITOR === 'undefined') {
+            return;
+        }
+        
+        if (CKEDITOR.instances[id]) {
+            CKEDITOR.instances[id].destroy(true); 
+        }
+        
+        if (enable && $('#' + id).length) {
+            try {
+                const editor = CKEDITOR.replace(id, config);
+                editor.on('instanceReady', function(evt) {
+                    if ($('#' + id).is(':visible')) {
+                        evt.editor.focus();
                     }
                 });
+            } catch (e) {
+                console.error('CKEditor replace xatosi:', e);
             }
         }
+    }
 
-        // Javob variantlarini yangilash
-        function updateOptionInputs(format) {
-            const inputType = format === 'single' ? 'radio' : 'checkbox';
-            $('.option-item').each(function() {
-                const $input = $(this).find('input[name$="is_correct"]');
-                const isChecked = $input.is(':checked');
-                const name = $input.attr('name');
-                const newInput = $(`
-                    <input type="${inputType}" name="${name}" value="true" class="form-checkbox h-5 w-5 text-indigo-600 mr-2" ${isChecked ? 'checked' : ''}>
-                `);
-                $input.replaceWith(newInput);
-            });
-        }
-
-        // Difficulty_level ga qarab difficulty ni yangilash
-        function updateDifficultyInput() {
-            const selectedLevel = difficultyLevelSelect.val();
-            if (selectedLevel === 'easy') {
-                difficultyInput.val('-1.0');
-            } else if (selectedLevel === 'medium') {
-                difficultyInput.val('0.0');
-            } else if (selectedLevel === 'hard') {
-                difficultyInput.val('1.5');
-            }
-        }
-
-        // Yangi javob varianti qo'shish
-        function addOption() {
-            if (optionCount >= 5) {
-                alert('{% trans "Maksimal 5 ta javob varianti qo'shish mumkin!"|escapejs %}');
-                return;
-            }
-            const inputType = answerFormatSelect.val() === 'single' ? 'radio' : 'checkbox';
-            const formIndex = optionCount;
-            const uniqueId = `option-text-${formIndex}-${Date.now()}`;
-            const optionDiv = $(`
-                <div class="option-item bg-gray-100 p-3 rounded-md border border-gray-200 mb-3">
-                    <div class="flex items-center mb-2">
-                        <input type="${inputType}" name="options-${formIndex}-is_correct" id="id_options-${formIndex}-is_correct" value="true" class="form-checkbox h-5 w-5 text-indigo-600 mr-2">
-                        <label class="text-gray-700 font-medium">{% trans "To'g'ri javob" %}</label>
-                        <button type="button" class="remove-option ml-auto text-red-500 hover:text-red-700">
-                            <i class="fas fa-trash-alt"></i>
-                        </button>
-                        <input type="hidden" name="options-${formIndex}-DELETE" id="id_options-${formIndex}-DELETE" value="false">
-                        <input type="hidden" name="options-${formIndex}-id" id="id_options-${formIndex}-id" value="">
-                    </div>
-                    <textarea name="options-${formIndex}-text" id="${uniqueId}" class="w-full border rounded-md p-2 focus:ring-2 focus:ring-indigo-600"></textarea>
-                </div>
-            `);
-            optionsList.append(optionDiv);
-            if (!CKEDITOR.instances[uniqueId]) {
-                CKEDITOR.replace(uniqueId, editorConfig);
-            }
-            optionCount++;
-            $('#options-TOTAL_FORMS').val(optionCount);
-        }
-
-        // Javob varianti o'chirish
-        function removeOption(event) {
-            const $optionItem = $(event.target).closest('.option-item');
-            if ($('.option-item:not(.hidden)').length > 2) {
-                const editorId = $optionItem.find('textarea').attr('id');
-                if (editorId && CKEDITOR.instances[editorId]) {
-                    CKEDITOR.instances[editorId].destroy(true);
+    // --- Formset Boshqaruvchi Funksiya: Javob Variantlari Kirish Turi ---
+    function updateOptionInputs(format) {
+        const inputType = format === 'single' ? 'radio' : 'checkbox';
+        const radioGroupName = 'single_correct_answer_radio_group';
+        
+        const correctLabelText = $.trim($('.option-item label[for]:first').text());
+        
+        $('#options-list .option-item:not(.deleted)').each(function(index) {
+            const $item = $(this);
+            const $djangoInput = $item.find(`input[name$="-is_correct"]`); 
+            
+            $item.find('.is_correct_input').remove();
+            
+            const formsetId = $djangoInput.attr('id');
+            const isChecked = $djangoInput.prop('checked') || false; 
+            
+            const newNameAttr = format === 'single' ? radioGroupName : $djangoInput.attr('name');
+            const newInput = $(`<input type="${inputType}" name="${newNameAttr}" id="${formsetId}_display" class="form-checkbox h-5 w-5 text-indigo-600 mr-2 is_correct_input" ${isChecked ? 'checked' : ''}>`);
+            
+            $item.find('.flex.items-center:first').prepend(newInput);
+            
+            $item.find('label[for]').each(function() {
+                const $label = $(this);
+                if ($.trim($label.text()) === correctLabelText) { 
+                    $label.attr('for', newInput.attr('id')); 
                 }
-                $optionItem.find('input[name$="DELETE"]').val('true');
-                $optionItem.addClass('hidden');
-                optionCount = $('.option-item:not(.hidden)').length;
-                $('#options-TOTAL_FORMS').val(optionCount);
-            } else {
-                alert('{% trans "Kamida 2 ta javob varianti bo'lishi kerak!"|escapejs %}');
-            }
-        }
-
-        // CKEditor sozlamalari
-        if (!CKEDITOR.instances['id_text']) {
-            CKEDITOR.replace('id_text', Object.assign({}, editorConfig, { height: 200 }));
-        }
-        if (!CKEDITOR.instances['id_hint']) {
-            CKEDITOR.replace('id_hint', Object.assign({}, editorConfig, { height: 150 }));
-        }
-        if (!CKEDITOR.instances['id_detailed_solution']) {
-            CKEDITOR.replace('id_detailed_solution', Object.assign({}, editorConfig, { height: 200 }));
-        }
-        $('.option-item textarea').each(function() {
-            const textareaId = $(this).attr('id');
-            if (textareaId && !CKEDITOR.instances[textareaId]) {
-                CKEDITOR.replace(textareaId, editorConfig);
-            }
-        });
-
-        // Add event listeners
-        $('#add-option').on('click', addOption);
-        $(document).on('click', '.remove-option', removeOption);
-        answerFormatSelect.on('change', updateForm).trigger('change');
-        difficultyLevelSelect.on('change', updateDifficultyInput).trigger('change');
-
-        // Formni tekshirish
-        $('#question-form').on('submit', function(e) {
-            // CKEditor instansiyalarini yangilash
-            for (const instance in CKEDITOR.instances) {
-                CKEDITOR.instances[instance].updateElement();
-            }
-            // Formset ma'lumotlarini tekshirish
-            console.log("TOTAL_FORMS:", $('#options-TOTAL_FORMS').val());
-            $('.option-item').each(function(index) {
-                const text = $(this).find('textarea').val();
-                const isCorrect = $(this).find('input[name$="is_correct"]').is(':checked');
-                const isDeleted = $(this).find('input[name$="DELETE"]').val();
-                console.log(`Option ${index}:`, {
-                    text: text,
-                    is_correct: isCorrect,
-                    DELETE: isDeleted
-                });
             });
+
+            newInput.removeClass('form-radio form-checkbox').addClass(format === 'single' ? 'form-radio' : 'form-checkbox');
         });
 
-        // Select2 sozlamalari
-        $('#id_subtopic').select2({ placeholder: "{% trans 'Mavzu izlash...' %}", theme: "classic" });
-        $('#id_passage').select2({ placeholder: "{% trans 'Matn izlash...' %}", theme: "classic" });
-        $('#id_difficulty_level').select2({ placeholder: "{% trans 'Qiyinlik darajasi...' %}", theme: "classic" });
-        $('#id_status').select2({ placeholder: "{% trans 'Status...' %}", theme: "classic" });
-        $('#id_tags').select2({
-            placeholder: "{% trans 'Teg izlash...' %}",
-            theme: "classic",
-            tags: true,
-            tokenSeparators: [',', ' ']
+        $('#options-list').off('change', '.option-item .is_correct_input');
+        $('#options-list').on('change', '.option-item .is_correct_input', function() {
+            const $item = $(this).closest('.option-item');
+            const $djangoInput = $item.find('input[name$="-is_correct"]');
+            
+            if ($(this).attr('type') === 'radio') {
+                $('#options-list .option-item:not(.deleted)').each(function() {
+                     $(this).find('input[name$="-is_correct"]').prop('checked', false);
+                });
+                $djangoInput.prop('checked', true);
+            } else {
+                $djangoInput.prop('checked', $(this).is(':checked'));
+            }
         });
-        $('#id_flashcards').select2({
-            placeholder: "{% trans 'Flashcard izlash...' %}",
-            theme: "classic",
-            ajax: {
-                url: '{% url "search_flashcards_api" %}',
-                dataType: 'json',
-                delay: 250,
-                data: function(params) {
-                    return { q: params.term };
-                },
-                processResults: function(data) {
-                    return { results: data.results };
+        
+        if (format === 'single') {
+            const checkedRadios = $('#options-list .option-item:not(.deleted) .is_correct_input[type="radio"]:checked');
+            if (checkedRadios.length > 1) {
+                checkedRadios.slice(1).prop('checked', false);
+                checkedRadios.slice(1).closest('.option-item').find('input[name$="-is_correct"]').prop('checked', false);
+            }
+        }
+    }
+
+    // --- Formset Boshqaruvchi Funksiya: Variantni O'chirish ---
+    function deleteOption(e) {
+        e.preventDefault();
+        const $item = $(this).closest('.option-item');
+        const deleteInput = $item.find('input[name$="-DELETE"]');
+        const textareaId = $item.find('textarea').attr('id');
+
+        if (confirm('{% trans "Haqiqatan ham bu javob variantini o‘chirmoqchimisiz?"|escapejs %}')) {
+            if (CKEDITOR.instances[textareaId]) {
+                CKEDITOR.instances[textareaId].setData(''); 
+            }
+            
+            $item.find('input').val('').prop('checked', false);
+            
+            $item.addClass('deleted').hide();
+            deleteInput.prop('checked', true); 
+            
+            $item.find('input[name$="-is_correct"]').prop('checked', false);
+            $item.find('.is_correct_input').prop('checked', false);
+            
+            updateOptionInputs($('#id_answer_format').val()); 
+        }
+    }
+
+
+    // --- Document Ready / Boshlang'ich Holat va Saqlash Mantiqi ---
+
+    $(document).ready(function() {
+        const optionsList = $('#options-list');
+        const answerFormatSelect = $('#id_answer_format');
+
+        // 1. SELECT2 ELEMENTLARINI TIKLASH 
+        const select2Config = { 
+            theme: "classic", 
+            width: '100%',
+            templateSelection: function(data) {
+                if (data.text) {
+                    return decodeHtml(data.text);
+                }
+                return data.text;
+            },
+            templateResult: function(data) {
+                if (data.text) {
+                    return decodeHtml(data.text);
+                }
+                return data.text;
+            }
+        };
+        
+        const multipleSelect2Config = Object.assign({}, select2Config, {});
+
+        $('#id_subtopic').select2(select2Config);
+        $('#id_tags').select2(multipleSelect2Config);
+        $('#id_flashcards').select2(multipleSelect2Config);
+        
+        answerFormatSelect.select2({theme: "classic", width: '100%', allowClear: true});
+
+
+        // 2. Asosiy editorlarni ishga tushirish (yangilangan config bilan)
+        // Har bir maydon uchun alohida balandlik berish uchun Object.assign ishlatiladi.
+        toggleCKEditor('id_text', true, Object.assign({}, editorConfig, { height: 200 }));
+        toggleCKEditor('id_hint', true, Object.assign({}, editorConfig, { height: 150 }));
+        toggleCKEditor('id_detailed_solution', true, Object.assign({}, editorConfig, { height: 200 }));
+        
+        // O'chirish eventini bog'lash
+        $('#options-list').on('click', '.remove-option', deleteOption);
+
+
+        // 3. Barcha mavjud variantlar uchun CKEditorni ishga tushirish 
+        optionsList.find('.option-item').each(function() {
+            const $item = $(this);
+            const textareaId = $item.find('textarea').attr('id');
+
+            if (!$item.hasClass('deleted')) {
+                toggleCKEditor(textareaId, true, editorConfig); // config ni uzatamiz
+            }
+            if ($item.find('input[name$="-DELETE"]').prop('checked')) {
+                 $item.addClass('deleted').hide();
+            }
+        });
+        
+        // 4. Javob formatini boshqarish 
+        answerFormatSelect.on('select2:select', function() {
+            const selectedFormat = $(this).val() || 'single';
+            
+            if (selectedFormat === 'single' || selectedFormat === 'multiple') {
+                $('#options-container').removeClass('hidden');
+                $('#short-answer-field-container').addClass('hidden');
+                
+                optionsList.find('.option-item:not(.deleted) textarea').each(function() {
+                    toggleCKEditor($(this).attr('id'), true, editorConfig);
+                });
+                updateOptionInputs(selectedFormat);
+
+            } else if (selectedFormat === 'short_answer') {
+                $('#options-container').addClass('hidden');
+                $('#short-answer-field-container').removeClass('hidden');
+                
+                optionsList.find('.option-item:not(.deleted) textarea').each(function() {
+                    toggleCKEditor($(this).attr('id'), false);
+                });
+            }
+        });
+
+        const initialFormat = answerFormatSelect.val() || 'single';
+        answerFormatSelect.val(initialFormat).trigger('change');
+        updateOptionInputs(initialFormat);
+
+        
+        // 5. Saqlashda Bo'sh Variantlarni E'tiborsiz Qoldirish Mantiqi
+        $('#question-form').on('submit', function(e) {
+            
+            for (const instance in CKEDITOR.instances) {
+                 if (!CKEDITOR.instances[instance].element.hasClass('deleted')) {
+                      CKEDITOR.instances[instance].updateElement();
+                 }
+            }
+            
+            optionsList.find('.option-item').each(function() {
+                const $item = $(this);
+                const isExplicitlyDeleted = $item.find('input[name$="-DELETE"]').prop('checked');
+                
+                if (!isExplicitlyDeleted) {
+                    const content = $item.find('textarea').val().trim(); 
+                    const strippedContent = content.replace(/<[^>]*>/g, '').trim();
+                    
+                    if (!strippedContent) {
+                        $item.find('input[name$="-DELETE"]').prop('checked', true);
+                        $item.addClass('deleted');
+                        $item.find('input[name$="-is_correct"]').prop('checked', false);
+                    }
+                }
+            });
+            
+            const answerFormat = $('#id_answer_format').val();
+            const correctOptions = $('#options-list .option-item:not(.deleted) .is_correct_input:checked').length;
+            
+            $('#options-formset-errors').text(''); 
+            
+            if ((answerFormat === 'single' || answerFormat === 'multiple') && $('#options-list .option-item:not(.deleted)').length < 2) {
+                e.preventDefault();
+                $('#options-formset-errors').text('Yagona/ko\'p javob formatida kamida ikkita to‘ldirilgan variant bo‘lishi kerak.');
+            }
+            else if (answerFormat === 'single' && correctOptions !== 1) {
+                e.preventDefault();
+                $('#options-formset-errors').text('Yagona javob formatida faqat bitta to‘g‘ri javob tanlanishi kerak.');
+            } else if (answerFormat === 'multiple' && correctOptions === 0) {
+                e.preventDefault();
+                $('#options-formset-errors').text('Bir nechta javob formatida kamida bitta to‘g‘ri javob tanlanishi kerak.');
+            }
+            
+            const radioGroupName = 'single_correct_answer_radio_group';
+            if (answerFormat === 'single') {
+                const checkedRadio = $(`input[name="${radioGroupName}"]:checked`);
+                if (checkedRadio.length) {
+                    const index = checkedRadio.closest('.option-item').index('#options-list .option-item');
+                    checkedRadio.attr('name', `answer_option-${index}-is_correct`);
                 }
             }
         });
